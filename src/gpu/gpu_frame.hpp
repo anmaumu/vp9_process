@@ -8,6 +8,7 @@
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -43,7 +44,8 @@ class GpuFrameCore : public std::enable_shared_from_this<GpuFrameCore> {
 
     GpuFrameCore(mkvc_gpu_frame_desc desc,
                  std::shared_ptr<Completion> producer,
-                 RecycleCallback recycle);
+                 RecycleCallback recycle,
+                 std::optional<mkvc_gpu_native_handle_desc> native = std::nullopt);
     const mkvc_gpu_frame_desc& desc() const noexcept { return desc_; }
     std::shared_ptr<Completion> producer_completion() const { return producer_; }
     void acquire_external();
@@ -53,6 +55,8 @@ class GpuFrameCore : public std::enable_shared_from_this<GpuFrameCore> {
     void poll_recycle() noexcept;
     uint32_t external_leases() const noexcept;
     bool recycled() const noexcept;
+    mkvc_result get_native_handle(mkvc_gpu_native_handle_desc& output,
+                                  std::string& error) const;
 
  private:
     bool completions_done_locked() const;
@@ -65,6 +69,7 @@ class GpuFrameCore : public std::enable_shared_from_this<GpuFrameCore> {
     uint32_t external_leases_ = 0;
     std::vector<std::shared_ptr<Completion>> consumers_;
     bool recycled_ = false;
+    std::optional<mkvc_gpu_native_handle_desc> native_;
 };
 
 /** Create one opaque ABI lease for a backend-owned core. */

@@ -74,8 +74,9 @@
 - [ ] NVIDIA CUDA event completion adapter
 - [ ] Intel decode→VPP→encode shared-surface pipeline
 - [ ] NVIDIA NVDEC→NVENC registered-resource pipeline
-- [ ] Intel D3D11/VA-API borrowed native handle export
-- [ ] NVIDIA CUdeviceptr/CUarray/context/event export
+- [x] backend-neutral borrowed native-handle descriptor and lease validation
+- [ ] connect Intel D3D11 texture/VA surface factories to real decoder/VPP surfaces
+- [ ] connect NVIDIA CUdeviceptr/CUarray/context/stream/event factories to mapped NVDEC surfaces
 - [ ] Intel safe USM path and NVIDIA CUDA DLPack adapters
 - [ ] NVIDIA NPP/CUDA mapping
 - [ ] Intel oneVPL VPP/D3D11/VA-API mapping

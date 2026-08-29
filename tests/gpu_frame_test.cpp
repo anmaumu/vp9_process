@@ -1,4 +1,6 @@
 #include "gpu_frame.hpp"
+#include "intel_native_handle.hpp"
+#include "nvidia_native_handle.hpp"
 
 #include <cassert>
 #include <memory>
@@ -21,6 +23,15 @@ int main() {
     desc.pitches[0] = desc.pitches[1] = 2048;
     desc.plane_offsets[1] = 2048 * 1080;
     desc.pts = 123;
+    mkvc_gpu_native_handle_desc native{};
+    native.struct_size = sizeof(native);
+    native.struct_version = 1;
+    native.type = MKVC_GPU_NATIVE_CUDA_POINTER;
+    native.borrowed = 1;
+    native.device_id = desc.device_id;
+    native.generation = desc.generation;
+    native.handles[0] = 0x12340000;
+    native.handles[1] = 0x56780000;
 
     auto producer = std::make_shared<mkvc::gpu::ManualCompletion>();
     auto consumer = std::make_shared<mkvc::gpu::ManualCompletion>();
@@ -30,7 +41,7 @@ int main() {
         desc, producer, [&](uint64_t generation) {
             ++recycled;
             recycled_generation = generation;
-        });
+        }, native);
     std::string error;
     assert(core->add_consumer(consumer, error) == MKVC_OK);
     mkvc_gpu_frame* handle = mkvc::gpu::make_handle(core);
@@ -41,6 +52,23 @@ int main() {
     copied.struct_version = 1;
     assert(mkvc_gpu_frame_get_desc(handle, &copied) == MKVC_OK);
     assert(copied.generation == 42 && copied.pitches[0] == 2048);
+    mkvc_gpu_native_handle_desc exported{};
+    exported.struct_size = sizeof(exported);
+    exported.struct_version = 1;
+    assert(mkvc_gpu_frame_get_native_handle(handle, &exported) == MKVC_OK);
+    assert(exported.borrowed == 1 && exported.handles[0] == 0x12340000);
+
+    mkvc_gpu_native_handle_desc platform{};
+    assert(mkvc::gpu::intel::make_d3d11_handle(
+        1, 2, 0x1000, 3, platform, error) == MKVC_OK);
+    assert(platform.type == MKVC_GPU_NATIVE_D3D11_TEXTURE && platform.handles[1] == 3);
+    assert(mkvc::gpu::intel::make_va_surface_handle(
+        1, 2, 0x2000, 17, platform, error) == MKVC_OK);
+    assert(platform.type == MKVC_GPU_NATIVE_VA_SURFACE && platform.handles[1] == 17);
+    assert(mkvc::gpu::nvidia::make_cuda_handle(
+        1, 2, MKVC_GPU_NATIVE_CUDA_ARRAY, 0x3000, 0x4000, 0x5000,
+        0x6000, platform, error) == MKVC_OK);
+    assert(platform.handles[0] == 0x3000 && platform.handles[3] == 0x6000);
     uint32_t status = 99;
     assert(mkvc_gpu_frame_query_completion(handle, &status) == MKVC_OK);
     assert(status == MKVC_GPU_COMPLETION_PENDING);

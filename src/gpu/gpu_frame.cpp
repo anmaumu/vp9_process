@@ -52,8 +52,10 @@ void ManualCompletion::fail(std::string error) {
 
 GpuFrameCore::GpuFrameCore(mkvc_gpu_frame_desc desc,
                            std::shared_ptr<Completion> producer,
-                           RecycleCallback recycle)
-    : desc_(desc), producer_(std::move(producer)), recycle_(std::move(recycle)) {}
+                           RecycleCallback recycle,
+                           std::optional<mkvc_gpu_native_handle_desc> native)
+    : desc_(desc), producer_(std::move(producer)), recycle_(std::move(recycle)),
+      native_(std::move(native)) {}
 
 void GpuFrameCore::acquire_external() {
     std::lock_guard<std::mutex> lock(mutex_);
@@ -107,6 +109,15 @@ uint32_t GpuFrameCore::external_leases() const noexcept {
 bool GpuFrameCore::recycled() const noexcept {
     std::lock_guard<std::mutex> lock(mutex_);
     return recycled_;
+}
+
+mkvc_result GpuFrameCore::get_native_handle(
+    mkvc_gpu_native_handle_desc& output, std::string& error) const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (recycled_) { error = "GPU frame slot is already recycled"; return MKVC_ERROR_INVALID_STATE; }
+    if (!native_) { error = "GPU frame has no exportable native handle"; return MKVC_ERROR_NOT_SUPPORTED; }
+    output = *native_;
+    return MKVC_OK;
 }
 
 mkvc_gpu_frame* make_handle(const std::shared_ptr<GpuFrameCore>& core) {
@@ -181,6 +192,21 @@ mkvc_result mkvc_gpu_frame_wait(const mkvc_gpu_frame* frame, uint32_t timeout_ms
     const mkvc_result result = frame->core->producer_completion()->wait(timeout_ms, error);
     frame->core->poll_recycle();
     return result == MKVC_OK ? result : gpu_fail(result, std::move(error));
+}
+
+mkvc_result mkvc_gpu_frame_get_native_handle(
+    const mkvc_gpu_frame* frame, mkvc_gpu_native_handle_desc* out_handle) {
+    if (!valid(frame)) return gpu_fail(MKVC_ERROR_INVALID_STATE, "invalid or released GPU frame");
+    if (out_handle == nullptr || out_handle->struct_size < sizeof(*out_handle) ||
+        out_handle->struct_version != 1) {
+        return gpu_fail(MKVC_ERROR_INVALID_ARGUMENT, "invalid native handle output");
+    }
+    std::string error;
+    mkvc_gpu_native_handle_desc value{};
+    const mkvc_result result = frame->core->get_native_handle(value, error);
+    if (result != MKVC_OK) return gpu_fail(result, std::move(error));
+    *out_handle = value;
+    return MKVC_OK;
 }
 
 }  // extern "C"

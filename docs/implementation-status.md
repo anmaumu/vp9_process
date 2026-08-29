@@ -36,6 +36,13 @@ deterministic `mkvc_gpu_frame` test covers the core of `TEST-GPU-001/002/012`;
 backend surface factories, real GPU completion adapters and hardware traces are
 still pending.
 
+The common native export ABI now describes borrowed D3D11 texture/subresource,
+VA display/surface, CUDA pointer/CUarray/context/stream/event, and USM resources
+without exposing vendor SDK types. Intel and NVIDIA descriptor factories validate
+the platform handle layout and bind device identity + pool generation to the
+lease. Connection to real decoded surfaces remains pending, so this is only the
+contract/factory subset of `TEST-GPU-003/005`.
+
 | Specification | Implementation | Verification | Status |
 |---|---|---|---|
 | `EXT-CODEC-001` / `AC-CODEC-001` | libvpx VP9 CPU encode/decode | `mkvc_cpu_vp9_encode` | synchronous I420 round-trip passing with PSNR >= 28 dB |

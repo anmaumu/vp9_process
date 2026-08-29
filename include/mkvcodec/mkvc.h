@@ -164,6 +164,33 @@ typedef struct mkvc_gpu_frame_desc {
     uint32_t color_range;
 } mkvc_gpu_frame_desc;
 
+/** Backend-specific borrowed resource kind returned through a neutral ABI. */
+typedef enum mkvc_gpu_native_handle_type {
+    MKVC_GPU_NATIVE_D3D11_TEXTURE = 1,
+    MKVC_GPU_NATIVE_VA_SURFACE = 2,
+    MKVC_GPU_NATIVE_CUDA_POINTER = 3,
+    MKVC_GPU_NATIVE_CUDA_ARRAY = 4,
+    MKVC_GPU_NATIVE_USM_POINTER = 5
+} mkvc_gpu_native_handle_type;
+
+/**
+ * @brief Borrowed native GPU resource descriptor.
+ *
+ * Values are process-local and valid only while the source mkvc_gpu_frame is
+ * retained. The library keeps ownership. Field interpretation depends on type:
+ * D3D11=(texture pointer, subresource), VA=(display, surface id),
+ * CUDA=(pointer/array, context, stream, event), USM=(pointer, context, queue).
+ */
+typedef struct mkvc_gpu_native_handle_desc {
+    uint32_t struct_size;
+    uint32_t struct_version; /**< Must be 1. */
+    uint32_t type;           /**< One mkvc_gpu_native_handle_type. */
+    uint32_t borrowed;       /**< Always nonzero in ABI version 1. */
+    uint64_t device_id;
+    uint64_t generation;
+    uint64_t handles[4];
+} mkvc_gpu_native_handle_desc;
+
 /** Thread-safe cumulative pipeline observations; initialize size and version. */
 typedef struct mkvc_pipeline_metrics {
     uint32_t struct_size;           /**< Size of this struct. */
@@ -335,6 +362,9 @@ MKVC_API mkvc_result mkvc_gpu_frame_query_completion(
 /** Wait for producer completion; UINT32_MAX means an unbounded wait. */
 MKVC_API mkvc_result mkvc_gpu_frame_wait(
     const mkvc_gpu_frame* frame, uint32_t timeout_ms);
+/** Export a borrowed process-local native resource descriptor. */
+MKVC_API mkvc_result mkvc_gpu_frame_get_native_handle(
+    const mkvc_gpu_frame* frame, mkvc_gpu_native_handle_desc* out_handle);
 
 #ifdef __cplusplus
 }
