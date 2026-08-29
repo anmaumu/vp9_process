@@ -61,4 +61,5 @@ python tools/docgen.py build
 ```
 
 Markdown中間生成物は`build/docgen-src`、HTMLは`build/docsite`へ出力されます。
+HTML siteにはDoxygenが生成するC/C++ source referenceとXMLも統合されます。
 GitHub Actionsはpushとpull requestごとに検証・HTML生成を実行し、artifactを30日保存します。

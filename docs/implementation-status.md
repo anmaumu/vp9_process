@@ -6,6 +6,8 @@
 
 - `docgen check/generate/build` validates specification IDs and generates Markdown/HTML.
 - C ABI and Python API references are extracted from source declarations.
+- Doxygen generates C/C++ HTML and XML from public/internal source comments.
+- Every exported `MKVC_API` symbol must have a Doxygen comment; missing comments fail docgen.
 - GitHub Actions builds strict MkDocs HTML and stores `mkvcodec-documentation` for 30 days.
 - GitHub Pages publication remains disabled until an explicit public-release decision.
 

@@ -1,0 +1,43 @@
+PROJECT_NAME           = "MKVCodec Native API"
+PROJECT_BRIEF          = "C ABI and C++ implementation reference"
+OUTPUT_DIRECTORY       = build/docsite/native
+CREATE_SUBDIRS         = NO
+OUTPUT_LANGUAGE        = English
+FULL_PATH_NAMES        = NO
+STRIP_FROM_PATH        = .
+
+INPUT                  = include src
+FILE_PATTERNS          = *.h *.hpp *.c *.cc *.cpp
+RECURSIVE              = YES
+EXCLUDE_PATTERNS       = */build/* */vcpkg_installed/*
+
+EXTRACT_ALL            = YES
+EXTRACT_PRIVATE        = NO
+EXTRACT_STATIC         = NO
+HIDE_UNDOC_MEMBERS     = YES
+HIDE_UNDOC_CLASSES     = NO
+SOURCE_BROWSER         = YES
+INLINE_SOURCES         = NO
+
+JAVADOC_AUTOBRIEF      = YES
+MARKDOWN_SUPPORT       = YES
+AUTOLINK_SUPPORT       = YES
+
+WARNINGS               = YES
+WARN_IF_UNDOCUMENTED   = NO
+WARN_IF_DOC_ERROR      = YES
+WARN_IF_INCOMPLETE_DOC = YES
+WARN_AS_ERROR          = FAIL_ON_WARNINGS
+
+GENERATE_HTML          = YES
+HTML_OUTPUT            = html
+GENERATE_TREEVIEW      = YES
+DISABLE_INDEX          = NO
+SEARCHENGINE           = YES
+
+GENERATE_XML           = YES
+XML_OUTPUT             = xml
+GENERATE_LATEX         = NO
+HAVE_DOT               = NO
+QUIET                  = YES
+

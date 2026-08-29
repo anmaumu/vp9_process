@@ -39,6 +39,15 @@ class DocgenTests(unittest.TestCase):
             python_api = (output / "api" / "python.md").read_text(encoding="utf-8")
             self.assertIn("VideoCapture", python_api)
 
+    def test_all_c_abi_symbols_have_doxygen_comments(self) -> None:
+        docgen.validate()
+        header = (ROOT / "include" / "mkvcodec" / "mkvc.h").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("/** Create a synchronous encoder.", header)
+        self.assertIn("WARN_AS_ERROR          = FAIL_ON_WARNINGS",
+                      (ROOT / "Doxyfile").read_text(encoding="utf-8"))
+
 
 if __name__ == "__main__":
     unittest.main()

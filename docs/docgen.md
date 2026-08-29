@@ -30,6 +30,9 @@
 | `python tools/docgen.py generate` | `build/docgen-src`へMarkdownを生成する |
 | `python tools/docgen.py build` | Markdown生成後、MkDocs strict modeで`build/docsite`へHTMLを生成する |
 
+`build`はDoxygenを必要とする。MkDocs siteは`build/docsite`、C/C++ HTMLとXMLは
+`build/docsite/native`へ統合する。
+
 ## Validation gate
 
 次の場合は終了code 1とする。
@@ -41,6 +44,8 @@
 - EXT/AC/INT/TEST IDがtraceability文書に存在しない
 - quality gateにfailureがある
 - C ABI symbolを抽出できない
+- 公開`MKVC_API` symbolにDoxygen commentがない
+- Doxygenがない、またはsource commentの解析で警告・errorがある
 - MkDocs strict buildが失敗する
 
 ## Determinism
@@ -53,4 +58,3 @@
 pushおよびpull requestでcheck、unit test、HTML buildを実行する。HTMLは
 `mkvcodec-documentation` artifactとして30日保存する。GitHub Pages公開は別の
 明示的な公開判断後に有効化する。
-
