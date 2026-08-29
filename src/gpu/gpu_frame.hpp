@@ -37,6 +37,18 @@ class ManualCompletion final : public Completion {
     std::string error_;
 };
 
+/** Polling adapter used to normalize backend event APIs in deterministic tests. */
+class CallbackCompletion final : public Completion {
+ public:
+    using Query = std::function<mkvc_result(bool&, std::string&)>;
+    explicit CallbackCompletion(Query query) : query_(std::move(query)) {}
+    mkvc_gpu_completion_status query(std::string& error) const override;
+    mkvc_result wait(uint32_t timeout_ms, std::string& error) const override;
+
+ private:
+    Query query_;
+};
+
 /** Shared ownership state behind every C/Python/C# GPU frame lease. */
 class GpuFrameCore : public std::enable_shared_from_this<GpuFrameCore> {
  public:

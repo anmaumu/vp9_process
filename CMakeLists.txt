@@ -75,6 +75,7 @@ target_include_directories(mkvcodec
 target_compile_definitions(mkvcodec PRIVATE MKVC_BUILDING_LIBRARY)
 
 if(MKVC_ENABLE_NVIDIA)
+    target_sources(mkvcodec PRIVATE src/gpu/nvidia/cuda_completion.cpp)
     target_compile_definitions(mkvcodec PRIVATE MKVC_HAS_NVIDIA=1)
     target_include_directories(mkvcodec PRIVATE
         ${nv_codec_headers_SOURCE_DIR}/include)
@@ -96,6 +97,7 @@ if(MKVC_ENABLE_CPU_VP9)
 endif()
 
 if(MKVC_ENABLE_INTEL_ONEVPL)
+    target_sources(mkvcodec PRIVATE src/gpu/intel/intel_completion.cpp)
     target_compile_definitions(mkvcodec PRIVATE MKVC_HAS_INTEL_ONEVPL=1)
     target_include_directories(mkvcodec PRIVATE ${LIBWEBM_COMPAT_INCLUDE_DIR})
     target_link_libraries(mkvcodec PRIVATE

@@ -3,6 +3,7 @@
 #include <chrono>
 #include <limits>
 #include <stdexcept>
+#include <thread>
 #include <utility>
 
 extern thread_local std::string mkvc_last_error;
@@ -48,6 +49,28 @@ void ManualCompletion::fail(std::string error) {
         status_ = MKVC_GPU_COMPLETION_FAILED;
     }
     changed_.notify_all();
+}
+
+mkvc_gpu_completion_status CallbackCompletion::query(std::string& error) const {
+    bool complete = false;
+    const mkvc_result result = query_(complete, error);
+    if (result != MKVC_OK) return MKVC_GPU_COMPLETION_FAILED;
+    return complete ? MKVC_GPU_COMPLETION_COMPLETE : MKVC_GPU_COMPLETION_PENDING;
+}
+
+mkvc_result CallbackCompletion::wait(uint32_t timeout_ms, std::string& error) const {
+    const auto started = std::chrono::steady_clock::now();
+    while (true) {
+        bool complete = false;
+        const mkvc_result result = query_(complete, error);
+        if (result != MKVC_OK || complete) return result;
+        if (timeout_ms != std::numeric_limits<uint32_t>::max() &&
+            std::chrono::steady_clock::now() - started >=
+                std::chrono::milliseconds(timeout_ms)) {
+            return MKVC_ERROR_TIMEOUT;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
 }
 
 GpuFrameCore::GpuFrameCore(mkvc_gpu_frame_desc desc,

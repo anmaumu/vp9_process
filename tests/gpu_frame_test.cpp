@@ -5,6 +5,7 @@
 #include <cassert>
 #include <memory>
 #include <string>
+#include <atomic>
 
 thread_local std::string mkvc_last_error;
 
@@ -99,5 +100,18 @@ int main() {
 
     assert(mkvc_gpu_frame_retain(nullptr) == MKVC_ERROR_INVALID_STATE);
     mkvc_gpu_frame_release(nullptr);
+
+    std::atomic<unsigned> polls{0};
+    mkvc::gpu::CallbackCompletion callback(
+        [&polls](bool& complete, std::string&) {
+            complete = ++polls >= 3;
+            return MKVC_OK;
+        });
+    assert(callback.query(error) == MKVC_GPU_COMPLETION_PENDING);
+    assert(callback.wait(50, error) == MKVC_OK);
+    assert(polls >= 3);
+    mkvc::gpu::CallbackCompletion never(
+        [](bool& complete, std::string&) { complete = false; return MKVC_OK; });
+    assert(never.wait(0, error) == MKVC_ERROR_TIMEOUT);
     return 0;
 }

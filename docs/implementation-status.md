@@ -43,6 +43,13 @@ the platform handle layout and bind device identity + pool generation to the
 lease. Connection to real decoded surfaces remains pending, so this is only the
 contract/factory subset of `TEST-GPU-003/005`.
 
+Backend completion foundations now normalize oneVPL `mfxSyncPoint` and NVIDIA
+CUDA event query into the common non-device-wide `Completion` interface. The
+polling adapter provides bounded timeout and deterministic pending/complete/error
+tests. These adapters compile in oneVPL-enabled and NVIDIA-enabled strict builds;
+they are not yet wired into decoded GPU frame factories, so hardware completion
+trace qualification remains pending.
+
 | Specification | Implementation | Verification | Status |
 |---|---|---|---|
 | `EXT-CODEC-001` / `AC-CODEC-001` | libvpx VP9 CPU encode/decode | `mkvc_cpu_vp9_encode` | synchronous I420 round-trip passing with PSNR >= 28 dB |

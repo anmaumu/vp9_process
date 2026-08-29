@@ -70,8 +70,8 @@
 - [x] CPU resize/crop/basic 8-bit conversion/rotate/flip/contain/cover subset
 - [x] common `mkvc_gpu_frame` metadata, retain/release lease, generation and producer query/wait C ABI foundation
 - [ ] backend frame factories, consumer dependency registration and bounded GPU surface pool integration
-- [ ] Intel SyncPoint/D3D11 fence/VA completion adapters
-- [ ] NVIDIA CUDA event completion adapter
+- [x] oneVPL SyncPoint and NVIDIA CUDA event completion adapter foundations
+- [ ] connect completion adapters to decode/VPP/encode surface factories; add D3D11 fence/VA synchronization
 - [ ] Intel decode→VPP→encode shared-surface pipeline
 - [ ] NVIDIA NVDEC→NVENC registered-resource pipeline
 - [x] backend-neutral borrowed native-handle descriptor and lease validation
