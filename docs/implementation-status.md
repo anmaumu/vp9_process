@@ -29,10 +29,9 @@ Status: `PARTIAL`
 | `TEST-CONT-001` | independent decode and metadata verification | FFmpeg + ffprobe | VP9 WebM encode case passing |
 | `TEST-CODEC-001` | VP9 encode/decode round-trip with quality metrics | internal decode and Y-PSNR >= 28 dB | SSIM pending |
 
-Current limitation: the first decoder implementation loads encoded packets during create.
-It is intentionally bounded to the synchronous vertical slice and will be replaced by an
-incremental demux cursor before large-file/performance acceptance. Until then, one packet is
-limited to 256 MiB and aggregate encoded packet storage to 1 GiB.
+The decoder keeps a libwebm cluster/block/frame cursor and reads compressed packets
+incrementally. One compressed packet is limited to 256 MiB. The synchronous API has no
+prefetch queue yet; bounded asynchronous prefetch is tracked separately.
 
 ## Verified dependency baseline
 

@@ -82,6 +82,20 @@ def main() -> None:
         assert decoded is not None
         assert abs(float(decoded.y.mean()) - expected_blue_y) <= 5
 
+        long_path = os.path.join(directory, "long.webm")
+        y = np.full((height, width), 96, np.uint8)
+        u = np.full((height // 2, width // 2), 128, np.uint8)
+        v = np.full((height // 2, width // 2), 128, np.uint8)
+        with mkvcodec.VideoWriter(
+            long_path, fps=30, frame_size=(width, height), quality=40
+        ) as writer:
+            for index in range(1000):
+                y[0, 0] = index & 0xFF
+                writer.write((y, u, v))
+        with mkvcodec.VideoCapture(long_path) as capture:
+            decoded_count = sum(1 for _ in capture)
+        assert decoded_count == 1000
+
 
 if __name__ == "__main__":
     main()

@@ -7,7 +7,9 @@
 #include <webm/mkvparser/mkvreader.h>
 #endif
 
+#include <algorithm>
 #include <cstring>
+#include <list>
 #include <limits>
 #include <utility>
 
@@ -22,9 +24,15 @@ struct CpuVp9Decoder::Impl {
     vpx_codec_ctx_t codec{};
     bool codec_initialized = false;
     vpx_codec_iter_t iterator = nullptr;
-    std::vector<Packet> packets;
+    std::unique_ptr<mkvparser::MkvReader> reader;
+    std::unique_ptr<mkvparser::Segment> segment;
+    const mkvparser::Cluster* cluster = nullptr;
+    const mkvparser::BlockEntry* block_entry = nullptr;
+    int block_frame_index = 0;
+    long video_track = 0;
+    std::list<Packet> submitted_packets;
 #endif
-    size_t next_packet = 0;
+    bool demux_eos = false;
     bool drained = false;
     bool closed = false;
 };
@@ -39,98 +47,103 @@ CpuVp9Decoder::~CpuVp9Decoder() {
 #if defined(MKVC_HAS_CPU_VP9)
 namespace {
 
-bool load_packets(const char* path, std::vector<CpuVp9Decoder::Impl::Packet>& packets,
-                  std::string& error) {
-    constexpr uint64_t max_packet_bytes = 256ULL * 1024 * 1024;
-    constexpr uint64_t max_total_packet_bytes = 1024ULL * 1024 * 1024;
-    uint64_t total_packet_bytes = 0;
-    mkvparser::MkvReader reader;
-    if (reader.Open(path) != 0) {
+bool open_parser(const char* path, CpuVp9Decoder::Impl& impl,
+                 std::string& error) {
+    impl.reader = std::make_unique<mkvparser::MkvReader>();
+    if (impl.reader->Open(path) != 0) {
         error = "failed to open Matroska/WebM input";
         return false;
     }
     long long position = 0;
     mkvparser::EBMLHeader header;
-    if (header.Parse(&reader, position) != 0) {
+    if (header.Parse(impl.reader.get(), position) != 0) {
         error = "invalid EBML header";
         return false;
     }
     mkvparser::Segment* raw_segment = nullptr;
-    if (mkvparser::Segment::CreateInstance(&reader, position, raw_segment) != 0 ||
+    if (mkvparser::Segment::CreateInstance(impl.reader.get(), position,
+                                           raw_segment) != 0 ||
         raw_segment == nullptr) {
         error = "failed to create libwebm parser";
         return false;
     }
-    std::unique_ptr<mkvparser::Segment> segment(raw_segment);
-    if (segment->Load() < 0) {
+    impl.segment.reset(raw_segment);
+    if (impl.segment->Load() < 0) {
         error = "failed to load Matroska/WebM segment";
         return false;
     }
 
-    const mkvparser::Tracks* tracks = segment->GetTracks();
+    const mkvparser::Tracks* tracks = impl.segment->GetTracks();
     if (tracks == nullptr) {
         error = "input contains no tracks";
         return false;
     }
-    long video_track = 0;
     for (unsigned long index = 0; index < tracks->GetTracksCount(); ++index) {
         const mkvparser::Track* track = tracks->GetTrackByIndex(index);
         if (track != nullptr && track->GetType() == mkvparser::Track::kVideo &&
             track->GetCodecId() != nullptr &&
             std::strcmp(track->GetCodecId(), "V_VP9") == 0) {
-            video_track = track->GetNumber();
+            impl.video_track = track->GetNumber();
             break;
         }
     }
-    if (video_track == 0) {
+    if (impl.video_track == 0) {
         error = "input has no VP9 video track";
         return false;
     }
 
-    for (const mkvparser::Cluster* cluster = segment->GetFirst();
-         cluster != nullptr && !cluster->EOS(); cluster = segment->GetNext(cluster)) {
-        const mkvparser::BlockEntry* entry = nullptr;
-        if (cluster->GetFirst(entry) < 0) {
-            error = "failed to read first cluster block";
-            return false;
+    impl.cluster = impl.segment->GetFirst();
+    return true;
+}
+
+mkvc_result read_next_packet(CpuVp9Decoder::Impl& impl,
+                             CpuVp9Decoder::Impl::Packet& packet,
+                             std::string& error) {
+    constexpr uint64_t max_packet_bytes = 256ULL * 1024 * 1024;
+    while (impl.cluster != nullptr && !impl.cluster->EOS()) {
+        if (impl.block_entry == nullptr) {
+            if (impl.cluster->GetFirst(impl.block_entry) < 0) {
+                error = "failed to read first cluster block";
+                return MKVC_ERROR_IO;
+            }
+            impl.block_frame_index = 0;
         }
-        while (entry != nullptr && !entry->EOS()) {
-            const mkvparser::Block* block = entry->GetBlock();
-            if (block != nullptr && block->GetTrackNumber() == video_track) {
-                const int64_t pts_ns = block->GetTime(cluster);
-                for (int index = 0; index < block->GetFrameCount(); ++index) {
-                    const auto& source = block->GetFrame(index);
+        while (impl.block_entry != nullptr && !impl.block_entry->EOS()) {
+            const mkvparser::Block* block = impl.block_entry->GetBlock();
+            if (block != nullptr &&
+                block->GetTrackNumber() == impl.video_track) {
+                while (impl.block_frame_index < block->GetFrameCount()) {
+                    const auto& source =
+                        block->GetFrame(impl.block_frame_index++);
                     if (source.len <= 0 ||
                         static_cast<uint64_t>(source.len) > max_packet_bytes ||
                         static_cast<uint64_t>(source.len) >
-                            std::numeric_limits<size_t>::max() ||
-                        total_packet_bytes >
-                            max_total_packet_bytes - static_cast<uint64_t>(source.len)) {
+                            std::numeric_limits<size_t>::max()) {
                         error = "invalid encoded frame size";
-                        return false;
+                        return MKVC_ERROR_IO;
                     }
-                    CpuVp9Decoder::Impl::Packet packet;
                     packet.data.resize(static_cast<size_t>(source.len));
-                    if (source.Read(&reader, packet.data.data()) != 0) {
+                    if (source.Read(impl.reader.get(), packet.data.data()) != 0) {
                         error = "failed to read encoded VP9 frame";
-                        return false;
+                        return MKVC_ERROR_IO;
                     }
-                    packet.pts_ns = pts_ns;
-                    total_packet_bytes += static_cast<uint64_t>(source.len);
-                    packets.push_back(std::move(packet));
+                    packet.pts_ns = block->GetTime(impl.cluster);
+                    return MKVC_OK;
                 }
             }
-            if (cluster->GetNext(entry, entry) < 0) {
+            const mkvparser::BlockEntry* next = nullptr;
+            if (impl.cluster->GetNext(impl.block_entry, next) < 0) {
                 error = "failed to advance cluster block";
-                return false;
+                return MKVC_ERROR_IO;
             }
+            impl.block_entry = next;
+            impl.block_frame_index = 0;
         }
+        impl.cluster = impl.segment->GetNext(impl.cluster);
+        impl.block_entry = nullptr;
     }
-    if (packets.empty()) {
-        error = "VP9 track contains no frames";
-        return false;
-    }
-    return true;
+    impl.demux_eos = true;
+    return MKVC_END_OF_STREAM;
 }
 
 std::unique_ptr<DecodedFrame> copy_image(const vpx_image_t& image,
@@ -175,7 +188,7 @@ std::unique_ptr<CpuVp9Decoder> CpuVp9Decoder::create(
     return nullptr;
 #else
     auto decoder = std::unique_ptr<CpuVp9Decoder>(new CpuVp9Decoder());
-    if (!load_packets(config.input_path_utf8, decoder->impl_->packets, error)) {
+    if (!open_parser(config.input_path_utf8, *decoder->impl_, error)) {
         return nullptr;
     }
     vpx_codec_dec_cfg_t codec_config{};
@@ -204,17 +217,37 @@ mkvc_result CpuVp9Decoder::read(std::unique_ptr<DecodedFrame>& frame,
     }
     while (true) {
         if (vpx_image_t* image = vpx_codec_get_frame(&impl.codec, &impl.iterator)) {
-            const int64_t pts_ns = image->user_priv == nullptr
-                ? 0
-                : *static_cast<const int64_t*>(image->user_priv);
+            const auto* pts_pointer =
+                static_cast<const int64_t*>(image->user_priv);
+            const int64_t pts_ns = pts_pointer == nullptr ? 0 : *pts_pointer;
             frame = copy_image(*image, pts_ns, error);
+            if (pts_pointer != nullptr) {
+                const auto submitted = std::find_if(
+                    impl.submitted_packets.begin(), impl.submitted_packets.end(),
+                    [pts_pointer](const Impl::Packet& packet) {
+                        return &packet.pts_ns == pts_pointer;
+                    });
+                if (submitted != impl.submitted_packets.end()) {
+                    impl.submitted_packets.erase(submitted);
+                }
+            }
             return frame ? MKVC_OK : MKVC_ERROR_NOT_SUPPORTED;
         }
-        if (impl.next_packet < impl.packets.size()) {
-            auto& packet = impl.packets[impl.next_packet++];
-            if (vpx_codec_decode(&impl.codec, packet.data.data(),
-                                 static_cast<unsigned int>(packet.data.size()),
-                                 &packet.pts_ns, 0) != VPX_CODEC_OK) {
+        if (!impl.demux_eos) {
+            Impl::Packet packet;
+            const mkvc_result demux_result =
+                read_next_packet(impl, packet, error);
+            if (demux_result != MKVC_OK) {
+                if (demux_result != MKVC_END_OF_STREAM) {
+                    return demux_result;
+                }
+                continue;
+            }
+            impl.submitted_packets.push_back(std::move(packet));
+            auto& submitted = impl.submitted_packets.back();
+            if (vpx_codec_decode(&impl.codec, submitted.data.data(),
+                                 static_cast<unsigned int>(submitted.data.size()),
+                                 &submitted.pts_ns, 0) != VPX_CODEC_OK) {
                 error = vpx_codec_error_detail(&impl.codec)
                             ? vpx_codec_error_detail(&impl.codec)
                             : vpx_codec_error(&impl.codec);
@@ -246,7 +279,12 @@ mkvc_result CpuVp9Decoder::close(std::string& error) {
         vpx_codec_destroy(&impl_->codec);
         impl_->codec_initialized = false;
     }
-    impl_->packets.clear();
+    impl_->submitted_packets.clear();
+    impl_->segment.reset();
+    if (impl_->reader) {
+        impl_->reader->Close();
+        impl_->reader.reset();
+    }
 #endif
     impl_->closed = true;
     return MKVC_OK;
