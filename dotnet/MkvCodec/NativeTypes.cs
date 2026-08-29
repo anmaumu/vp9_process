@@ -18,6 +18,7 @@ public enum MkvResult : uint
 
 public enum MkvBackend : uint { Cpu = 1, Nvidia = 2, Intel = 3 }
 public enum MkvCodecKind : uint { Vp9 = 1, Av1 = 2 }
+public enum MkvPixelFormat : uint { I420 = 1, Nv12 = 2, Bgr24 = 3, Rgb24 = 4, Bgra32 = 5 }
 
 [StructLayout(LayoutKind.Sequential)]
 public struct MkvVersion
@@ -85,4 +86,23 @@ internal struct NativeDecoderConfig
     internal uint Backend;
     internal uint Threads;
     internal uint Prefetch;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+internal unsafe struct NativeFrameView
+{
+    internal uint StructSize;
+    internal uint StructVersion;
+    internal uint PixelFormat;
+    internal uint Width;
+    internal uint Height;
+    internal nint Plane0;
+    internal nint Plane1;
+    internal nint Plane2;
+    internal nint Plane3;
+    internal int Stride0;
+    internal int Stride1;
+    internal int Stride2;
+    internal int Stride3;
+    internal long Pts;
 }

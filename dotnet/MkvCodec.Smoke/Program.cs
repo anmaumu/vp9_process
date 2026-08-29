@@ -21,3 +21,36 @@ foreach (MkvBackendCapability capability in capabilities)
 }
 
 Console.WriteLine($"mkvcodec ABI {version.AbiVersion}: {capabilities.Count} capabilities");
+
+string path = Path.Combine(Path.GetTempPath(), $"mkvcodec-dotnet-{Guid.NewGuid():N}.webm");
+try
+{
+    const uint width = 64, height = 48;
+    byte[] y = new byte[width * height];
+    byte[] u = new byte[width * height / 4];
+    byte[] v = new byte[width * height / 4];
+    Array.Fill(u, (byte)96);
+    Array.Fill(v, (byte)160);
+    using (var writer = new MkvVideoWriter(path, width, height, queueSize: 2))
+    {
+        for (int frame = 0; frame < 10; ++frame)
+        {
+            Array.Fill(y, checked((byte)(64 + frame)));
+            writer.WriteI420(y, u, v);
+        }
+        writer.Flush();
+    }
+    using var capture = new MkvVideoCapture(path, prefetch: 2);
+    int count = 0;
+    long previousPts = -1;
+    while (capture.ReadI420() is { } frame)
+    {
+        if (frame.Width != width || frame.Height != height ||
+            frame.PtsNanoseconds <= previousPts || frame.Y.Length != width * height)
+            throw new InvalidOperationException("Invalid .NET decoded frame");
+        previousPts = frame.PtsNanoseconds;
+        ++count;
+    }
+    if (count != 10) throw new InvalidOperationException(".NET frame count mismatch");
+}
+finally { if (File.Exists(path)) File.Delete(path); }

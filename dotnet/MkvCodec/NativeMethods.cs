@@ -33,6 +33,17 @@ internal static class NativeMethods
     internal static extern nint mkvc_get_last_error();
 
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern MkvResult mkvc_encoder_create(
+        ref NativeEncoderConfig config, out MkvEncoderHandle encoder);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern MkvResult mkvc_encoder_write_frame(
+        MkvEncoderHandle encoder, ref NativeFrameView frame);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern MkvResult mkvc_encoder_flush(MkvEncoderHandle encoder);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
     internal static extern MkvResult mkvc_encoder_close(nint encoder);
 
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
@@ -41,6 +52,14 @@ internal static class NativeMethods
 
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
     internal static extern void mkvc_encoder_destroy(nint encoder);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern MkvResult mkvc_decoder_create(
+        ref NativeDecoderConfig config, out MkvDecoderHandle decoder);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern MkvResult mkvc_decoder_read(
+        MkvDecoderHandle decoder, out MkvFrameHandle frame);
 
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
     internal static extern MkvResult mkvc_decoder_close(nint decoder);
@@ -54,4 +73,8 @@ internal static class NativeMethods
 
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
     internal static extern void mkvc_frame_release(nint frame);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern MkvResult mkvc_frame_get_view(
+        MkvFrameHandle frame, ref NativeFrameView view);
 }

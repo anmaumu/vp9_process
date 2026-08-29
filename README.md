@@ -21,8 +21,8 @@ Intel oneVPLによるVP9/AV1 WebM encode/decodeはC ABIとPython Writer/Capture�
 選択でき、Linux Intel GPU実機で検証済みです。NVIDIA NVDEC Captureは
 C ABI/Pythonから選択でき、Windows RTX 2060でVP9を検証済みです。
 NVIDIA AV1 decodeの対応GPU検証、NVENC Writer、10-bit public frame APIは未完です。
-薄い.NET 8 P/Invoke bindingではABI version/capability query、型付きerror、
-encoder/decoder/frame用SafeHandleとLinux native load smokeを実装済みです。
+.NET 8 bindingではABI version/capability query、型付きerror、SafeHandleに加え、
+`IDisposable`な`MkvVideoWriter`/`MkvVideoCapture`とowned I420 frameを実装済みです。
 利用可能と報告される機能は、実装済みbackendだけに限定します。
 Intel capabilityはruntime Queryに成功したcodec/directionだけを公開します。
 Windows NVIDIA VP9 decodeを実GPU検証済みです。Windows Intel GPU検証は未完です。
