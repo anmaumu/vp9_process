@@ -27,6 +27,7 @@ Status: `PARTIAL`
 | `EXT-DEC-001/005` | create/read/EOS/idempotent close/destroy | `mkvc_cpu_vp9_encode` | synchronous C ABI subset complete |
 | `EXT-DEC-001/005` Python | context manager, BGR iterator, `None`/StopIteration EOS | `mkvc_python_roundtrip` | synchronous CPU subset complete |
 | `EXT-DEC-002` | `read_bgr`, `read_i420`, `read_nv12` plus RGB/BGRA | `mkvc_python_roundtrip` | synchronous CPU outputs complete |
+| `EXT-DEC-004` | `prefetch=0` synchronous and positive bounded native read-ahead | native/Python round-trip and early close | CPU decoder complete |
 | `EXT-ENC-001/002/005` Python | context manager; BGR default; RGB/BGRA/I420/NV12 safe write | `mkvc_python_roundtrip` | synchronous CPU input formats complete |
 | `INT-CPU-002` | libyuv BGR/RGB/BGRA/NV12 conversion | known-color and padded-stride round-trip | complete for 8-bit formats |
 | `TEST-ENC-001` | dtype/shape/positive and negative stride validation | `mkvc_python_roundtrip` | supported CPU input formats passing |
@@ -41,7 +42,7 @@ Status: `PARTIAL`
 
 The decoder keeps a libwebm cluster/block/frame cursor and reads compressed packets
 incrementally. One compressed packet is limited to 256 MiB. The synchronous API has no
-prefetch queue yet; bounded asynchronous prefetch is tracked separately.
+unbounded storage; positive `prefetch` uses a fixed-capacity native worker queue.
 
 ## Verified dependency baseline
 

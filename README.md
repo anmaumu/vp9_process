@@ -41,7 +41,7 @@ with mkvcodec.VideoWriter(
     writer.write(bgr_ndarray)                 # OpenCV-style BGR
     writer.write((y_plane, u_plane, v_plane)) # I420
 
-with mkvcodec.VideoCapture("output.webm") as capture:
+with mkvcodec.VideoCapture("output.webm", prefetch=4) as capture:
     bgr_frame = capture.read()       # or read_bgr()
     pts_ns = capture.last_pts_ns
 ```
@@ -53,6 +53,7 @@ CPU WriterはBGR、RGB、BGRA、I420、NV12を受け付け、libyuvでI420へ変
 RGB系やNV12を明示するときは`write_rgb`、`write_bgra`、`write_nv12`を使用します。
 Captureの既定`read()`とiteratorはBGR ndarrayを返します。`read_i420`、
 `read_rgb`、`read_bgra`、`read_nv12`も選択できます。
+`prefetch=0`は同期decode、正数はnative側の固定容量先読みqueueを使用します。
 
 ## Documentation generation
 

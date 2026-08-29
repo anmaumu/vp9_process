@@ -42,6 +42,7 @@ class DecoderConfig(ct.Structure):
         ("codec", ct.c_uint32),
         ("backend", ct.c_uint32),
         ("threads", ct.c_uint32),
+        ("prefetch", ct.c_uint32),
     ]
 
 

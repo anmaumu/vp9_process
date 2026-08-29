@@ -28,7 +28,7 @@ def main() -> None:
                 v = np.full((height // 2, width // 2), 160 - index, np.uint8)
                 writer.write((y, u, v))
 
-        with mkvcodec.VideoCapture(path) as capture:
+        with mkvcodec.VideoCapture(path, prefetch=0) as capture:
             frames = []
             while True:
                 frame = capture.read_i420()
@@ -41,6 +41,14 @@ def main() -> None:
         assert [frame.pts_ns for frame in frames] == sorted(
             frame.pts_ns for frame in frames
         )
+        with mkvcodec.VideoCapture(path, prefetch=4) as capture:
+            prefetched = list(capture)
+        assert len(prefetched) == 30
+        assert prefetched[0].shape == (height, width, 3)
+        capture = mkvcodec.VideoCapture(path, prefetch=1)
+        assert capture.read_bgr() is not None
+        capture.close()
+        capture.close()
 
         expected_blue_y = 41
         packed_cases = {

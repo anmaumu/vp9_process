@@ -103,6 +103,7 @@ int main(int argc, char** argv) {
     decoder_config.input_path_utf8 = output_path.c_str();
     decoder_config.codec = MKVC_CODEC_VP9;
     decoder_config.backend = MKVC_BACKEND_CPU;
+    decoder_config.prefetch = 2;
 
     mkvc_decoder* decoder = nullptr;
     require_ok(mkvc_decoder_create(&decoder_config, &decoder));

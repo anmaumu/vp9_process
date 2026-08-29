@@ -7,10 +7,14 @@
 
 #include <algorithm>
 #include <atomic>
+#include <condition_variable>
+#include <deque>
 #include <exception>
 #include <memory>
 #include <limits>
+#include <mutex>
 #include <string>
+#include <thread>
 
 struct mkvc_encoder {
     std::unique_ptr<mkvc::CpuVp9Encoder> implementation;
@@ -18,6 +22,16 @@ struct mkvc_encoder {
 
 struct mkvc_decoder {
     std::unique_ptr<mkvc::CpuVp9Decoder> implementation;
+    std::mutex mutex;
+    std::condition_variable not_empty;
+    std::condition_variable not_full;
+    std::deque<std::unique_ptr<mkvc::DecodedFrame>> queue;
+    std::thread worker;
+    size_t capacity = 0;
+    bool stop_requested = false;
+    bool worker_finished = false;
+    mkvc_result worker_result = MKVC_OK;
+    std::string worker_error;
 };
 
 struct mkvc_frame {
@@ -31,6 +45,71 @@ thread_local std::string last_error;
 mkvc_result fail(mkvc_result result, std::string message) {
     last_error = std::move(message);
     return result;
+}
+
+void decoder_worker(mkvc_decoder* decoder) noexcept {
+    try {
+        while (true) {
+            {
+                std::unique_lock<std::mutex> lock(decoder->mutex);
+                decoder->not_full.wait(lock, [decoder] {
+                    return decoder->stop_requested ||
+                           decoder->queue.size() < decoder->capacity;
+                });
+                if (decoder->stop_requested) {
+                    return;
+                }
+            }
+
+            std::unique_ptr<mkvc::DecodedFrame> frame;
+            std::string error;
+            const mkvc_result result =
+                decoder->implementation->read(frame, error);
+            std::lock_guard<std::mutex> lock(decoder->mutex);
+            if (decoder->stop_requested) {
+                return;
+            }
+            if (result == MKVC_OK) {
+                decoder->queue.push_back(std::move(frame));
+                decoder->not_empty.notify_one();
+                continue;
+            }
+            decoder->worker_result = result;
+            decoder->worker_error = std::move(error);
+            decoder->worker_finished = true;
+            decoder->not_empty.notify_all();
+            return;
+        }
+    } catch (const std::exception& exception) {
+        std::lock_guard<std::mutex> lock(decoder->mutex);
+        decoder->worker_result = MKVC_ERROR_INTERNAL;
+        decoder->worker_error = exception.what();
+        decoder->worker_finished = true;
+        decoder->not_empty.notify_all();
+    } catch (...) {
+        std::lock_guard<std::mutex> lock(decoder->mutex);
+        decoder->worker_result = MKVC_ERROR_INTERNAL;
+        decoder->worker_error = "unknown decoder prefetch failure";
+        decoder->worker_finished = true;
+        decoder->not_empty.notify_all();
+    }
+}
+
+void stop_decoder_worker(mkvc_decoder* decoder) noexcept {
+    if (decoder == nullptr || decoder->capacity == 0) {
+        return;
+    }
+    {
+        std::lock_guard<std::mutex> lock(decoder->mutex);
+        decoder->stop_requested = true;
+        decoder->not_empty.notify_all();
+        decoder->not_full.notify_all();
+    }
+    if (decoder->worker.joinable()) {
+        decoder->worker.join();
+    }
+    std::lock_guard<std::mutex> lock(decoder->mutex);
+    decoder->queue.clear();
 }
 }  // namespace
 
@@ -203,6 +282,10 @@ mkvc_result mkvc_decoder_create(const mkvc_decoder_config* config,
         }
         auto handle = std::make_unique<mkvc_decoder>();
         handle->implementation = std::move(implementation);
+        handle->capacity = config->prefetch;
+        if (handle->capacity > 0) {
+            handle->worker = std::thread(decoder_worker, handle.get());
+        }
         *out_decoder = handle.release();
         return MKVC_OK;
     } catch (const std::exception& exception) {
@@ -221,6 +304,38 @@ mkvc_result mkvc_decoder_read(mkvc_decoder* decoder, mkvc_frame** out_frame) {
         return fail(MKVC_ERROR_INVALID_ARGUMENT, "invalid decoder or frame output");
     }
     try {
+        if (decoder->capacity > 0) {
+            std::unique_ptr<mkvc::DecodedFrame> decoded;
+            mkvc_result result = MKVC_OK;
+            std::string error;
+            {
+                std::unique_lock<std::mutex> lock(decoder->mutex);
+                decoder->not_empty.wait(lock, [decoder] {
+                    return decoder->stop_requested || !decoder->queue.empty() ||
+                           decoder->worker_finished;
+                });
+                if (decoder->stop_requested) {
+                    return fail(MKVC_ERROR_INVALID_STATE, "decoder is closing");
+                }
+                if (!decoder->queue.empty()) {
+                    decoded = std::move(decoder->queue.front());
+                    decoder->queue.pop_front();
+                    decoder->not_full.notify_one();
+                } else {
+                    result = decoder->worker_result;
+                    error = decoder->worker_error;
+                }
+            }
+            if (!decoded) {
+                return result == MKVC_END_OF_STREAM
+                    ? result
+                    : fail(result, std::move(error));
+            }
+            auto frame = std::make_unique<mkvc_frame>();
+            frame->implementation = std::move(decoded);
+            *out_frame = frame.release();
+            return MKVC_OK;
+        }
         std::string error;
         std::unique_ptr<mkvc::DecodedFrame> decoded;
         const mkvc_result result = decoder->implementation->read(decoded, error);
@@ -247,6 +362,7 @@ mkvc_result mkvc_decoder_close(mkvc_decoder* decoder) {
         return fail(MKVC_ERROR_INVALID_ARGUMENT, "decoder is null");
     }
     try {
+        stop_decoder_worker(decoder);
         std::string error;
         const mkvc_result result = decoder->implementation->close(error);
         return result == MKVC_OK ? result : fail(result, std::move(error));
@@ -259,6 +375,11 @@ mkvc_result mkvc_decoder_close(mkvc_decoder* decoder) {
 
 void mkvc_decoder_destroy(mkvc_decoder* decoder) {
     try {
+        if (decoder != nullptr) {
+            stop_decoder_worker(decoder);
+            std::string ignored;
+            decoder->implementation->close(ignored);
+        }
         delete decoder;
     } catch (...) {
     }

@@ -201,6 +201,7 @@ class VideoCapture(Iterator[U8Plane]):
         codec: str = "vp9",
         backend: str = "cpu",
         threads: int = 0,
+        prefetch: int = 4,
     ) -> None:
         if codec != "vp9" or backend != "cpu":
             raise ValueError("the current Python slice supports codec='vp9', backend='cpu'")
@@ -212,6 +213,9 @@ class VideoCapture(Iterator[U8Plane]):
         config.codec = native.MKVC_CODEC_VP9
         config.backend = native.MKVC_BACKEND_CPU
         config.threads = threads
+        if prefetch < 0:
+            raise ValueError("prefetch must be zero or positive")
+        config.prefetch = prefetch
         self._handle = native.DecoderHandle()
         native.check(native.lib.mkvc_decoder_create(ct.byref(config), ct.byref(self._handle)))
         self._closed = False

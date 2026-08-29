@@ -149,6 +149,7 @@ typedef struct mkvc_decoder_config {
     uint32_t codec;               /**< Requested mkvc_codec. */
     uint32_t backend;             /**< Requested mkvc_backend. */
     uint32_t threads;             /**< Zero selects codec default. */
+    uint32_t prefetch;            /**< Zero is synchronous; positive values bound the read-ahead queue. */
 } mkvc_decoder_config;
 
 /** Query the loaded library version. */
