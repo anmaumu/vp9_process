@@ -50,6 +50,12 @@ tests. These adapters compile in oneVPL-enabled and NVIDIA-enabled strict builds
 they are not yet wired into decoded GPU frame factories, so hardware completion
 trace qualification remains pending.
 
+`GpuFramePool` now enforces a fixed slot capacity, monotonically increasing slot
+generation, `WOULD_BLOCK` backpressure, peak usage metrics and generation-matched
+single recycle. Producer completion alone cannot recycle a slot while an external
+lease or consumer completion remains. This is the deterministic foundation for
+`TEST-GPU-001/002/014`; VRAM allocation and long hardware soak remain pending.
+
 | Specification | Implementation | Verification | Status |
 |---|---|---|---|
 | `EXT-CODEC-001` / `AC-CODEC-001` | libvpx VP9 CPU encode/decode | `mkvc_cpu_vp9_encode` | synchronous I420 round-trip passing with PSNR >= 28 dB |

@@ -1,4 +1,5 @@
 #include "gpu_frame.hpp"
+#include "gpu_frame_pool.hpp"
 #include "intel_native_handle.hpp"
 #include "nvidia_native_handle.hpp"
 
@@ -113,5 +114,33 @@ int main() {
     mkvc::gpu::CallbackCompletion never(
         [](bool& complete, std::string&) { complete = false; return MKVC_OK; });
     assert(never.wait(0, error) == MKVC_ERROR_TIMEOUT);
+
+    auto pool = std::make_shared<mkvc::gpu::GpuFramePool>(2);
+    auto pool_done_a = std::make_shared<mkvc::gpu::ManualCompletion>();
+    auto pool_done_b = std::make_shared<mkvc::gpu::ManualCompletion>();
+    mkvc::gpu::GpuFramePool::Acquisition acquired_a;
+    mkvc::gpu::GpuFramePool::Acquisition acquired_b;
+    mkvc::gpu::GpuFramePool::Acquisition blocked;
+    assert(pool->acquire(desc, pool_done_a, native, acquired_a, error) == MKVC_OK);
+    assert(pool->acquire(desc, pool_done_b, native, acquired_b, error) == MKVC_OK);
+    assert(pool->in_use() == 2 && pool->peak_in_use() == 2);
+    assert(pool->acquire(desc, std::make_shared<mkvc::gpu::ManualCompletion>(),
+                         native, blocked, error) == MKVC_WOULD_BLOCK);
+    mkvc_gpu_frame* pooled_handle = mkvc::gpu::make_handle(acquired_a.core);
+    pool_done_a->complete();
+    acquired_a.core->poll_recycle();
+    assert(pool->in_use() == 2);  // external lease still owns slot
+    mkvc_gpu_frame_release(pooled_handle);
+    assert(pool->in_use() == 1);
+    const uint64_t first_generation = acquired_a.generation;
+    acquired_a.core.reset();
+    auto pool_done_c = std::make_shared<mkvc::gpu::ManualCompletion>();
+    assert(pool->acquire(desc, pool_done_c, native, blocked, error) == MKVC_OK);
+    assert(blocked.generation > first_generation);
+    pool_done_b->complete();
+    acquired_b.core->poll_recycle();
+    pool_done_c->complete();
+    blocked.core->poll_recycle();
+    assert(pool->in_use() == 0 && pool->peak_in_use() == 2);
     return 0;
 }
