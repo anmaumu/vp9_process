@@ -109,7 +109,7 @@ struct EncoderSession::Impl {
     enum class ItemType { kFrame, kFlush };
     struct Item {
         ItemType type = ItemType::kFrame;
-        OwnedFrame frame;
+        std::unique_ptr<OwnedFrame> frame;
         uint64_t flush_token = 0;
     };
 
@@ -122,6 +122,7 @@ struct EncoderSession::Impl {
     std::condition_variable has_space;
     std::condition_variable state_changed;
     std::deque<Item> queue;
+    std::deque<std::unique_ptr<OwnedFrame>> free_frames;
     std::thread worker;
     bool accepting = true;
     bool close_requested = false;
@@ -155,13 +156,17 @@ void encoder_worker(EncoderSession::Impl* impl) noexcept {
             std::string error;
             mkvc_result result = MKVC_OK;
             if (item.type == EncoderSession::Impl::ItemType::kFrame) {
-                const mkvc_frame_view view = item.frame.view();
+                const mkvc_frame_view view = item.frame->view();
                 result = impl->encoder->write(view, error);
             } else {
                 result = impl->encoder->flush(error);
             }
             {
                 std::lock_guard<std::mutex> lock(impl->mutex);
+                if (item.frame) {
+                    impl->free_frames.push_back(std::move(item.frame));
+                    impl->has_space.notify_all();
+                }
                 if (result != MKVC_OK) {
                     impl->failed = true;
                     impl->accepting = false;
@@ -228,6 +233,9 @@ std::unique_ptr<EncoderSession> EncoderSession::create(
     impl->width = config.width;
     impl->height = config.height;
     impl->capacity = config.queue_size;
+    for (size_t index = 0; index < impl->capacity; ++index) {
+        impl->free_frames.push_back(std::make_unique<OwnedFrame>());
+    }
     auto session =
         std::unique_ptr<EncoderSession>(new EncoderSession(std::move(impl)));
     if (session->impl_->capacity > 0) {
@@ -262,15 +270,42 @@ mkvc_result EncoderSession::write(const mkvc_frame_view& frame, bool block,
         error = "frame dimensions do not match encoder configuration";
         return MKVC_ERROR_INVALID_ARGUMENT;
     }
-    OwnedFrame owned;
-    mkvc_result result = own_frame(frame, owned, error);
+    std::unique_ptr<OwnedFrame> owned;
+    {
+        std::unique_lock<std::mutex> lock(impl_->mutex);
+        if (!block && (impl_->queue.size() >= impl_->capacity ||
+                       impl_->free_frames.empty())) {
+            return MKVC_WOULD_BLOCK;
+        }
+        if (block) {
+            impl_->has_space.wait(lock, [this] {
+                return (impl_->queue.size() < impl_->capacity &&
+                        !impl_->free_frames.empty()) ||
+                       !impl_->accepting || impl_->failed;
+            });
+        }
+        if (impl_->failed) {
+            error = impl_->terminal_error;
+            return impl_->terminal_result;
+        }
+        if (!impl_->accepting) {
+            error = "encoder is closing or closed";
+            return MKVC_ERROR_INVALID_STATE;
+        }
+        if (impl_->queue.size() >= impl_->capacity || impl_->free_frames.empty()) {
+            return MKVC_WOULD_BLOCK;
+        }
+        owned = std::move(impl_->free_frames.front());
+        impl_->free_frames.pop_front();
+    }
+    mkvc_result result = own_frame(frame, *owned, error);
     if (result != MKVC_OK) {
+        std::lock_guard<std::mutex> lock(impl_->mutex);
+        impl_->free_frames.push_back(std::move(owned));
+        impl_->has_space.notify_all();
         return result;
     }
     std::unique_lock<std::mutex> lock(impl_->mutex);
-    if (!block && impl_->queue.size() >= impl_->capacity) {
-        return MKVC_WOULD_BLOCK;
-    }
     if (block) {
         impl_->has_space.wait(lock, [this] {
             return impl_->queue.size() < impl_->capacity ||
@@ -278,14 +313,18 @@ mkvc_result EncoderSession::write(const mkvc_frame_view& frame, bool block,
         });
     }
     if (impl_->failed) {
+        impl_->free_frames.push_back(std::move(owned));
         error = impl_->terminal_error;
         return impl_->terminal_result;
     }
     if (!impl_->accepting) {
+        impl_->free_frames.push_back(std::move(owned));
         error = "encoder is closing or closed";
         return MKVC_ERROR_INVALID_STATE;
     }
     if (impl_->queue.size() >= impl_->capacity) {
+        impl_->free_frames.push_back(std::move(owned));
+        impl_->has_space.notify_all();
         return MKVC_WOULD_BLOCK;
     }
     Impl::Item item;

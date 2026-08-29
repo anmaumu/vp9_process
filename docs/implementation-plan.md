@@ -22,11 +22,11 @@
 
 ## Phase 2: asynchronous pipeline
 
-- [x] bounded encode queue（per-frame owned buffer）
+- [x] bounded encode queue and reusable owned-frame buffer pool
 - [x] blocking write / non-blocking try-write
 - [x] ordered drain、flush、finalize
 - [x] bounded prefetch decode
-- [ ] reusable buffer pool、explicit cancellation、pipeline metrics
+- [ ] explicit cancellation、pipeline metrics
 
 ## Phase 3: hardware backends
 
