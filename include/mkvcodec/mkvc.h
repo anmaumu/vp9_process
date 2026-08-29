@@ -25,7 +25,10 @@ typedef enum mkvc_result {
     MKVC_ERROR_INVALID_ARGUMENT = 1,
     MKVC_ERROR_BUFFER_TOO_SMALL = 2,
     MKVC_ERROR_NOT_SUPPORTED = 3,
-    MKVC_ERROR_INTERNAL = 4
+    MKVC_ERROR_INTERNAL = 4,
+    MKVC_ERROR_INVALID_STATE = 5,
+    MKVC_ERROR_IO = 6,
+    MKVC_ERROR_CODEC = 7
 } mkvc_result;
 
 typedef enum mkvc_backend {
@@ -57,6 +60,38 @@ typedef struct mkvc_backend_capability {
     uint8_t reserved;
 } mkvc_backend_capability;
 
+typedef enum mkvc_pixel_format {
+    MKVC_PIXEL_FORMAT_I420 = 1
+} mkvc_pixel_format;
+
+typedef struct mkvc_encoder_config {
+    uint32_t struct_size;
+    uint32_t struct_version;
+    const char* output_path_utf8;
+    uint32_t codec;
+    uint32_t backend;
+    uint32_t width;
+    uint32_t height;
+    uint32_t fps_num;
+    uint32_t fps_den;
+    uint32_t quality;
+    uint32_t keyframe_interval_frames;
+    uint32_t threads;
+} mkvc_encoder_config;
+
+typedef struct mkvc_frame_view {
+    uint32_t struct_size;
+    uint32_t struct_version;
+    uint32_t pixel_format;
+    uint32_t width;
+    uint32_t height;
+    const uint8_t* planes[4];
+    int32_t strides[4];
+    int64_t pts;
+} mkvc_frame_view;
+
+typedef struct mkvc_encoder mkvc_encoder;
+
 MKVC_API mkvc_result mkvc_get_version(mkvc_version* out_version);
 
 /* Two-call API: pass NULL to query the required element count. */
@@ -66,9 +101,21 @@ MKVC_API mkvc_result mkvc_get_backend_capabilities(
 
 MKVC_API const char* mkvc_result_string(mkvc_result result);
 
+MKVC_API mkvc_result mkvc_encoder_create(
+    const mkvc_encoder_config* config,
+    mkvc_encoder** out_encoder);
+MKVC_API mkvc_result mkvc_encoder_write_frame(
+    mkvc_encoder* encoder,
+    const mkvc_frame_view* frame);
+MKVC_API mkvc_result mkvc_encoder_flush(mkvc_encoder* encoder);
+MKVC_API mkvc_result mkvc_encoder_close(mkvc_encoder* encoder);
+MKVC_API void mkvc_encoder_destroy(mkvc_encoder* encoder);
+
+/* The returned pointer remains valid until the next API call on this thread. */
+MKVC_API const char* mkvc_get_last_error(void);
+
 #ifdef __cplusplus
 }
 #endif
 
 #endif
-

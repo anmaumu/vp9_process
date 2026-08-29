@@ -3,11 +3,13 @@
 namespace mkvc {
 
 const std::vector<mkvc_backend_capability>& backend_capabilities() {
-    // Backends register only after their codec dependency has been initialized.
-    // An empty list is safer than claiming support based on GPU model alone.
-    static const std::vector<mkvc_backend_capability> capabilities;
+    static const std::vector<mkvc_backend_capability> capabilities = {
+#if defined(MKVC_HAS_CPU_VP9)
+        {sizeof(mkvc_backend_capability), MKVC_BACKEND_CPU, MKVC_CODEC_VP9,
+         0, 1, 0, 0},
+#endif
+    };
     return capabilities;
 }
 
 }  // namespace mkvc
-

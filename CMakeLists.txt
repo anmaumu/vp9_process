@@ -3,10 +3,19 @@ cmake_minimum_required(VERSION 3.24)
 project(vp9_process VERSION 0.1.0 LANGUAGES C CXX)
 
 option(MKVC_BUILD_TESTS "Build native tests" ON)
+option(MKVC_ENABLE_CPU_VP9 "Enable the libvpx CPU VP9 backend" ON)
+
+if(MKVC_ENABLE_CPU_VP9)
+    find_package(unofficial-libvpx CONFIG REQUIRED)
+    find_package(unofficial-libwebm CONFIG REQUIRED)
+    find_path(LIBWEBM_COMPAT_INCLUDE_DIR mkvmuxer/mkvmuxer.h
+        PATH_SUFFIXES webm REQUIRED)
+endif()
 
 add_library(mkvcodec SHARED
     src/c_api.cpp
     src/backend_registry.cpp
+    src/cpu_vp9_encoder.cpp
 )
 
 target_compile_features(mkvcodec PRIVATE cxx_std_17)
@@ -16,6 +25,16 @@ target_include_directories(mkvcodec
         $<INSTALL_INTERFACE:include>
 )
 target_compile_definitions(mkvcodec PRIVATE MKVC_BUILDING_LIBRARY)
+
+if(MKVC_ENABLE_CPU_VP9)
+    target_compile_definitions(mkvcodec PRIVATE MKVC_HAS_CPU_VP9=1)
+    # libwebm's public headers include common/... relative to include/webm.
+    target_include_directories(mkvcodec PRIVATE ${LIBWEBM_COMPAT_INCLUDE_DIR})
+    target_link_libraries(mkvcodec PRIVATE
+        unofficial::libvpx::libvpx
+        unofficial::libwebm::libwebm
+    )
+endif()
 
 if(MSVC)
     target_compile_options(mkvcodec PRIVATE /W4 /permissive- /EHsc)
@@ -37,5 +56,35 @@ if(MKVC_BUILD_TESTS)
     target_compile_features(mkvc_c_api_tests PRIVATE cxx_std_17)
     target_link_libraries(mkvc_c_api_tests PRIVATE mkvcodec)
     add_test(NAME mkvc_c_api_tests COMMAND mkvc_c_api_tests)
-endif()
 
+    if(MKVC_ENABLE_CPU_VP9)
+        add_executable(mkvc_cpu_vp9_encode_test tests/cpu_vp9_encode_test.cpp)
+        target_compile_features(mkvc_cpu_vp9_encode_test PRIVATE cxx_std_17)
+        target_link_libraries(mkvc_cpu_vp9_encode_test PRIVATE mkvcodec)
+        set(MKVC_VP9_TEST_OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/cpu_vp9_test.webm")
+        add_test(NAME mkvc_cpu_vp9_encode
+            COMMAND mkvc_cpu_vp9_encode_test "${MKVC_VP9_TEST_OUTPUT}")
+        set_tests_properties(mkvc_cpu_vp9_encode PROPERTIES
+            FIXTURES_SETUP cpu_vp9_sample)
+
+        find_program(FFMPEG_EXECUTABLE ffmpeg)
+        if(FFMPEG_EXECUTABLE)
+            add_test(NAME mkvc_cpu_vp9_external_decode
+                COMMAND "${FFMPEG_EXECUTABLE}" -v error -i
+                        "${MKVC_VP9_TEST_OUTPUT}" -f null -)
+            set_tests_properties(mkvc_cpu_vp9_external_decode PROPERTIES
+                FIXTURES_REQUIRED cpu_vp9_sample)
+        endif()
+
+        find_program(FFPROBE_EXECUTABLE ffprobe)
+        if(FFPROBE_EXECUTABLE)
+            add_test(NAME mkvc_cpu_vp9_metadata
+                COMMAND ${CMAKE_COMMAND}
+                    -DFFPROBE_EXECUTABLE=${FFPROBE_EXECUTABLE}
+                    -DINPUT_FILE=${MKVC_VP9_TEST_OUTPUT}
+                    -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/verify_vp9_webm.cmake)
+            set_tests_properties(mkvc_cpu_vp9_metadata PROPERTIES
+                FIXTURES_REQUIRED cpu_vp9_sample)
+        endif()
+    endif()
+endif()

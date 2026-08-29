@@ -18,7 +18,18 @@ int main() {
 
     size_t count = 123;
     assert(mkvc_get_backend_capabilities(nullptr, &count) == MKVC_OK);
-    assert(count == 0);
+    assert(count <= 1);
+    if (count == 1) {
+        mkvc_backend_capability capability{};
+        size_t capacity = 1;
+        assert(mkvc_get_backend_capabilities(&capability, &capacity) == MKVC_OK);
+        assert(capacity == 1);
+        assert(capability.struct_size == sizeof(capability));
+        assert(capability.backend == MKVC_BACKEND_CPU);
+        assert(capability.codec == MKVC_CODEC_VP9);
+        assert(capability.can_decode == 0 && capability.can_encode == 1);
+        assert(capability.is_hardware == 0);
+    }
     assert(mkvc_get_backend_capabilities(nullptr, nullptr) ==
            MKVC_ERROR_INVALID_ARGUMENT);
 
@@ -27,4 +38,3 @@ int main() {
                        "unknown result") == 0);
     return 0;
 }
-
