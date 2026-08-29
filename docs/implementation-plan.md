@@ -70,4 +70,5 @@
 - [x] .NET 8 P/Invoke ABI layout/load smoke and SafeHandle foundation
 - [ ] .NET high-level reader/writer/frame API and NuGet
 - [x] dependency manifest、SPDX SBOM generator、source/artifact compliance gate foundation
-- [ ] LICENSE/PATENTS原文収録、THIRD_PARTY_NOTICES生成、wheel/NuGet実artifact gate
+- [x] hash-locked LICENSE/PATENTS collectorとTHIRD_PARTY_NOTICES生成
+- [ ] project LICENSE確定、wheel/NuGetへのlegal payload収録、実artifact gate

@@ -19,6 +19,7 @@ from collections.abc import Iterable
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "third_party" / "manifest.json"
+LICENSE_LOCK = ROOT / "third_party" / "license-lock.json"
 
 FORBIDDEN_PACKAGE_NAMES = (
     re.compile(r"(^|/)(nvcuda|nvcuvid|nvencodeapi64)\.dll$", re.IGNORECASE),
@@ -65,6 +66,19 @@ def load_manifest(path: pathlib.Path = MANIFEST) -> dict:
 
 
 def validate_source_tree(manifest: dict) -> None:
+    license_lock = json.loads(LICENSE_LOCK.read_text(encoding="utf-8"))
+    locked_notices = {record["output"] for record in license_lock.get("files", [])}
+    locked_notices.add("nv-codec-headers-LICENSES.txt")
+    required_notices = {
+        notice
+        for component in manifest["components"]
+        if component["distribution"] != "dependency"
+        for notice in component["required_notices"]
+    }
+    if required_notices - locked_notices:
+        raise GateError(
+            f"required notices missing from license lock: {sorted(required_notices - locked_notices)}"
+        )
     vcpkg = json.loads((ROOT / "vcpkg.json").read_text(encoding="utf-8"))
     covered = {component["name"].lower() for component in manifest["components"]}
     aliases = {"aom": "libaom", "svt-av1": "svt-av1"}
@@ -122,7 +136,7 @@ def inspect_artifact(path: pathlib.Path, manifest: dict) -> None:
     if not any(ends_with_any(names, candidate) for candidate in ("LICENSE", "LICENSE.txt")):
         required.add("project LICENSE or LICENSE.txt")
     for component in manifest["components"]:
-        if component["distribution"] == "bundled":
+        if component["distribution"] in {"bundled", "build-only"}:
             required.update(component["required_notices"])
     missing = sorted(item for item in required if item.startswith("project ") or not ends_with_any(names, item))
     if missing:

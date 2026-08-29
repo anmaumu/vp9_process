@@ -23,7 +23,7 @@
       "license": "BSD-3-Clause",
       "source": "https://chromium.googlesource.com/libyuv/libyuv",
       "distribution": "bundled",
-      "required_notices": ["libyuv-LICENSE.txt"]
+      "required_notices": ["libyuv-LICENSE.txt", "libyuv-PATENTS.txt"]
     },
     {
       "name": "libaom",

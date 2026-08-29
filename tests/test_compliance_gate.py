@@ -45,7 +45,7 @@ class ComplianceGateTests(unittest.TestCase):
             notices = {
                 notice
                 for component in self.manifest["components"]
-                if component["distribution"] == "bundled"
+                if component["distribution"] in {"bundled", "build-only"}
                 for notice in component["required_notices"]
             }
             with zipfile.ZipFile(artifact, "w") as archive:

@@ -103,6 +103,9 @@ GitHub Actionsはpushとpull requestごとに検証・HTML生成を実行し、a
 
 ```shell
 python tools/compliance_gate.py source
+python tools/collect_licenses.py --vcpkg-root path/to/vcpkg \
+  --nvcodec-include path/to/nv-codec-headers/include/ffnvcodec \
+  --output build/legal/licenses
 python tools/compliance_gate.py sbom build/legal/sbom.spdx.json
 python tools/compliance_gate.py artifact path/to/package.whl
 ```
@@ -110,6 +113,8 @@ python tools/compliance_gate.py artifact path/to/package.whl
 Artifact検査はproject license、third-party notices、SPDX SBOM、bundled依存の
 LICENSE/PATENTSが一つでも欠けると失敗します。NVIDIA/Intel GPU driver runtimeは
 system dependencyであり、wheel/NuGetへの混入を常に拒否します。
+収集するLICENSE/PATENTS原文は固定revisionのSHA-256 allowlistと照合され、差異や
+複数候補がある場合はpackage作成を停止します。
 
 ## Performance baseline
 

@@ -30,7 +30,7 @@ jobs:
       - name: Validate source compliance manifest
         run: |
           python tools/compliance_gate.py source
-          python -m unittest tests/test_compliance_gate.py
+          python -m unittest tests/test_compliance_gate.py tests/test_collect_licenses.py
       - name: Build HTML documentation
         run: python tools/docgen.py build
       - name: Upload generated documentation

@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "files": [
+    {"output": "libvpx-LICENSE.txt", "glob": "buildtrees/libvpx/src/*clean/LICENSE", "sha256": "8267348d5af1262c11d1a08de2f5afc77457755f1ac658627dd9acf71011d615"},
+    {"output": "libvpx-PATENTS.txt", "glob": "buildtrees/libvpx/src/*clean/PATENTS", "sha256": "cc3273e0694ea5896145e0677699b53471b03ea43021ddc50e7923fbb9f5023c"},
+    {"output": "libwebm-LICENSE.txt", "glob": "buildtrees/libwebm/src/*clean/LICENSE.TXT", "sha256": "5aec868f669e384a22372a4e8a1a6cd7d44c64cd451f960ca69cc170d1e13acf"},
+    {"output": "libwebm-PATENTS.txt", "glob": "buildtrees/libwebm/src/*clean/PATENTS.TXT", "sha256": "cc3273e0694ea5896145e0677699b53471b03ea43021ddc50e7923fbb9f5023c"},
+    {"output": "libyuv-LICENSE.txt", "glob": "buildtrees/libyuv/src/*clean/LICENSE", "sha256": "2b2cc1180c7e6988328ad2033b04b80117419db9c4c584918bbb3cfec7e9364f"},
+    {"output": "libyuv-PATENTS.txt", "glob": "buildtrees/libyuv/src/*clean/PATENTS", "sha256": "4da84211f947c6f9f7dd8fbce513e1522e01833407ae732b8c9a2bbb75fed495"},
+    {"output": "libaom-LICENSE.txt", "glob": "buildtrees/aom/src/*clean/LICENSE", "sha256": "4764a286d8b2faeaf42f4418e7d7a28d58fc8fd4d00a3d0a7f44b0a4099de7f2"},
+    {"output": "libaom-PATENTS.txt", "glob": "buildtrees/aom/src/*clean/PATENTS", "sha256": "661fb8e504744e95587b556b94a58343448300606a41bea8c7a9b97125696e61"},
+    {"output": "SVT-AV1-LICENSE.txt", "glob": "buildtrees/svt-av1/src/*clean/LICENSE.md", "sha256": "0acc2fcb27472bdc9aaf8b71f37055bbdac4f54671b7d922f241bd7fcd0dd3e6"},
+    {"output": "SVT-AV1-PATENTS.txt", "glob": "buildtrees/svt-av1/src/*clean/PATENTS.md", "sha256": "20678ab10402659106dc4c147c97b2a6e94b5c0695415e15a8f195ebc3547922"},
+    {"output": "libvpl-LICENSE.txt", "glob": "buildtrees/libvpl/src/*clean/LICENSE", "sha256": "bf1cfac2e2792b6e1e995ce103d70796aecaf2ec7e4c5fe5474f7acec7b4a677"}
+  ]
+}
