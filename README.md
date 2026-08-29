@@ -116,6 +116,21 @@ system dependencyであり、wheel/NuGetへの混入を常に拒否します。
 収集するLICENSE/PATENTS原文は固定revisionのSHA-256 allowlistと照合され、差異や
 複数候補がある場合はpackage作成を停止します。
 
+Project license確定後のpackage作成例です。`--project-license`は省略できず、空fileも
+拒否されます。
+
+```shell
+python tools/build_wheel.py --native build/libmkvcodec.so \
+  --legal-dir build/legal/licenses --project-license path/to/LICENSE \
+  --output-dir dist --platform-tag manylinux_2_28_x86_64
+python tools/build_nuget.py --dotnet path/to/dotnet \
+  --native build/libmkvcodec.so --legal-dir build/legal/licenses \
+  --project-license path/to/LICENSE --output-dir dist --rid linux-x64
+```
+
+対応するWindows指定はwheelが`win_amd64`、NuGetが`win-x64`です。生成処理の最後に
+compliance gateが自動実行され、native/managed assetの配置も検査されます。
+
 ## Performance baseline
 
 公開Python APIを通る再現可能なJSON benchmarkを提供します。

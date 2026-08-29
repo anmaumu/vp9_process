@@ -49,6 +49,8 @@ class ComplianceGateTests(unittest.TestCase):
                 for notice in component["required_notices"]
             }
             with zipfile.ZipFile(artifact, "w") as archive:
+                archive.writestr("mkvcodec/mkvcodec.dll", "native")
+                archive.writestr("mkvcodec-0.1.0.dist-info/RECORD", "record")
                 prefix = "mkvcodec-0.1.0.dist-info/licenses/"
                 archive.writestr(prefix + "LICENSE.txt", "project")
                 archive.writestr(prefix + "THIRD_PARTY_NOTICES.md", "notices")

@@ -5,7 +5,10 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
-  <ItemGroup>
+  <ItemGroup Condition="'$(MkvCodecUsePackage)' != 'true'">
     <ProjectReference Include="..\MkvCodec\MkvCodec.csproj" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(MkvCodecUsePackage)' == 'true'">
+    <PackageReference Include="MkvCodec" Version="0.1.0" />
   </ItemGroup>
 </Project>

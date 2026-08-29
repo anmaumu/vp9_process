@@ -148,6 +148,26 @@ def inspect_artifact(path: pathlib.Path, manifest: dict) -> None:
         raise GateError("artifact SBOM is not valid UTF-8 SPDX JSON") from error
     if sbom.get("spdxVersion") != "SPDX-2.3" or not isinstance(sbom.get("packages"), list):
         raise GateError("artifact SBOM must be an SPDX 2.3 document with packages")
+    suffix = path.suffix.lower()
+    if suffix == ".whl":
+        has_native = any(
+            re.search(r"(^|/)mkvcodec/(mkvcodec\.dll|libmkvcodec\.so)$", name, re.IGNORECASE)
+            for name in names
+        )
+        if not has_native or not ends_with_any(names, ".dist-info/RECORD"):
+            raise GateError("wheel must contain the native core and RECORD")
+    elif suffix == ".nupkg":
+        has_managed = any(re.search(r"(^|/)lib/net8\.0/MkvCodec\.dll$", name) for name in names)
+        has_native = any(
+            re.search(
+                r"(^|/)runtimes/(win-x64|linux-x64)/native/(mkvcodec\.dll|libmkvcodec\.so)$",
+                name,
+                re.IGNORECASE,
+            )
+            for name in names
+        )
+        if not has_managed or not has_native or not ends_with_any(names, ".nuspec"):
+            raise GateError("NuGet must contain managed and RID-specific native assets")
 
 
 def write_sbom(output: pathlib.Path, manifest: dict) -> None:

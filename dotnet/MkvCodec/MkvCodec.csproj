@@ -5,6 +5,37 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <PackageId>MkvCodec</PackageId>
+    <Version>0.1.0</Version>
     <Description>Safe .NET bindings for the mkvcodec C ABI.</Description>
+    <PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(MkvCodecProjectLicense)' != ''">
+    <PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(MkvCodecNativePath)' != '' and '$(RuntimeIdentifier)' != ''">
+    <None Include="$(MkvCodecNativePath)" Pack="true"
+          PackagePath="runtimes/$(RuntimeIdentifier)/native/" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(MkvCodecLegalDir)' != ''">
+    <None Include="$(MkvCodecLegalDir)/**/*" Pack="true"
+          PackagePath="licenses/%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(MkvCodecProjectLicense)' != ''">
+    <None Include="$(MkvCodecProjectLicense)" Pack="true"
+          PackagePath="LICENSE.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="README.md" />
+  </ItemGroup>
+  <Target Name="ValidateMkvCodecPackInputs" BeforeTargets="Pack">
+    <Error Condition="'$(MkvCodecNativePath)' == ''"
+           Text="MkvCodecNativePath is required for package creation." />
+    <Error Condition="'$(RuntimeIdentifier)' == ''"
+           Text="RuntimeIdentifier is required for package creation." />
+    <Error Condition="'$(MkvCodecLegalDir)' == ''"
+           Text="MkvCodecLegalDir is required for package creation." />
+    <Error Condition="'$(MkvCodecProjectLicense)' == ''"
+           Text="MkvCodecProjectLicense is required for package creation." />
+  </Target>
 </Project>

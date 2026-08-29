@@ -140,7 +140,8 @@ if(MKVC_BUILD_TESTS)
                 "${CMAKE_CURRENT_SOURCE_DIR}/tools/compliance_gate.py" source)
         add_test(NAME mkvc_compliance_unit
             COMMAND "${Python3_EXECUTABLE}" -m unittest
-                tests/test_compliance_gate.py tests/test_collect_licenses.py)
+                tests/test_compliance_gate.py tests/test_collect_licenses.py
+                tests/test_build_wheel.py tests/test_build_nuget.py)
         set_tests_properties(mkvc_compliance_unit PROPERTIES
             WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
     endif()

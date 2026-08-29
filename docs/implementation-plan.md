@@ -71,4 +71,5 @@
 - [ ] .NET high-level reader/writer/frame API and NuGet
 - [x] dependency manifest、SPDX SBOM generator、source/artifact compliance gate foundation
 - [x] hash-locked LICENSE/PATENTS collectorとTHIRD_PARTY_NOTICES生成
-- [ ] project LICENSE確定、wheel/NuGetへのlegal payload収録、実artifact gate
+- [x] wheel/NuGetへのnative/legal/SBOM収録と実artifact gate
+- [ ] project LICENSE確定、Windows artifact実build、release publication
