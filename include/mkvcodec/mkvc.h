@@ -297,6 +297,10 @@ MKVC_API mkvc_result mkvc_encoder_create(
 MKVC_API mkvc_result mkvc_encoder_write_frame(
     mkvc_encoder* encoder,
     const mkvc_frame_view* frame);
+/** Submit a compatible GPU frame without copying its pixels to CPU memory. */
+MKVC_API mkvc_result mkvc_encoder_write_gpu_frame(
+    mkvc_encoder* encoder,
+    const mkvc_gpu_frame* frame);
 /** Submit one frame without waiting for queue space; may return MKVC_WOULD_BLOCK. */
 MKVC_API mkvc_result mkvc_encoder_try_write_frame(
     mkvc_encoder* encoder,

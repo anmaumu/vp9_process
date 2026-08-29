@@ -4,6 +4,7 @@
 #include "cpu_vp9_decoder.hpp"
 #include "cpu_av1_decoder.hpp"
 #include "encoder_session.hpp"
+#include "gpu/gpu_frame.hpp"
 #include "frame_conversion.hpp"
 #include "frame_processor.hpp"
 #include "intel_webm_decoder.hpp"
@@ -288,6 +289,25 @@ mkvc_result mkvc_encoder_write_frame(mkvc_encoder* encoder,
         return fail(MKVC_ERROR_INTERNAL, exception.what());
     } catch (...) {
         return fail(MKVC_ERROR_INTERNAL, "unknown frame write failure");
+    }
+}
+
+mkvc_result mkvc_encoder_write_gpu_frame(mkvc_encoder* encoder,
+                                         const mkvc_gpu_frame* frame) {
+    last_error.clear();
+    if (encoder == nullptr || frame == nullptr) {
+        return fail(MKVC_ERROR_INVALID_ARGUMENT, "invalid encoder or GPU frame");
+    }
+    try {
+        auto core = mkvc::gpu::get_core(frame);
+        if (!core) return fail(MKVC_ERROR_INVALID_STATE, "invalid or released GPU frame");
+        std::string error;
+        const mkvc_result result = encoder->implementation->write_gpu(core, error);
+        return result == MKVC_OK ? result : fail(result, std::move(error));
+    } catch (const std::exception& exception) {
+        return fail(MKVC_ERROR_INTERNAL, exception.what());
+    } catch (...) {
+        return fail(MKVC_ERROR_INTERNAL, "unknown GPU frame write failure");
     }
 }
 

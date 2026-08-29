@@ -44,7 +44,8 @@
 - [ ] Windows D3D11 Intel hardware verification
 - [x] Intel encoder multi-SyncPoint overlap and AsyncDepth 1/2/4/8 ordering tests
 - [x] Intel decoder multi-SyncPoint overlap and AsyncDepth 1/2/4/8 ordering tests
-- [ ] Intel zero-copy surfaces
+- [x] Linux Intel decode surface→encoder direct shared-surface submission (no CPU Map/readback)
+- [ ] Intel VPP stage and fully asynchronous shared-session pipeline
 - [x] injected Intel pending-operation failure cleanup and session recovery
 - [x] NVIDIA NVDEC VP9 public Capture（RTX 2060 VP9 positive、AV1 positive pending）
 - [x] NVIDIA NVENC AV1 public Writer adapter and runtime capability gate
@@ -74,7 +75,7 @@
 - [x] oneVPL SyncPoint and NVIDIA CUDA event completion adapter foundations
 - [ ] connect completion adapters to decode/VPP/encode surface factories; add D3D11 fence/VA synchronization
 - [x] oneVPL video-memory surface wrapper with SyncPoint, native handle, pool lease and deferred Surface Release
-- [ ] Intel decode→VPP→encode shared-surface pipeline
+- [ ] Intel decode→VPP→encode shared-session pipeline (direct decode→encode is implemented on Linux)
 - [x] Linux Intel oneVPL video-memory decode→`mkvc_decoder_read_gpu`→VA surface lease
 - [x] Python Intel `VideoCapture.read_surface()` descriptor/native-handle lease
 - [ ] Windows Intel D3D11 `read_surface` hardware qualification

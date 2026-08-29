@@ -1,4 +1,5 @@
 #include "intel_webm_encoder.hpp"
+#include "gpu/gpu_frame.hpp"
 
 #if defined(MKVC_HAS_INTEL_ONEVPL)
 #include <libyuv/convert.h>
@@ -273,6 +274,34 @@ mkvc_result IntelWebmEncoder::write(const mkvc_frame_view& frame,
         packets, error);
     if (result != MKVC_OK) return result;
     impl.next_pts = std::max(impl.next_pts, frame_pts + 1);
+    ++impl.frames_in_sequence;
+    return mux_packets(impl, packets, error);
+#endif
+}
+
+mkvc_result IntelWebmEncoder::write_gpu(
+    const std::shared_ptr<gpu::GpuFrameCore>& frame, std::string& error) {
+#if !defined(MKVC_HAS_INTEL_ONEVPL)
+    (void)frame;
+    error = "Intel oneVPL backend was not built";
+    return MKVC_ERROR_NOT_SUPPORTED;
+#else
+    auto& impl = *impl_;
+    if (impl.closed) {
+        error = "Intel encoder is closed";
+        return MKVC_ERROR_INVALID_STATE;
+    }
+    if (!frame || frame->desc().width != impl.width ||
+        frame->desc().height != impl.height) {
+        error = "GPU frame dimensions do not match Intel encoder";
+        return MKVC_ERROR_INVALID_ARGUMENT;
+    }
+    std::vector<IntelEncodedPacket> packets;
+    const int64_t frame_pts = impl.next_pts;
+    const mkvc_result result = impl.encoder->write_gpu_surface(
+        frame, frame_pts, packets, error);
+    if (result != MKVC_OK) return result;
+    impl.next_pts = frame_pts + 1;
     ++impl.frames_in_sequence;
     return mux_packets(impl, packets, error);
 #endif

@@ -447,6 +447,34 @@ mkvc_result EncoderSession::write(const mkvc_frame_view& frame, bool block,
     return MKVC_OK;
 }
 
+mkvc_result EncoderSession::write_gpu(
+    const std::shared_ptr<gpu::GpuFrameCore>& frame, std::string& error) {
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    if (impl_->capacity != 0) {
+        error = "GPU frame submission currently requires queue_size=0";
+        return MKVC_ERROR_NOT_SUPPORTED;
+    }
+    if (impl_->failed) { error = impl_->terminal_error; return impl_->terminal_result; }
+    if (!impl_->accepting || impl_->closed) {
+        error = "encoder is closing or closed";
+        return MKVC_ERROR_INVALID_STATE;
+    }
+    if (!impl_->intel_encoder) {
+        error = "GPU frame is not compatible with this encoder backend";
+        return MKVC_ERROR_NOT_SUPPORTED;
+    }
+    const auto started = std::chrono::steady_clock::now();
+    const mkvc_result result = impl_->intel_encoder->write_gpu(frame, error);
+    impl_->backend_time_ns += elapsed_ns(started);
+    impl_->hardware_pending_peak = std::max(
+        impl_->hardware_pending_peak, backend_hardware_pending(*impl_));
+    if (result == MKVC_OK) {
+        ++impl_->accepted_frames;
+        ++impl_->completed_frames;
+    }
+    return result;
+}
+
 void EncoderSession::get_metrics(mkvc_pipeline_metrics& metrics) const {
     std::lock_guard<std::mutex> lock(impl_->mutex);
     metrics.accepted_frames = impl_->accepted_frames;

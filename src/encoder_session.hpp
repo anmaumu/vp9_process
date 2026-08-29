@@ -8,6 +8,8 @@
 
 namespace mkvc {
 
+namespace gpu { class GpuFrameCore; }
+
 /**
  * @brief Owns synchronous or bounded asynchronous encoder execution.
  *
@@ -28,6 +30,9 @@ class EncoderSession {
     /** Submit a frame, optionally blocking for bounded queue capacity. */
     mkvc_result write(const mkvc_frame_view& frame, bool block,
                       std::string& error);
+    /** Synchronously submit a GPU-resident frame to a compatible backend. */
+    mkvc_result write_gpu(const std::shared_ptr<gpu::GpuFrameCore>& frame,
+                          std::string& error);
     /** Insert and wait for an ordered codec flush barrier. */
     mkvc_result flush(std::string& error);
     /** Drain queued frames, finalize output, and join the worker. */

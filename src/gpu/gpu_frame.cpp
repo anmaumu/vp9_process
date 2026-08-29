@@ -76,9 +76,10 @@ mkvc_result CallbackCompletion::wait(uint32_t timeout_ms, std::string& error) co
 GpuFrameCore::GpuFrameCore(mkvc_gpu_frame_desc desc,
                            std::shared_ptr<Completion> producer,
                            RecycleCallback recycle,
-                           std::optional<mkvc_gpu_native_handle_desc> native)
+                           std::optional<mkvc_gpu_native_handle_desc> native,
+                           BackendResource resource)
     : desc_(desc), producer_(std::move(producer)), recycle_(std::move(recycle)),
-      native_(std::move(native)) {}
+      native_(std::move(native)), resource_(resource) {}
 
 GpuFrameCore::~GpuFrameCore() {
     std::vector<std::shared_ptr<Completion>> completions;
@@ -172,6 +173,15 @@ mkvc_gpu_frame* make_handle(const std::shared_ptr<GpuFrameCore>& core) {
         core->release_external();
         throw;
     }
+}
+
+std::shared_ptr<GpuFrameCore> get_core(const mkvc_gpu_frame* frame) {
+    if (frame == nullptr || frame->core == nullptr ||
+        frame->generation != frame->core->desc().generation ||
+        frame->core->recycled()) {
+        return {};
+    }
+    return frame->core;
 }
 
 }  // namespace mkvc::gpu

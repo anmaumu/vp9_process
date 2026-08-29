@@ -27,7 +27,8 @@ class GpuFramePool : public std::enable_shared_from_this<GpuFramePool> {
                         std::shared_ptr<Completion> producer,
                         std::optional<mkvc_gpu_native_handle_desc> native,
                         ResourceRecycle resource_recycle,
-                        Acquisition& output, std::string& error);
+                        Acquisition& output, std::string& error,
+                        BackendResource resource = {});
     size_t capacity() const noexcept;
     size_t in_use() const noexcept;
     size_t peak_in_use() const noexcept;

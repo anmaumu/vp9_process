@@ -14,6 +14,14 @@
 
 namespace mkvc::gpu {
 
+enum class BackendResourceKind { kNone, kIntelVplSurface, kNvidiaCudaFrame };
+
+/** Private backend object; never crosses the stable C ABI. */
+struct BackendResource {
+    BackendResourceKind kind = BackendResourceKind::kNone;
+    void* object = nullptr;
+};
+
 /** Backend completion adapter implemented by SyncPoint/fence/CUDA event types. */
 class Completion {
  public:
@@ -57,10 +65,12 @@ class GpuFrameCore : public std::enable_shared_from_this<GpuFrameCore> {
     GpuFrameCore(mkvc_gpu_frame_desc desc,
                  std::shared_ptr<Completion> producer,
                  RecycleCallback recycle,
-                 std::optional<mkvc_gpu_native_handle_desc> native = std::nullopt);
+                 std::optional<mkvc_gpu_native_handle_desc> native = std::nullopt,
+                 BackendResource resource = {});
     ~GpuFrameCore();
     const mkvc_gpu_frame_desc& desc() const noexcept { return desc_; }
     std::shared_ptr<Completion> producer_completion() const { return producer_; }
+    BackendResource backend_resource() const noexcept { return resource_; }
     void acquire_external();
     void release_external() noexcept;
     mkvc_result add_consumer(std::shared_ptr<Completion> completion,
@@ -83,9 +93,13 @@ class GpuFrameCore : public std::enable_shared_from_this<GpuFrameCore> {
     std::vector<std::shared_ptr<Completion>> consumers_;
     bool recycled_ = false;
     std::optional<mkvc_gpu_native_handle_desc> native_;
+    BackendResource resource_{};
 };
 
 /** Create one opaque ABI lease for a backend-owned core. */
 mkvc_gpu_frame* make_handle(const std::shared_ptr<GpuFrameCore>& core);
+
+/** Validate an opaque handle and borrow its shared internal ownership. */
+std::shared_ptr<GpuFrameCore> get_core(const mkvc_gpu_frame* frame);
 
 }  // namespace mkvc::gpu

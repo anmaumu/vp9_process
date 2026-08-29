@@ -86,7 +86,8 @@ mkvc_result wrap_vpl_surface(
         [surface, keepalive = session_keepalive] {
             (void)keepalive;
             surface->FrameInterface->Release(surface);
-        }, output, error);
+        }, output, error,
+        {BackendResourceKind::kIntelVplSurface, surface});
 }
 
 }  // namespace mkvc::gpu::intel

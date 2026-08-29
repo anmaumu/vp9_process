@@ -1,4 +1,5 @@
 #include "intel_vpl_encoder.hpp"
+#include "gpu/gpu_frame.hpp"
 
 #if defined(MKVC_HAS_INTEL_ONEVPL)
 #include <vpl/mfxdispatcher.h>
@@ -21,6 +22,8 @@ struct IntelVplEncoder::Impl {
         mfxBitstream bitstream{};
         std::vector<uint8_t> storage;
         mfxSyncPoint sync = nullptr;
+        std::shared_ptr<gpu::ManualCompletion> input_completion;
+        std::weak_ptr<gpu::GpuFrameCore> input_frame;
     };
     mfxLoader loader = nullptr;
     mfxSession session = nullptr;
@@ -80,6 +83,7 @@ mkvc_result collect_output(IntelVplEncoder::Impl& impl,
     if (status != MFX_ERR_NONE) {
         error = "oneVPL SyncOperation failed with status " +
                 std::to_string(status);
+        if (pending.input_completion) pending.input_completion->fail(error);
         return status == MFX_ERR_DEVICE_LOST ? MKVC_ERROR_IO : MKVC_ERROR_CODEC;
     }
     if (pending.bitstream.DataLength > 0) {
@@ -92,18 +96,21 @@ mkvc_result collect_output(IntelVplEncoder::Impl& impl,
             if (length >= 4 && std::memcmp(begin, "DKIF", 4) == 0) {
                 if (length < 32) {
                     error = "oneVPL returned a truncated VP9 IVF header";
+                    if (pending.input_completion) pending.input_completion->fail(error);
                     return MKVC_ERROR_CODEC;
                 }
                 offset = 32;
             }
             if (length < offset + 12) {
                 error = "oneVPL returned a truncated VP9 IVF frame header";
+                if (pending.input_completion) pending.input_completion->fail(error);
                 return MKVC_ERROR_CODEC;
             }
             const uint32_t frame_size = read_le32(begin + offset);
             offset += 12;
             if (frame_size == 0 || frame_size > length - offset) {
                 error = "oneVPL returned an invalid VP9 IVF frame size";
+                if (pending.input_completion) pending.input_completion->fail(error);
                 return MKVC_ERROR_CODEC;
             }
             length = frame_size;
@@ -116,6 +123,8 @@ mkvc_result collect_output(IntelVplEncoder::Impl& impl,
                       (MFX_FRAMETYPE_I | MFX_FRAMETYPE_IDR)) != 0;
         packets.push_back(std::move(packet));
     }
+    if (pending.input_completion) pending.input_completion->complete();
+    if (auto frame = pending.input_frame.lock()) frame->poll_recycle();
     return MKVC_OK;
 }
 
@@ -144,12 +153,16 @@ mkvc_result collect_oldest(IntelVplEncoder::Impl& impl,
 }
 
 mkvc_result submit_surface(IntelVplEncoder::Impl& impl,
-                           mfxFrameSurface1* surface, std::string& error) {
+                           mfxFrameSurface1* surface, std::string& error,
+                           std::shared_ptr<gpu::ManualCompletion> completion = {},
+                           std::weak_ptr<gpu::GpuFrameCore> input_frame = {}) {
     auto pending = std::make_unique<IntelVplEncoder::Impl::Pending>();
     pending->storage.resize(impl.bitstream_capacity);
     pending->bitstream.Data = pending->storage.data();
     pending->bitstream.MaxLength =
         static_cast<mfxU32>(pending->storage.size());
+    pending->input_completion = std::move(completion);
+    pending->input_frame = std::move(input_frame);
     mfxStatus status;
     do {
         status = MFXVideoENCODE_EncodeFrameAsync(
@@ -172,6 +185,11 @@ mkvc_result submit_surface(IntelVplEncoder::Impl& impl,
         uint32_t current = impl.max_pending.load(std::memory_order_relaxed);
         while (current < observed && !impl.max_pending.compare_exchange_weak(
                    current, observed, std::memory_order_relaxed)) {}
+    } else if (pending->input_completion) {
+        // The implementation consumed the input synchronously or buffered it
+        // without returning a SyncPoint, so it no longer owns the surface.
+        pending->input_completion->complete();
+        if (auto frame = pending->input_frame.lock()) frame->poll_recycle();
     }
     return MKVC_OK;
 }
@@ -293,6 +311,69 @@ std::unique_ptr<IntelVplEncoder> IntelVplEncoder::create(
 #endif
 }
 
+mkvc_result IntelVplEncoder::write_gpu_surface(
+    const std::shared_ptr<gpu::GpuFrameCore>& frame, int64_t pts,
+    std::vector<IntelEncodedPacket>& packets, std::string& error) {
+    packets.clear();
+#if !defined(MKVC_HAS_INTEL_ONEVPL)
+    (void)frame; (void)pts;
+    error = "Intel oneVPL backend was not built";
+    return MKVC_ERROR_NOT_SUPPORTED;
+#else
+    auto& impl = *impl_;
+    if (impl.closed || impl.drained) {
+        error = "oneVPL encoder is closed or drained";
+        return MKVC_ERROR_INVALID_STATE;
+    }
+    if (!frame || frame->desc().backend != MKVC_BACKEND_INTEL ||
+        frame->desc().pixel_format != MKVC_PIXEL_FORMAT_NV12 ||
+        frame->desc().width != impl.width || frame->desc().height != impl.height) {
+        error = "GPU frame is not a compatible Intel NV12 surface";
+        return MKVC_ERROR_INVALID_ARGUMENT;
+    }
+    const auto resource = frame->backend_resource();
+    if (resource.kind != gpu::BackendResourceKind::kIntelVplSurface ||
+        resource.object == nullptr) {
+        error = "GPU frame has no internal oneVPL surface";
+        return MKVC_ERROR_NOT_SUPPORTED;
+    }
+    // Separate decode/encode sessions cannot share a SyncPoint dependency. Waiting
+    // here keeps pixels resident while establishing readiness deterministically.
+    mkvc_result result = frame->producer_completion()->wait(
+        std::numeric_limits<uint32_t>::max(), error);
+    if (result != MKVC_OK) return result;
+    auto* surface = static_cast<mfxFrameSurface1*>(resource.object);
+    const int64_t frame_pts = pts >= 0 ? pts : impl.next_pts;
+    const mfxU64 original_timestamp = surface->Data.TimeStamp;
+    surface->Data.TimeStamp = static_cast<mfxU64>(frame_pts) * 90000ULL *
+                              impl.fps_den / impl.fps_num;
+    auto completion = std::make_shared<gpu::ManualCompletion>();
+    result = submit_surface(impl, surface, error, completion, frame);
+    surface->Data.TimeStamp = original_timestamp;
+    if (result != MKVC_OK && result != MKVC_END_OF_STREAM) {
+        completion->fail(error);
+        return result;
+    }
+    if (result == MKVC_OK) {
+        result = frame->add_consumer(completion, error);
+        if (result != MKVC_OK) return result;
+    } else {
+        completion->complete();
+    }
+    // A decoder-owned pool can be smaller than the encoder reorder window.
+    // Complete one submitted dependency per call so the upstream pool always
+    // makes progress. This remains GPU-resident; only the host API waits.
+    if (result == MKVC_OK && !impl.pending.empty()) {
+        result = collect_oldest(impl, packets, error);
+    }
+    if (result == MKVC_OK || result == MKVC_END_OF_STREAM) {
+        impl.next_pts = std::max(impl.next_pts, frame_pts + 1);
+        return MKVC_OK;
+    }
+    return result;
+#endif
+}
+
 mkvc_result IntelVplEncoder::write_nv12(
     const uint8_t* y, int32_t y_stride, const uint8_t* uv, int32_t uv_stride,
     int64_t pts, std::vector<IntelEncodedPacket>& packets, std::string& error) {
@@ -395,6 +476,11 @@ mkvc_result IntelVplEncoder::close(std::string& error) {
                 status = MFXVideoCORE_SyncOperation(
                     impl_->session, pending->sync, kSyncWaitMs);
             } while (status == MFX_WRN_IN_EXECUTION);
+            if (pending->input_completion) {
+                if (status == MFX_ERR_NONE) pending->input_completion->complete();
+                else pending->input_completion->fail(
+                    "oneVPL encoder close synchronization failed");
+            }
         }
     }
     impl_->pending.clear();

@@ -7,6 +7,8 @@
 #include <string>
 #include <vector>
 
+namespace mkvc::gpu { class GpuFrameCore; }
+
 namespace mkvc {
 
 /** One compressed frame returned by the oneVPL encode adapter. */
@@ -34,6 +36,10 @@ class IntelVplEncoder {
                            const uint8_t* uv, int32_t uv_stride,
                            int64_t pts, std::vector<IntelEncodedPacket>& packets,
                            std::string& error);
+    /** Submit a decoder-owned oneVPL video-memory surface without readback. */
+    mkvc_result write_gpu_surface(
+        const std::shared_ptr<gpu::GpuFrameCore>& frame, int64_t pts,
+        std::vector<IntelEncodedPacket>& packets, std::string& error);
     /** Drain all delayed packets without destroying the adapter. */
     mkvc_result drain(std::vector<IntelEncodedPacket>& packets,
                       std::string& error);

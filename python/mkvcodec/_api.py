@@ -244,6 +244,16 @@ class VideoWriter:
     def write_nv12(self, y: U8Plane, uv: U8Plane, *, pts: int = -1) -> None:
         self._write_nv12(y, uv, pts=pts, block=True)
 
+    def write_surface(self, frame: GpuFrame) -> None:
+        """Submit a compatible GPU frame without a CPU pixel copy."""
+        if self._closed:
+            raise RuntimeError("writer is closed")
+        if not isinstance(frame, GpuFrame) or not frame._handle:
+            raise ValueError("frame must be an open GpuFrame")
+        native.check(native.lib.mkvc_encoder_write_gpu_frame(
+            self._handle, frame._handle
+        ))
+
     def _write_packed(
         self, array: U8Plane, channels: int, pixel_format: int, *, pts: int,
         block: bool = True,

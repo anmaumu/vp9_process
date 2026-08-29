@@ -11,7 +11,7 @@ mkvc_result GpuFramePool::acquire(
     mkvc_gpu_frame_desc desc, std::shared_ptr<Completion> producer,
     std::optional<mkvc_gpu_native_handle_desc> native,
     ResourceRecycle resource_recycle,
-    Acquisition& output, std::string& error) {
+    Acquisition& output, std::string& error, BackendResource resource) {
     output = {};
     if (!producer || slots_.empty()) {
         error = "GPU frame pool or producer completion is invalid";
@@ -44,7 +44,7 @@ mkvc_result GpuFramePool::acquire(
                 uint64_t completed_generation) {
                 if (release) release();
                 if (auto pool = weak.lock()) pool->recycle(index, completed_generation);
-            }, std::move(native));
+            }, std::move(native), resource);
         output.slot = index;
         output.generation = generation;
         return MKVC_OK;
