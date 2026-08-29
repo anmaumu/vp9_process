@@ -178,6 +178,12 @@ if(MKVC_BUILD_TESTS)
                 "MKVC_LIBRARY_PATH=$<TARGET_FILE:mkvcodec>"
                 "${Python3_EXECUTABLE}"
                 "${CMAKE_CURRENT_SOURCE_DIR}/tests/python_roundtrip.py")
+        add_test(NAME mkvc_python_benchmark_smoke
+            COMMAND ${CMAKE_COMMAND} -E env
+                "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/python"
+                "MKVC_LIBRARY_PATH=$<TARGET_FILE:mkvcodec>"
+                "${Python3_EXECUTABLE}"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/python_benchmark_smoke.py")
         if(MKVC_ENABLE_CPU_AV1 AND FFMPEG_EXECUTABLE AND FFPROBE_EXECUTABLE)
             add_test(NAME mkvc_python_av1_encode
                 COMMAND ${CMAKE_COMMAND} -E env

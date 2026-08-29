@@ -94,3 +94,15 @@ python tools/docgen.py build
 Markdown中間生成物は`build/docgen-src`、HTMLは`build/docsite`へ出力されます。
 HTML siteにはDoxygenが生成するC/C++ source referenceとXMLも統合されます。
 GitHub Actionsはpushとpull requestごとに検証・HTML生成を実行し、artifactを30日保存します。
+
+## Performance baseline
+
+公開Python APIを通る再現可能なJSON benchmarkを提供します。
+
+```shell
+python benchmarks/pipeline_benchmark.py --backend intel --codec av1 \
+  --width 1920 --height 1080 --frames 300 --fps 60 \
+  --output benchmark-results/intel-av1-1080p60.json
+```
+
+測定項目と比較条件は`docs/benchmarking.md`を参照してください。

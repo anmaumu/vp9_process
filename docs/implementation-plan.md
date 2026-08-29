@@ -49,6 +49,12 @@
 - NVIDIA NVENC AV1（対応GPUが必要）
 - CPU fallbackと明示backend選択
 
+## Phase 3B: performance and observability
+
+- [x] public API end-to-end JSON benchmark and CI smoke
+- [ ] native stage timing, queue high-water and copy-path metrics ABI
+- [ ] approved 1080p/4K CPU/Intel/NVIDIA baseline and regression thresholds
+
 ## Phase 4: language bindings and distribution
 
 - Python wheel

@@ -47,6 +47,7 @@ Status: `PARTIAL`
 | `INT-PIPE-003`, `TEST-INTEL-002` | per-operation bitstream/surface ownership and oldest-first SyncPoint collection | VP9/AV1 encode and decode at AsyncDepth 1/2/4/8 | exact requested pending high-water mark, 30 ordered PTS, keyframe and drain count passing; device-loss injection pending |
 | `EXT-BACK-001` Intel | runtime capability exposes each Query-supported encode/decode direction | C ABI capability assertions with real hardware and oneVPL-disabled builds | no false direction advertisement; unavailable build omits Intel rows |
 | `EXT-CS-001/002`, `INT-CS-001` | .NET 8 P/Invoke types, typed exception and encoder/decoder/frame SafeHandle ownership | `mkvc_dotnet_build`, `mkvc_dotnet_smoke` | Linux ABI layout, native load, version and capability query passing; high-level IDisposable reader/writer and NuGet pending |
+| `INT-PERF-001`, `TEST-PERF-001/002` foundation | versioned public-API JSON benchmark parameterized by backend/codec/resolution/fps/queue/prefetch | `mkvc_python_benchmark_smoke` | end-to-end fps, submit latency distribution, first-frame latency, bytes, RSS and explicit copy path recorded; approved baselines/regression thresholds pending |
 
 The decoder keeps a libwebm cluster/block/frame cursor and reads compressed packets
 incrementally. One compressed packet is limited to 256 MiB. No CPU pipeline uses
