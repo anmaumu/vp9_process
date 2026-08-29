@@ -194,13 +194,14 @@ mkvc_result mkvc_encoder_create(const mkvc_encoder_config* config,
         config->struct_version != 1 || config->output_path_utf8 == nullptr ||
         config->output_path_utf8[0] == '\0' ||
         (config->codec != MKVC_CODEC_VP9 && config->codec != MKVC_CODEC_AV1) ||
-        config->backend != MKVC_BACKEND_CPU || config->width == 0 ||
+        (config->backend != MKVC_BACKEND_CPU &&
+         config->backend != MKVC_BACKEND_INTEL) || config->width == 0 ||
         config->height == 0 || (config->width & 1u) != 0 ||
         (config->height & 1u) != 0 || config->fps_num == 0 ||
         config->fps_den == 0 || config->quality > 63 ||
         config->width > static_cast<uint32_t>(std::numeric_limits<int32_t>::max() / 4) ||
         config->height > static_cast<uint32_t>(std::numeric_limits<int32_t>::max())) {
-        return fail(MKVC_ERROR_INVALID_ARGUMENT, "invalid CPU VP9 encoder config");
+        return fail(MKVC_ERROR_INVALID_ARGUMENT, "invalid encoder config");
     }
     try {
         std::string error;

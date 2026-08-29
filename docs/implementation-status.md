@@ -11,7 +11,7 @@
 - GitHub Actions builds strict MkDocs HTML and stores `mkvcodec-documentation` for 30 days.
 - GitHub Pages publication remains disabled until an explicit public-release decision.
 
-## 2026-08-29: CPU VP9/AV1 writer/decoder slice
+## 2026-08-29: CPU VP9/AV1 and Intel writer slice
 
 Status: `PARTIAL`
 
@@ -43,7 +43,8 @@ Status: `PARTIAL`
 | `TEST-CONT-001` | independent decode and metadata verification | FFmpeg + ffprobe | VP9 WebM encode case passing |
 | `TEST-CODEC-001` | VP9 encode/decode round-trip with quality metrics | internal decode and Y-PSNR >= 28 dB | SSIM pending |
 | `TEST-CODEC-002` | SVT-AV1 to libaom/FFmpeg round-trip | 30-frame PTS/order/count, Y-PSNR >= 28 dB, all 8-bit inputs | SSIM pending |
-| `INT-INTEL-001/002` foundation | oneVPL hardware loader/session and codec Query adapter | `mkvc_intel_vpl_probe` plus required-hardware run | Arrow Lake VA-API: API 2.15, VP9/AV1 encode/decode Query passing; public pipeline pending |
+| `INT-INTEL-001/002` | oneVPL 2.x hardware session, internal NV12 surfaces, VP9/AV1 encode and libwebm mux | `mkvc_intel_vpl_probe`, `mkvc_intel_vpl_encode`, `mkvc_python_intel_roundtrip` in required-hardware mode | Linux VA-API public Writer passing for both codecs and all five 8-bit inputs; decode, multi-SyncPoint overlap, zero-copy and Windows hardware run pending |
+| `EXT-BACK-001` Intel | runtime capability exposes implemented VP9/AV1 encode only | C ABI capability assertions with real hardware and oneVPL-disabled builds | no false decode advertisement; unavailable build omits Intel rows |
 
 The decoder keeps a libwebm cluster/block/frame cursor and reads compressed packets
 incrementally. One compressed packet is limited to 256 MiB. No CPU pipeline uses
@@ -53,6 +54,10 @@ drains accepted work before finalizing the container.
 SVT-AV1 flush ends and drains the current codec sequence, recreates the encoder,
 and permits subsequent frames in the same WebM track; this preserves the public
 ordered-flush-and-continue contract despite SVT-AV1 lookahead.
+The Intel writer follows the same flush-and-continue contract by draining and
+recreating its oneVPL codec adapter while retaining monotonically increasing PTS.
+The current oneVPL adapter sets `AsyncDepth=4`, but synchronizes each returned
+SyncPoint immediately; actual multi-frame GPU overlap remains a measured follow-up.
 
 ## Verified dependency baseline
 

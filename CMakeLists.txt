@@ -39,6 +39,8 @@ add_library(mkvcodec SHARED
     src/cpu_av1_encoder.cpp
     src/cpu_av1_decoder.cpp
     src/intel_vpl_probe.cpp
+    src/intel_vpl_encoder.cpp
+    src/intel_webm_encoder.cpp
 )
 
 target_compile_features(mkvcodec PRIVATE cxx_std_17)
@@ -117,6 +119,20 @@ if(MKVC_BUILD_TESTS)
         set_tests_properties(mkvc_intel_vpl_probe PROPERTIES SKIP_RETURN_CODE 77)
     endif()
 
+    if(MKVC_ENABLE_INTEL_ONEVPL AND MKVC_ENABLE_CPU_VP9 AND MKVC_ENABLE_CPU_AV1)
+        add_executable(mkvc_intel_vpl_encode_test
+            tests/intel_vpl_encode_test.cpp src/intel_vpl_encoder.cpp)
+        target_compile_features(mkvc_intel_vpl_encode_test PRIVATE cxx_std_17)
+        target_include_directories(mkvc_intel_vpl_encode_test
+            PRIVATE src include)
+        target_compile_definitions(mkvc_intel_vpl_encode_test
+            PRIVATE MKVC_HAS_INTEL_ONEVPL=1)
+        target_link_libraries(mkvc_intel_vpl_encode_test PRIVATE
+            VPL::dispatcher unofficial::libvpx::libvpx AOM::aom)
+        add_test(NAME mkvc_intel_vpl_encode COMMAND mkvc_intel_vpl_encode_test)
+        set_tests_properties(mkvc_intel_vpl_encode PROPERTIES SKIP_RETURN_CODE 77)
+    endif()
+
     if(MKVC_ENABLE_CPU_VP9)
         add_executable(mkvc_cpu_vp9_encode_test tests/cpu_vp9_encode_test.cpp)
         target_compile_features(mkvc_cpu_vp9_encode_test PRIVATE cxx_std_17)
@@ -165,6 +181,16 @@ if(MKVC_BUILD_TESTS)
                     "FFPROBE_EXECUTABLE=${FFPROBE_EXECUTABLE}"
                     "${Python3_EXECUTABLE}"
                     "${CMAKE_CURRENT_SOURCE_DIR}/tests/python_av1_encode.py")
+        endif()
+        if(MKVC_ENABLE_INTEL_ONEVPL)
+            add_test(NAME mkvc_python_intel_roundtrip
+                COMMAND ${CMAKE_COMMAND} -E env
+                    "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/python"
+                    "MKVC_LIBRARY_PATH=$<TARGET_FILE:mkvcodec>"
+                    "${Python3_EXECUTABLE}"
+                    "${CMAKE_CURRENT_SOURCE_DIR}/tests/python_intel_roundtrip.py")
+            set_tests_properties(mkvc_python_intel_roundtrip
+                PROPERTIES SKIP_RETURN_CODE 77)
         endif()
     endif()
 endif()

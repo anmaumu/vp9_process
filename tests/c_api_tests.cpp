@@ -2,6 +2,7 @@
 
 #include <cassert>
 #include <cstring>
+#include <vector>
 
 int main() {
     mkvc_version version{};
@@ -18,22 +19,28 @@ int main() {
 
     size_t count = 123;
     assert(mkvc_get_backend_capabilities(nullptr, &count) == MKVC_OK);
-    assert(count <= 2);
+    assert(count <= 4);
     if (count > 0) {
-        mkvc_backend_capability capabilities[2]{};
-        size_t capacity = 2;
-        assert(mkvc_get_backend_capabilities(capabilities, &capacity) == MKVC_OK);
+        std::vector<mkvc_backend_capability> capabilities(count);
+        size_t capacity = capabilities.size();
+        assert(mkvc_get_backend_capabilities(capabilities.data(), &capacity) == MKVC_OK);
         assert(capacity == count);
         for (size_t index = 0; index < count; ++index) {
             assert(capabilities[index].struct_size == sizeof(capabilities[index]));
-            assert(capabilities[index].backend == MKVC_BACKEND_CPU);
-            assert(capabilities[index].is_hardware == 0);
+            assert(capabilities[index].backend == MKVC_BACKEND_CPU ||
+                   capabilities[index].backend == MKVC_BACKEND_INTEL);
         }
         assert(capabilities[0].codec == MKVC_CODEC_VP9);
         assert(capabilities[0].can_decode == 1 && capabilities[0].can_encode == 1);
         if (count == 2) {
             assert(capabilities[1].codec == MKVC_CODEC_AV1);
             assert(capabilities[1].can_decode == 1 && capabilities[1].can_encode == 1);
+        }
+        for (size_t index = 2; index < count; ++index) {
+            assert(capabilities[index].backend == MKVC_BACKEND_INTEL);
+            assert(capabilities[index].can_decode == 0);
+            assert(capabilities[index].can_encode == 1);
+            assert(capabilities[index].is_hardware == 1);
         }
     }
     assert(mkvc_get_backend_capabilities(nullptr, nullptr) ==

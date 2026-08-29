@@ -50,8 +50,8 @@ class VideoWriter:
         threads: int = 0,
         queue_size: int = 8,
     ) -> None:
-        if codec not in ("vp9", "av1") or backend != "cpu":
-            raise ValueError("the current Python writer supports VP9/AV1 on CPU")
+        if codec not in ("vp9", "av1") or backend not in ("cpu", "intel"):
+            raise ValueError("the Python writer supports VP9/AV1 on CPU or Intel")
         width, height = frame_size
         rate = _fps_fraction(fps)
         encoded_path = str(Path(path)).encode("utf-8")
@@ -61,7 +61,8 @@ class VideoWriter:
         config.output_path_utf8 = encoded_path
         config.codec = (native.MKVC_CODEC_VP9 if codec == "vp9" else
                         native.MKVC_CODEC_AV1)
-        config.backend = native.MKVC_BACKEND_CPU
+        config.backend = (native.MKVC_BACKEND_CPU if backend == "cpu" else
+                          native.MKVC_BACKEND_INTEL)
         config.width = width
         config.height = height
         config.fps_num = rate.numerator
