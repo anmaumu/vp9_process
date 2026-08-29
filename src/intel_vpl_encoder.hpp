@@ -23,7 +23,8 @@ class IntelVplEncoder {
     static std::unique_ptr<IntelVplEncoder> create(
         uint32_t codec, uint32_t width, uint32_t height,
         uint32_t fps_num, uint32_t fps_den, uint32_t quality,
-        uint32_t keyframe_interval_frames, std::string& error);
+        uint32_t keyframe_interval_frames, std::string& error,
+        uint32_t async_depth = 4);
     ~IntelVplEncoder();
     IntelVplEncoder(const IntelVplEncoder&) = delete;
     IntelVplEncoder& operator=(const IntelVplEncoder&) = delete;
@@ -38,6 +39,8 @@ class IntelVplEncoder {
                       std::string& error);
     /** Release encoder, session, and dispatcher resources idempotently. */
     mkvc_result close(std::string& error);
+    /** Largest number of simultaneously outstanding SyncPoints observed. */
+    uint32_t max_pending_observed() const;
 
  private:
     IntelVplEncoder();

@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <deque>
 #include <limits>
 #include <thread>
 #include <utility>
@@ -15,11 +16,16 @@ namespace mkvc {
 
 struct IntelVplEncoder::Impl {
 #if defined(MKVC_HAS_INTEL_ONEVPL)
+    struct Pending {
+        mfxBitstream bitstream{};
+        std::vector<uint8_t> storage;
+        mfxSyncPoint sync = nullptr;
+    };
     mfxLoader loader = nullptr;
     mfxSession session = nullptr;
     mfxVideoParam parameters{};
-    mfxBitstream bitstream{};
-    std::vector<uint8_t> bitstream_storage;
+    std::deque<std::unique_ptr<Pending>> pending;
+    size_t bitstream_capacity = 0;
 #endif
     uint32_t codec = 0;
     uint32_t width = 0;
@@ -27,6 +33,8 @@ struct IntelVplEncoder::Impl {
     uint32_t fps_num = 0;
     uint32_t fps_den = 0;
     int64_t next_pts = 0;
+    uint32_t async_depth = 4;
+    uint32_t max_pending = 0;
     bool encoder_initialized = false;
     bool drained = false;
     bool closed = false;
@@ -54,24 +62,27 @@ mfxU32 vpl_codec(uint32_t codec) {
     return codec == MKVC_CODEC_VP9 ? MFX_CODEC_VP9 : MFX_CODEC_AV1;
 }
 
-mkvc_result collect_output(IntelVplEncoder::Impl& impl, mfxSyncPoint sync,
+mkvc_result collect_output(IntelVplEncoder::Impl& impl,
+                           IntelVplEncoder::Impl::Pending& pending,
                            std::vector<IntelEncodedPacket>& packets,
                            std::string& error) {
-    if (sync == nullptr) return MKVC_OK;
+    if (pending.sync == nullptr) return MKVC_OK;
     mfxStatus status;
     do {
-        status = MFXVideoCORE_SyncOperation(impl.session, sync, kSyncWaitMs);
+        status = MFXVideoCORE_SyncOperation(
+            impl.session, pending.sync, kSyncWaitMs);
     } while (status == MFX_WRN_IN_EXECUTION);
     if (status != MFX_ERR_NONE) {
         error = "oneVPL SyncOperation failed with status " +
                 std::to_string(status);
         return status == MFX_ERR_DEVICE_LOST ? MKVC_ERROR_IO : MKVC_ERROR_CODEC;
     }
-    if (impl.bitstream.DataLength > 0) {
+    if (pending.bitstream.DataLength > 0) {
         IntelEncodedPacket packet;
-        const uint8_t* begin = impl.bitstream.Data + impl.bitstream.DataOffset;
+        const uint8_t* begin = pending.bitstream.Data +
+                               pending.bitstream.DataOffset;
         size_t offset = 0;
-        size_t length = impl.bitstream.DataLength;
+        size_t length = pending.bitstream.DataLength;
         if (impl.codec == MKVC_CODEC_VP9) {
             if (length >= 4 && std::memcmp(begin, "DKIF", 4) == 0) {
                 if (length < 32) {
@@ -94,26 +105,35 @@ mkvc_result collect_output(IntelVplEncoder::Impl& impl, mfxSyncPoint sync,
         }
         packet.data.assign(begin + offset, begin + offset + length);
         packet.pts = static_cast<int64_t>(
-            impl.bitstream.TimeStamp * impl.fps_num /
+            pending.bitstream.TimeStamp * impl.fps_num /
             (90000ULL * impl.fps_den));
-        packet.key = (impl.bitstream.FrameType &
+        packet.key = (pending.bitstream.FrameType &
                       (MFX_FRAMETYPE_I | MFX_FRAMETYPE_IDR)) != 0;
         packets.push_back(std::move(packet));
-        impl.bitstream.DataOffset = 0;
-        impl.bitstream.DataLength = 0;
     }
     return MKVC_OK;
 }
 
-mkvc_result encode_surface(IntelVplEncoder::Impl& impl,
-                           mfxFrameSurface1* surface,
+mkvc_result collect_oldest(IntelVplEncoder::Impl& impl,
                            std::vector<IntelEncodedPacket>& packets,
                            std::string& error) {
-    mfxSyncPoint sync = nullptr;
+    if (impl.pending.empty()) return MKVC_OK;
+    auto pending = std::move(impl.pending.front());
+    impl.pending.pop_front();
+    return collect_output(impl, *pending, packets, error);
+}
+
+mkvc_result submit_surface(IntelVplEncoder::Impl& impl,
+                           mfxFrameSurface1* surface, std::string& error) {
+    auto pending = std::make_unique<IntelVplEncoder::Impl::Pending>();
+    pending->storage.resize(impl.bitstream_capacity);
+    pending->bitstream.Data = pending->storage.data();
+    pending->bitstream.MaxLength =
+        static_cast<mfxU32>(pending->storage.size());
     mfxStatus status;
     do {
         status = MFXVideoENCODE_EncodeFrameAsync(
-            impl.session, nullptr, surface, &impl.bitstream, &sync);
+            impl.session, nullptr, surface, &pending->bitstream, &pending->sync);
         if (status == MFX_WRN_DEVICE_BUSY) std::this_thread::yield();
     } while (status == MFX_WRN_DEVICE_BUSY);
     if (status == MFX_ERR_MORE_DATA) return MKVC_END_OF_STREAM;
@@ -126,7 +146,12 @@ mkvc_result encode_surface(IntelVplEncoder::Impl& impl,
                 std::to_string(status);
         return status == MFX_ERR_DEVICE_LOST ? MKVC_ERROR_IO : MKVC_ERROR_CODEC;
     }
-    return collect_output(impl, sync, packets, error);
+    if (pending->sync != nullptr) {
+        impl.pending.push_back(std::move(pending));
+        impl.max_pending = std::max<uint32_t>(
+            impl.max_pending, static_cast<uint32_t>(impl.pending.size()));
+    }
+    return MKVC_OK;
 }
 
 }  // namespace
@@ -135,17 +160,19 @@ mkvc_result encode_surface(IntelVplEncoder::Impl& impl,
 std::unique_ptr<IntelVplEncoder> IntelVplEncoder::create(
     uint32_t codec, uint32_t width, uint32_t height,
     uint32_t fps_num, uint32_t fps_den, uint32_t quality,
-    uint32_t keyframe_interval_frames, std::string& error) {
+    uint32_t keyframe_interval_frames, std::string& error,
+    uint32_t async_depth) {
 #if !defined(MKVC_HAS_INTEL_ONEVPL)
     (void)codec; (void)width; (void)height; (void)fps_num; (void)fps_den;
-    (void)quality; (void)keyframe_interval_frames;
+    (void)quality; (void)keyframe_interval_frames; (void)async_depth;
     error = "Intel oneVPL backend was not built";
     return nullptr;
 #else
     if ((codec != MKVC_CODEC_VP9 && codec != MKVC_CODEC_AV1) ||
         width == 0 || height == 0 || width > 65520u || height > 65520u ||
         (width & 1u) != 0 ||
-        (height & 1u) != 0 || fps_num == 0 || fps_den == 0 || quality > 63) {
+        (height & 1u) != 0 || fps_num == 0 || fps_den == 0 || quality > 63 ||
+        async_depth == 0 || async_depth > 8) {
         error = "invalid oneVPL encoder configuration";
         return nullptr;
     }
@@ -156,6 +183,7 @@ std::unique_ptr<IntelVplEncoder> IntelVplEncoder::create(
     impl.height = height;
     impl.fps_num = fps_num;
     impl.fps_den = fps_den;
+    impl.async_depth = async_depth;
     impl.loader = MFXLoad();
     if (impl.loader == nullptr) {
         error = "MFXLoad failed";
@@ -213,7 +241,7 @@ std::unique_ptr<IntelVplEncoder> IntelVplEncoder::create(
     parameters.mfx.FrameInfo.Height = static_cast<mfxU16>((height + 15u) & ~15u);
     parameters.mfx.FrameInfo.PicStruct = MFX_PICSTRUCT_PROGRESSIVE;
     parameters.IOPattern = MFX_IOPATTERN_IN_SYSTEM_MEMORY;
-    parameters.AsyncDepth = 4;
+    parameters.AsyncDepth = static_cast<mfxU16>(async_depth);
     mfxStatus status = MFXVideoENCODE_Query(impl.session, &parameters, &parameters);
     if (status < MFX_ERR_NONE) {
         error = "oneVPL encoder Query failed with status " +
@@ -234,9 +262,11 @@ std::unique_ptr<IntelVplEncoder> IntelVplEncoder::create(
     }
     const size_t suggested = static_cast<size_t>(actual.mfx.BufferSizeInKB) *
                              1000u * std::max<mfxU16>(1, actual.mfx.BRCParamMultiplier);
-    impl.bitstream_storage.resize(std::max<size_t>(suggested, 1024u * 1024u));
-    impl.bitstream.Data = impl.bitstream_storage.data();
-    impl.bitstream.MaxLength = static_cast<mfxU32>(impl.bitstream_storage.size());
+    impl.bitstream_capacity = std::max<size_t>(suggested, 1024u * 1024u);
+    if (impl.bitstream_capacity > std::numeric_limits<mfxU32>::max()) {
+        error = "oneVPL bitstream buffer exceeds API limits";
+        return nullptr;
+    }
     return encoder;
 #endif
 }
@@ -292,8 +322,11 @@ mkvc_result IntelVplEncoder::write_nv12(
         error = "oneVPL failed to unmap an encode surface";
         return MKVC_ERROR_CODEC;
     }
-    const mkvc_result result = encode_surface(impl, surface, packets, error);
+    mkvc_result result = submit_surface(impl, surface, error);
     surface->FrameInterface->Release(surface);
+    if (result == MKVC_OK && impl.pending.size() >= impl.async_depth) {
+        result = collect_oldest(impl, packets, error);
+    }
     if (result == MKVC_OK || result == MKVC_END_OF_STREAM) {
         impl.next_pts = std::max(impl.next_pts, frame_pts + 1);
         return MKVC_OK;
@@ -312,11 +345,17 @@ mkvc_result IntelVplEncoder::drain(std::vector<IntelEncodedPacket>& packets,
     auto& impl = *impl_;
     if (impl.closed || impl.drained) return MKVC_OK;
     while (true) {
-        std::vector<IntelEncodedPacket> completed;
-        const mkvc_result result = encode_surface(impl, nullptr, completed, error);
+        const mkvc_result result = submit_surface(impl, nullptr, error);
         if (result == MKVC_END_OF_STREAM) break;
         if (result != MKVC_OK) return result;
-        for (auto& packet : completed) packets.push_back(std::move(packet));
+        if (impl.pending.size() >= impl.async_depth) {
+            const mkvc_result collected = collect_oldest(impl, packets, error);
+            if (collected != MKVC_OK) return collected;
+        }
+    }
+    while (!impl.pending.empty()) {
+        const mkvc_result result = collect_oldest(impl, packets, error);
+        if (result != MKVC_OK) return result;
     }
     impl.drained = true;
     return MKVC_OK;
@@ -335,11 +374,14 @@ mkvc_result IntelVplEncoder::close(std::string& error) {
     if (impl_->loader != nullptr) MFXUnload(impl_->loader);
     impl_->session = nullptr;
     impl_->loader = nullptr;
-    impl_->bitstream.Data = nullptr;
-    impl_->bitstream_storage.clear();
+    impl_->pending.clear();
 #endif
     impl_->closed = true;
     return MKVC_OK;
+}
+
+uint32_t IntelVplEncoder::max_pending_observed() const {
+    return impl_->max_pending;
 }
 
 }  // namespace mkvc

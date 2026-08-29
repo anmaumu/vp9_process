@@ -19,9 +19,10 @@ constexpr uint32_t kHeight = 240;
 constexpr uint32_t kFrames = 30;
 
 bool encode(uint32_t codec, std::vector<mkvc::IntelEncodedPacket>& output,
-            std::string& error) {
+            std::string& error, uint32_t async_depth = 4,
+            uint32_t* max_pending = nullptr) {
     auto encoder = mkvc::IntelVplEncoder::create(
-        codec, kWidth, kHeight, 30, 1, 32, 0, error);
+        codec, kWidth, kHeight, 30, 1, 32, 0, error, async_depth);
     if (!encoder) return false;
     std::vector<uint8_t> y(kWidth * kHeight);
     std::vector<uint8_t> uv(kWidth * kHeight / 2, 128);
@@ -42,6 +43,7 @@ bool encode(uint32_t codec, std::vector<mkvc::IntelEncodedPacket>& output,
     std::vector<mkvc::IntelEncodedPacket> drained;
     if (encoder->drain(drained, error) != MKVC_OK) return false;
     for (auto& packet : drained) output.push_back(std::move(packet));
+    if (max_pending != nullptr) *max_pending = encoder->max_pending_observed();
     encoder->close(error);
     return true;
 }
@@ -137,6 +139,25 @@ int main() {
     if (!encode(MKVC_CODEC_AV1, av1, error)) {
         std::cerr << "Intel AV1 encode failed: " << error << '\n';
         return 1;
+    }
+    for (uint32_t depth : {1u, 2u, 4u, 8u}) {
+        for (uint32_t codec : {MKVC_CODEC_VP9, MKVC_CODEC_AV1}) {
+            std::vector<mkvc::IntelEncodedPacket> packets;
+            uint32_t max_pending = 0;
+            bool ordered = true;
+            if (!encode(codec, packets, error, depth, &max_pending) ||
+                packets.size() != kFrames || max_pending != depth) ordered = false;
+            for (uint32_t index = 0; ordered && index < packets.size(); ++index)
+                ordered = packets[index].pts == index;
+            if (!ordered || packets.empty() || !packets.front().key) {
+                std::cerr << "Intel AsyncDepth validation failed: codec="
+                          << codec << " depth=" << depth
+                          << " pending=" << max_pending
+                          << " packets=" << packets.size()
+                          << " error=" << error << '\n';
+                return 1;
+            }
+        }
     }
     const uint32_t vp9_decoded = decode_vp9(vp9);
     const uint32_t av1_decoded = decode_av1(av1);

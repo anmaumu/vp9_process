@@ -42,7 +42,8 @@
 - [x] Intel oneVPL VP9/AV1 encode, libwebm mux, C ABI/Python Writer on `linux-machine`
 - [x] Intel oneVPL VP9/AV1 decode, libwebm demux, C ABI/Python Capture on `linux-machine`
 - [ ] Windows D3D11 Intel hardware verification
-- [ ] Intel multi-SyncPoint overlap, zero-copy surfaces and device-loss recovery
+- [x] Intel encoder multi-SyncPoint overlap and AsyncDepth 1/2/4/8 ordering tests
+- [ ] Intel decoder multi-SyncPoint overlap, zero-copy surfaces and device-loss recovery
 - NVIDIA NVDEC VP9/AV1
 - NVIDIA NVENC AV1（対応GPUが必要）
 - CPU fallbackと明示backend選択
