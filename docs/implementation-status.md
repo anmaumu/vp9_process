@@ -43,6 +43,7 @@ Status: `PARTIAL`
 | `TEST-CONT-001` | independent decode and metadata verification | FFmpeg + ffprobe | VP9 WebM encode case passing |
 | `TEST-CODEC-001` | VP9 encode/decode round-trip with quality metrics | internal decode and Y-PSNR >= 28 dB | SSIM pending |
 | `TEST-CODEC-002` | SVT-AV1 to libaom/FFmpeg round-trip | 30-frame PTS/order/count, Y-PSNR >= 28 dB, all 8-bit inputs | SSIM pending |
+| `INT-INTEL-001/002` foundation | oneVPL hardware loader/session and codec Query adapter | `mkvc_intel_vpl_probe` plus required-hardware run | Arrow Lake VA-API: API 2.15, VP9/AV1 encode/decode Query passing; public pipeline pending |
 
 The decoder keeps a libwebm cluster/block/frame cursor and reads compressed packets
 incrementally. One compressed packet is limited to 256 MiB. No CPU pipeline uses
@@ -61,4 +62,5 @@ ordered-flush-and-continue contract despite SVT-AV1 lookahead.
 - libyuv `1916`
 - SVT-AV1 `4.1.0`
 - libaom `3.15.0`
+- oneVPL dispatcher `2.17.0`; Intel GPU runtime API `2.15`
 - Linux test host: `linux-machine`, GCC 13.3, CMake 3.28, Ninja

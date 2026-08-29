@@ -6,12 +6,17 @@ option(MKVC_BUILD_TESTS "Build native tests" ON)
 option(MKVC_BUILD_PYTHON_TESTS "Build Python binding tests (requires NumPy)" OFF)
 option(MKVC_ENABLE_CPU_VP9 "Enable the libvpx CPU VP9 backend" ON)
 option(MKVC_ENABLE_CPU_AV1 "Enable SVT-AV1 encode and libaom decode" ON)
+option(MKVC_ENABLE_INTEL_ONEVPL "Enable Intel oneVPL backend foundation" ON)
 
 if(MKVC_ENABLE_CPU_VP9 OR MKVC_ENABLE_CPU_AV1)
     find_package(unofficial-libwebm CONFIG REQUIRED)
     find_package(libyuv CONFIG REQUIRED)
     find_path(LIBWEBM_COMPAT_INCLUDE_DIR mkvmuxer/mkvmuxer.h
         PATH_SUFFIXES webm REQUIRED)
+endif()
+
+if(MKVC_ENABLE_INTEL_ONEVPL)
+    find_package(VPL CONFIG REQUIRED)
 endif()
 
 if(MKVC_ENABLE_CPU_VP9)
@@ -33,6 +38,7 @@ add_library(mkvcodec SHARED
     src/encoder_session.cpp
     src/cpu_av1_encoder.cpp
     src/cpu_av1_decoder.cpp
+    src/intel_vpl_probe.cpp
 )
 
 target_compile_features(mkvcodec PRIVATE cxx_std_17)
@@ -52,6 +58,11 @@ if(MKVC_ENABLE_CPU_VP9)
         unofficial::libwebm::libwebm
         yuv
     )
+endif()
+
+if(MKVC_ENABLE_INTEL_ONEVPL)
+    target_compile_definitions(mkvcodec PRIVATE MKVC_HAS_INTEL_ONEVPL=1)
+    target_link_libraries(mkvcodec PRIVATE VPL::dispatcher)
 endif()
 
 if(MKVC_ENABLE_CPU_AV1)
@@ -93,6 +104,18 @@ if(MKVC_BUILD_TESTS)
     target_compile_features(mkvc_c_api_tests PRIVATE cxx_std_17)
     target_link_libraries(mkvc_c_api_tests PRIVATE mkvcodec)
     add_test(NAME mkvc_c_api_tests COMMAND mkvc_c_api_tests)
+
+    if(MKVC_ENABLE_INTEL_ONEVPL)
+        add_executable(mkvc_intel_vpl_probe_test
+            tests/intel_vpl_probe_test.cpp src/intel_vpl_probe.cpp)
+        target_compile_features(mkvc_intel_vpl_probe_test PRIVATE cxx_std_17)
+        target_include_directories(mkvc_intel_vpl_probe_test PRIVATE src)
+        target_compile_definitions(mkvc_intel_vpl_probe_test
+            PRIVATE MKVC_HAS_INTEL_ONEVPL=1)
+        target_link_libraries(mkvc_intel_vpl_probe_test PRIVATE VPL::dispatcher)
+        add_test(NAME mkvc_intel_vpl_probe COMMAND mkvc_intel_vpl_probe_test)
+        set_tests_properties(mkvc_intel_vpl_probe PROPERTIES SKIP_RETURN_CODE 77)
+    endif()
 
     if(MKVC_ENABLE_CPU_VP9)
         add_executable(mkvc_cpu_vp9_encode_test tests/cpu_vp9_encode_test.cpp)

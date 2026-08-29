@@ -38,6 +38,7 @@
 
 ## Phase 3: hardware backends
 
+- [x] oneVPL hardware loader/session and VP9/AV1 Query probe
 - Intel oneVPL VP9/AV1 on `linux-machine`
 - NVIDIA NVDEC VP9/AV1
 - NVIDIA NVENC AV1（対応GPUが必要）

@@ -19,6 +19,8 @@ CPU VP9のWebM encode/decode、CPU AV1のSVT-AV1 encode/libaom decode、C ABI、
 NumPy用Python API、bounded非同期Writer、bounded decode prefetchまで実装済みです。
 GPU backendと10-bit public frame APIは未実装です。
 利用可能と報告される機能は、実装済みbackendだけに限定します。
+Intel oneVPLはhardware sessionとVP9/AV1 encode/decode Queryまで実機検証済みですが、
+frame pipeline接続前のため公開backend capabilityにはまだ含めません。
 
 ## Build
 
