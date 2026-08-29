@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mkvcodec"
+version = "0.1.0"
+description = "Python bindings for the mkvcodec VP9/AV1 C ABI"
+requires-python = ">=3.9"
+dependencies = ["numpy>=1.26"]
+
+[tool.setuptools]
+package-dir = {"" = "python"}
+
+[tool.setuptools.packages.find]
+where = ["python"]
+

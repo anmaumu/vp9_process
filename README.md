@@ -15,9 +15,9 @@ H.264とHEVCは対象外です。
 
 ## 現在地
 
-最初の実装段階です。C ABI、CMake、backend capability APIの骨格までを提供し、
-codec backendはまだ登録していません。利用可能と報告される機能は、実際に初期化に
-成功したbackendだけに限定する設計です。
+CPU VP9の同期WebM encode/decode、C ABI、I420 NumPy用Python APIまで実装済みです。
+GPU backend、AV1、BGR/NV12変換、非同期pipelineは未実装です。利用可能と報告される
+機能は、実装済みbackendだけに限定します。
 
 ## Build
 
@@ -27,3 +27,22 @@ cmake --build --preset default
 ctest --preset default
 ```
 
+## Python I420 example
+
+```python
+import mkvcodec
+
+with mkvcodec.VideoWriter(
+    "output.webm",
+    fps=30,
+    frame_size=(1920, 1080),
+    quality=32,
+) as writer:
+    writer.write((y_plane, u_plane, v_plane))
+
+with mkvcodec.VideoCapture("output.webm") as capture:
+    frame = capture.read_i420()
+```
+
+開発時はnative libraryの場所を`MKVC_LIBRARY_PATH`で指定できます。wheelへのnative
+library同梱はdistribution phaseで追加します。

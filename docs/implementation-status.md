@@ -16,6 +16,8 @@ Status: `PARTIAL`
 | `EXT-ENC-007` | CQ quality 0..63, default contract 32 | integration config uses 32 | backend mapping complete; binding default pending |
 | `EXT-ENC-009` | four-second keyframe default, auto threads | code review/build | complete for libvpx writer |
 | `EXT-DEC-001/005` | create/read/EOS/idempotent close/destroy | `mkvc_cpu_vp9_encode` | synchronous C ABI subset complete |
+| `EXT-DEC-001/005` Python | context manager, iterator, `None`/StopIteration EOS | `mkvc_python_roundtrip` | I420 synchronous subset complete |
+| `EXT-ENC-001/002/005` Python | context manager and safe-copy I420 tuple write | `mkvc_python_roundtrip` | I420 synchronous subset complete |
 | `EXT-FRAME-001` | owned I420 planes, stride, dimensions and PTS | round-trip frame assertions | I420 frame complete |
 | `EXT-ABI-002..005` | `mkvc_`, opaque encoder handle, versioned structs, stable result | `mkvc_c_api_tests` | encoder subset complete |
 | `EXT-ERR-002..003` | exception containment and thread-local detail | C ABI tests/integration | encoder subset complete |

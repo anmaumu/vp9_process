@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.24)
 project(vp9_process VERSION 0.1.0 LANGUAGES C CXX)
 
 option(MKVC_BUILD_TESTS "Build native tests" ON)
+option(MKVC_BUILD_PYTHON_TESTS "Build Python binding tests (requires NumPy)" OFF)
 option(MKVC_ENABLE_CPU_VP9 "Enable the libvpx CPU VP9 backend" ON)
 
 if(MKVC_ENABLE_CPU_VP9)
@@ -87,5 +88,15 @@ if(MKVC_BUILD_TESTS)
             set_tests_properties(mkvc_cpu_vp9_metadata PROPERTIES
                 FIXTURES_REQUIRED cpu_vp9_sample)
         endif()
+    endif()
+
+    if(MKVC_BUILD_PYTHON_TESTS)
+        find_package(Python3 REQUIRED COMPONENTS Interpreter)
+        add_test(NAME mkvc_python_roundtrip
+            COMMAND ${CMAKE_COMMAND} -E env
+                "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/python"
+                "MKVC_LIBRARY_PATH=$<TARGET_FILE:mkvcodec>"
+                "${Python3_EXECUTABLE}"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/python_roundtrip.py")
     endif()
 endif()
