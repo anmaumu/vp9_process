@@ -99,6 +99,18 @@ Markdown中間生成物は`build/docgen-src`、HTMLは`build/docsite`へ出力�
 HTML siteにはDoxygenが生成するC/C++ source referenceとXMLも統合されます。
 GitHub Actionsはpushとpull requestごとに検証・HTML生成を実行し、artifactを30日保存します。
 
+## Compliance gate
+
+```shell
+python tools/compliance_gate.py source
+python tools/compliance_gate.py sbom build/legal/sbom.spdx.json
+python tools/compliance_gate.py artifact path/to/package.whl
+```
+
+Artifact検査はproject license、third-party notices、SPDX SBOM、bundled依存の
+LICENSE/PATENTSが一つでも欠けると失敗します。NVIDIA/Intel GPU driver runtimeは
+system dependencyであり、wheel/NuGetへの混入を常に拒否します。
+
 ## Performance baseline
 
 公開Python APIを通る再現可能なJSON benchmarkを提供します。

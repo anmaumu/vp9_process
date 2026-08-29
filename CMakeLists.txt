@@ -134,6 +134,16 @@ endif()
 if(MKVC_BUILD_TESTS)
     enable_testing()
     target_compile_definitions(mkvcodec PRIVATE MKVC_ENABLE_TEST_HOOKS=1)
+    if(Python3_Interpreter_FOUND)
+        add_test(NAME mkvc_compliance_source
+            COMMAND "${Python3_EXECUTABLE}"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tools/compliance_gate.py" source)
+        add_test(NAME mkvc_compliance_unit
+            COMMAND "${Python3_EXECUTABLE}" -m unittest
+                tests/test_compliance_gate.py)
+        set_tests_properties(mkvc_compliance_unit PROPERTIES
+            WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+    endif()
     add_executable(mkvc_c_api_tests tests/c_api_tests.cpp)
     target_compile_features(mkvc_c_api_tests PRIVATE cxx_std_17)
     target_link_libraries(mkvc_c_api_tests PRIVATE mkvcodec)

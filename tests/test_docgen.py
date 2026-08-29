@@ -44,7 +44,10 @@ class DocgenTests(unittest.TestCase):
         header = (ROOT / "include" / "mkvcodec" / "mkvc.h").read_text(
             encoding="utf-8"
         )
-        self.assertIn("/** Create a synchronous encoder.", header)
+        self.assertIn(
+            "/** Create an encoder. queue_size selects synchronous or asynchronous operation.",
+            header,
+        )
         self.assertIn("WARN_AS_ERROR          = FAIL_ON_WARNINGS",
                       (ROOT / "Doxyfile").read_text(encoding="utf-8"))
 

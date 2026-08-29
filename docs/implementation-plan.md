@@ -69,4 +69,5 @@
 - Python wheel
 - [x] .NET 8 P/Invoke ABI layout/load smoke and SafeHandle foundation
 - [ ] .NET high-level reader/writer/frame API and NuGet
-- SBOM、THIRD_PARTY_NOTICES、license gate
+- [x] dependency manifest、SPDX SBOM generator、source/artifact compliance gate foundation
+- [ ] LICENSE/PATENTS原文収録、THIRD_PARTY_NOTICES生成、wheel/NuGet実artifact gate

@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "components": [
+    {
+      "name": "libvpx",
+      "version": "1.16.0#3",
+      "license": "BSD-3-Clause",
+      "source": "https://chromium.googlesource.com/webm/libvpx",
+      "distribution": "bundled",
+      "required_notices": ["libvpx-LICENSE.txt", "libvpx-PATENTS.txt"]
+    },
+    {
+      "name": "libwebm",
+      "version": "1.0.0.32",
+      "license": "BSD-3-Clause",
+      "source": "https://chromium.googlesource.com/webm/libwebm",
+      "distribution": "bundled",
+      "required_notices": ["libwebm-LICENSE.txt", "libwebm-PATENTS.txt"]
+    },
+    {
+      "name": "libyuv",
+      "version": "1916",
+      "license": "BSD-3-Clause",
+      "source": "https://chromium.googlesource.com/libyuv/libyuv",
+      "distribution": "bundled",
+      "required_notices": ["libyuv-LICENSE.txt"]
+    },
+    {
+      "name": "libaom",
+      "version": "3.15.0",
+      "license": "BSD-2-Clause AND LicenseRef-AOM-Patent-1.0",
+      "source": "https://aomedia.googlesource.com/aom",
+      "distribution": "bundled",
+      "required_notices": ["libaom-LICENSE.txt", "libaom-PATENTS.txt"]
+    },
+    {
+      "name": "SVT-AV1",
+      "version": "4.1.0",
+      "license": "BSD-3-Clause-Clear AND LicenseRef-AOM-Patent-1.0",
+      "source": "https://gitlab.com/AOMediaCodec/SVT-AV1",
+      "distribution": "bundled",
+      "required_notices": ["SVT-AV1-LICENSE.txt", "SVT-AV1-PATENTS.txt"]
+    },
+    {
+      "name": "libvpl",
+      "version": "2.17.0",
+      "license": "MIT",
+      "source": "https://github.com/intel/libvpl",
+      "distribution": "bundled",
+      "required_notices": ["libvpl-LICENSE.txt"]
+    },
+    {
+      "name": "nv-codec-headers",
+      "version": "n13.1.15.0",
+      "license": "MIT",
+      "source": "https://github.com/FFmpeg/nv-codec-headers",
+      "distribution": "build-only",
+      "required_notices": ["nv-codec-headers-LICENSES.txt"]
+    },
+    {
+      "name": "numpy",
+      "version": ">=1.26",
+      "license": "BSD-3-Clause",
+      "source": "https://github.com/numpy/numpy",
+      "distribution": "dependency",
+      "required_notices": []
+    }
+  ]
+}
