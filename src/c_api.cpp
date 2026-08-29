@@ -6,6 +6,7 @@
 #include "encoder_session.hpp"
 #include "frame_conversion.hpp"
 #include "intel_webm_decoder.hpp"
+#include "nvidia_webm_decoder.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -27,6 +28,7 @@ struct mkvc_decoder {
     std::unique_ptr<mkvc::CpuVp9Decoder> implementation;
     std::unique_ptr<mkvc::CpuAv1Decoder> av1_implementation;
     std::unique_ptr<mkvc::IntelWebmDecoder> intel_implementation;
+    std::unique_ptr<mkvc::NvidiaWebmDecoder> nvidia_implementation;
     mutable std::mutex mutex;
     std::condition_variable not_empty;
     std::condition_variable not_full;
@@ -68,6 +70,8 @@ mkvc_result decoder_read_backend(
     std::string& error) {
     if (decoder->intel_implementation)
         return decoder->intel_implementation->read(frame, error);
+    if (decoder->nvidia_implementation)
+        return decoder->nvidia_implementation->read(frame, error);
     return decoder->implementation ? decoder->implementation->read(frame, error)
                                    : decoder->av1_implementation->read(frame, error);
 }
@@ -76,6 +80,8 @@ mkvc_result decoder_close_backend(mkvc_decoder* decoder,
                                   std::string& error) {
     if (decoder->intel_implementation)
         return decoder->intel_implementation->close(error);
+    if (decoder->nvidia_implementation)
+        return decoder->nvidia_implementation->close(error);
     return decoder->implementation ? decoder->implementation->close(error)
                                    : decoder->av1_implementation->close(error);
 }
@@ -101,7 +107,9 @@ void decoder_worker(mkvc_decoder* decoder) noexcept {
                 decoder_read_backend(decoder, frame, error);
             const uint64_t backend_elapsed = elapsed_ns(backend_started);
             const uint32_t hardware_pending = decoder->intel_implementation
-                ? decoder->intel_implementation->max_pending_observed() : 0;
+                ? decoder->intel_implementation->max_pending_observed()
+                : (decoder->nvidia_implementation
+                    ? decoder->nvidia_implementation->max_pending_observed() : 0);
             std::lock_guard<std::mutex> lock(decoder->mutex);
             decoder->backend_time_ns += backend_elapsed;
             decoder->hardware_pending_peak = std::max(
@@ -364,7 +372,8 @@ mkvc_result mkvc_decoder_create(const mkvc_decoder_config* config,
         config->input_path_utf8[0] == '\0' ||
         (config->codec != MKVC_CODEC_VP9 && config->codec != MKVC_CODEC_AV1) ||
         (config->backend != MKVC_BACKEND_CPU &&
-         config->backend != MKVC_BACKEND_INTEL)) {
+         config->backend != MKVC_BACKEND_INTEL &&
+         config->backend != MKVC_BACKEND_NVIDIA)) {
         return fail(MKVC_ERROR_INVALID_ARGUMENT, "invalid decoder config");
     }
     try {
@@ -374,6 +383,22 @@ mkvc_result mkvc_decoder_create(const mkvc_decoder_config* config,
             handle->intel_implementation =
                 mkvc::IntelWebmDecoder::create(*config, error);
             if (!handle->intel_implementation) {
+                return fail(MKVC_ERROR_CODEC, std::move(error));
+            }
+        } else if (config->backend == MKVC_BACKEND_NVIDIA) {
+            const auto& capabilities = mkvc::backend_capabilities();
+            const bool available = std::any_of(
+                capabilities.begin(), capabilities.end(), [config](const auto& item) {
+                    return item.backend == MKVC_BACKEND_NVIDIA &&
+                           item.codec == config->codec && item.can_decode != 0;
+                });
+            if (!available) {
+                return fail(MKVC_ERROR_NOT_SUPPORTED,
+                            "requested NVIDIA decode capability is unavailable");
+            }
+            handle->nvidia_implementation =
+                mkvc::NvidiaWebmDecoder::create(*config, error);
+            if (!handle->nvidia_implementation) {
                 return fail(MKVC_ERROR_CODEC, std::move(error));
             }
         } else if (config->codec == MKVC_CODEC_VP9) {
@@ -450,7 +475,9 @@ mkvc_result mkvc_decoder_read(mkvc_decoder* decoder, mkvc_frame** out_frame) {
         const mkvc_result result = decoder_read_backend(decoder, decoded, error);
         const uint64_t backend_elapsed = elapsed_ns(backend_started);
         const uint32_t hardware_pending = decoder->intel_implementation
-            ? decoder->intel_implementation->max_pending_observed() : 0;
+            ? decoder->intel_implementation->max_pending_observed()
+            : (decoder->nvidia_implementation
+                ? decoder->nvidia_implementation->max_pending_observed() : 0);
         {
             std::lock_guard<std::mutex> lock(decoder->mutex);
             decoder->backend_time_ns += backend_elapsed;

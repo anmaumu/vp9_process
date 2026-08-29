@@ -19,11 +19,14 @@ if(MKVC_ENABLE_NVIDIA)
     FetchContent_MakeAvailable(nv_codec_headers)
 endif()
 
-if(MKVC_ENABLE_CPU_VP9 OR MKVC_ENABLE_CPU_AV1 OR MKVC_ENABLE_INTEL_ONEVPL)
+if(MKVC_ENABLE_CPU_VP9 OR MKVC_ENABLE_CPU_AV1 OR MKVC_ENABLE_INTEL_ONEVPL OR MKVC_ENABLE_NVIDIA)
     find_package(unofficial-libwebm CONFIG REQUIRED)
-    find_package(libyuv CONFIG REQUIRED)
     find_path(LIBWEBM_COMPAT_INCLUDE_DIR mkvmuxer/mkvmuxer.h
         PATH_SUFFIXES webm REQUIRED)
+endif()
+
+if(MKVC_ENABLE_CPU_VP9 OR MKVC_ENABLE_CPU_AV1 OR MKVC_ENABLE_INTEL_ONEVPL)
+    find_package(libyuv CONFIG REQUIRED)
 endif()
 
 if(MKVC_ENABLE_INTEL_ONEVPL)
@@ -55,6 +58,7 @@ add_library(mkvcodec SHARED
     src/intel_webm_encoder.cpp
     src/intel_webm_decoder.cpp
     src/nvidia_probe.cpp
+    src/nvidia_webm_decoder.cpp
 )
 
 target_compile_features(mkvcodec PRIVATE cxx_std_17)
@@ -70,6 +74,8 @@ if(MKVC_ENABLE_NVIDIA)
     target_include_directories(mkvcodec PRIVATE
         ${nv_codec_headers_SOURCE_DIR}/include)
     target_link_libraries(mkvcodec PRIVATE ${CMAKE_DL_LIBS})
+    target_include_directories(mkvcodec PRIVATE ${LIBWEBM_COMPAT_INCLUDE_DIR})
+    target_link_libraries(mkvcodec PRIVATE unofficial::libwebm::libwebm)
 endif()
 
 if(MKVC_ENABLE_CPU_VP9)
@@ -194,6 +200,31 @@ if(MKVC_BUILD_TESTS)
             COMMAND mkvc_cpu_vp9_encode_test "${MKVC_VP9_TEST_OUTPUT}")
         set_tests_properties(mkvc_cpu_vp9_encode PROPERTIES
             FIXTURES_SETUP cpu_vp9_sample)
+
+        if(MKVC_ENABLE_NVIDIA)
+            add_executable(mkvc_nvidia_webm_decoder_test
+                tests/nvidia_webm_decoder_test.cpp
+                src/nvidia_webm_decoder.cpp src/nvidia_probe.cpp)
+            target_compile_features(mkvc_nvidia_webm_decoder_test PRIVATE cxx_std_17)
+            target_include_directories(mkvc_nvidia_webm_decoder_test PRIVATE
+                src include ${nv_codec_headers_SOURCE_DIR}/include
+                ${LIBWEBM_COMPAT_INCLUDE_DIR})
+            target_compile_definitions(mkvc_nvidia_webm_decoder_test
+                PRIVATE MKVC_HAS_NVIDIA=1)
+            target_link_libraries(mkvc_nvidia_webm_decoder_test PRIVATE
+                unofficial::libwebm::libwebm ${CMAKE_DL_LIBS})
+            if(MSVC)
+                target_compile_options(mkvc_nvidia_webm_decoder_test PRIVATE
+                    /W4 /permissive- /EHsc)
+            else()
+                target_compile_options(mkvc_nvidia_webm_decoder_test PRIVATE
+                    -Wall -Wextra -Wpedantic -Werror)
+            endif()
+            add_test(NAME mkvc_nvidia_webm_decode
+                COMMAND mkvc_nvidia_webm_decoder_test "${MKVC_VP9_TEST_OUTPUT}")
+            set_tests_properties(mkvc_nvidia_webm_decode PROPERTIES
+                FIXTURES_REQUIRED cpu_vp9_sample SKIP_RETURN_CODE 77)
+        endif()
 
         find_program(FFMPEG_EXECUTABLE ffmpeg)
         if(FFMPEG_EXECUTABLE)

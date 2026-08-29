@@ -13,8 +13,8 @@ endif()
 
 foreach(expected
         "codec_name=vp9"
-        "width=64"
-        "height=48"
+        "width=160"
+        "height=128"
         "avg_frame_rate=30/1"
         "duration=1.000000")
     string(FIND "${probe_output}" "${expected}" match_position)

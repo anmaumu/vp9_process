@@ -24,8 +24,10 @@ int main(int argc, char** argv) {
     const std::string output_path = argv[1];
     std::filesystem::remove(output_path);
 
-    constexpr uint32_t width = 64;
-    constexpr uint32_t height = 48;
+    // Keep the shared fixture inside current NVDEC minimum dimensions so the
+    // same bitstream exercises CPU and NVIDIA decoder integrations.
+    constexpr uint32_t width = 160;
+    constexpr uint32_t height = 128;
     constexpr uint32_t frame_count = 30;
     const size_t y_size = width * height;
     const size_t uv_size = width * height / 4;

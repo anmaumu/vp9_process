@@ -28,7 +28,8 @@ int main() {
         for (size_t index = 0; index < count; ++index) {
             assert(capabilities[index].struct_size == sizeof(capabilities[index]));
             assert(capabilities[index].backend == MKVC_BACKEND_CPU ||
-                   capabilities[index].backend == MKVC_BACKEND_INTEL);
+                   capabilities[index].backend == MKVC_BACKEND_INTEL ||
+                   capabilities[index].backend == MKVC_BACKEND_NVIDIA);
         }
         assert(capabilities[0].codec == MKVC_CODEC_VP9);
         assert(capabilities[0].can_decode == 1 && capabilities[0].can_encode == 1);
@@ -37,7 +38,8 @@ int main() {
             assert(capabilities[1].can_decode == 1 && capabilities[1].can_encode == 1);
         }
         for (size_t index = 2; index < count; ++index) {
-            assert(capabilities[index].backend == MKVC_BACKEND_INTEL);
+            assert(capabilities[index].backend == MKVC_BACKEND_INTEL ||
+                   capabilities[index].backend == MKVC_BACKEND_NVIDIA);
             assert(capabilities[index].can_decode <= 1);
             assert(capabilities[index].can_encode <= 1);
             assert(capabilities[index].can_decode != 0 ||

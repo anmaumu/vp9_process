@@ -18,13 +18,14 @@ H.264とHEVCは対象外です。
 CPU VP9のWebM encode/decode、CPU AV1のSVT-AV1 encode/libaom decode、C ABI、
 NumPy用Python API、bounded非同期Writer、bounded decode prefetchまで実装済みです。
 Intel oneVPLによるVP9/AV1 WebM encode/decodeはC ABIとPython Writer/Captureから
-選択でき、Linux Intel GPU実機で検証済みです。NVIDIA backendと
-10-bit public frame APIは未実装です。
+選択でき、Linux Intel GPU実機で検証済みです。NVIDIA NVDEC Captureは
+C ABI/Pythonから選択でき、Windows RTX 2060でVP9を検証済みです。
+NVIDIA AV1 decodeの対応GPU検証、NVENC Writer、10-bit public frame APIは未完です。
 薄い.NET 8 P/Invoke bindingではABI version/capability query、型付きerror、
 encoder/decoder/frame用SafeHandleとLinux native load smokeを実装済みです。
 利用可能と報告される機能は、実装済みbackendだけに限定します。
 Intel capabilityはruntime Queryに成功したcodec/directionだけを公開します。
-Windows向けコードは含みますが実GPU検証は未完です。
+Windows NVIDIA VP9 decodeを実GPU検証済みです。Windows Intel GPU検証は未完です。
 
 ## Build
 
