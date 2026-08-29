@@ -28,6 +28,7 @@ struct IntelWebmDecoder::Impl {
 #endif
     std::unique_ptr<IntelVplDecoder> decoder;
     std::deque<std::unique_ptr<DecodedFrame>> completed;
+    std::deque<std::shared_ptr<gpu::GpuFrameCore>> completed_gpu;
     bool demux_eos = false;
     uint32_t hardware_pending_peak = 0;
     bool drained = false;
@@ -144,6 +145,11 @@ void enqueue(IntelWebmDecoder::Impl& impl,
     for (auto& frame : frames) impl.completed.push_back(std::move(frame));
 }
 
+void enqueue_gpu(IntelWebmDecoder::Impl& impl,
+                 std::vector<std::shared_ptr<gpu::GpuFrameCore>>& frames) {
+    for (auto& frame : frames) impl.completed_gpu.push_back(std::move(frame));
+}
+
 }  // namespace
 #endif
 
@@ -156,8 +162,58 @@ std::unique_ptr<IntelWebmDecoder> IntelWebmDecoder::create(
 #else
     auto result = std::unique_ptr<IntelWebmDecoder>(new IntelWebmDecoder());
     if (!open_parser(config, *result->impl_, error)) return nullptr;
-    result->impl_->decoder = IntelVplDecoder::create(config.codec, error);
+    result->impl_->decoder = IntelVplDecoder::create(config.codec, error, 4, true);
     return result->impl_->decoder ? std::move(result) : nullptr;
+#endif
+}
+
+mkvc_result IntelWebmDecoder::read_gpu(mkvc_gpu_frame** frame,
+                                       std::string& error) {
+    if (frame != nullptr) *frame = nullptr;
+#if !defined(MKVC_HAS_INTEL_ONEVPL)
+    (void)frame;
+    error = "Intel oneVPL backend was not built";
+    return MKVC_ERROR_NOT_SUPPORTED;
+#else
+    if (frame == nullptr) {
+        error = "GPU frame output is null";
+        return MKVC_ERROR_INVALID_ARGUMENT;
+    }
+    auto& impl = *impl_;
+    if (impl.closed) {
+        error = "Intel decoder is closed";
+        return MKVC_ERROR_INVALID_STATE;
+    }
+    while (impl.completed_gpu.empty()) {
+        if (!impl.demux_eos) {
+            Impl::Packet packet;
+            const mkvc_result read_result = read_next_packet(impl, packet, error);
+            if (read_result != MKVC_OK && read_result != MKVC_END_OF_STREAM)
+                return read_result;
+            if (read_result == MKVC_OK) {
+                std::vector<std::shared_ptr<gpu::GpuFrameCore>> completed;
+                const mkvc_result decode_result = impl.decoder->decode_gpu(
+                    packet.data.data(), packet.data.size(), packet.pts_ns,
+                    completed, error);
+                if (decode_result != MKVC_OK) return decode_result;
+                enqueue_gpu(impl, completed);
+            }
+            continue;
+        }
+        if (!impl.drained) {
+            std::vector<std::shared_ptr<gpu::GpuFrameCore>> completed;
+            const mkvc_result result = impl.decoder->drain_gpu(completed, error);
+            if (result != MKVC_OK) return result;
+            enqueue_gpu(impl, completed);
+            impl.drained = true;
+            continue;
+        }
+        return MKVC_END_OF_STREAM;
+    }
+    auto core = std::move(impl.completed_gpu.front());
+    impl.completed_gpu.pop_front();
+    *frame = gpu::make_handle(core);
+    return *frame != nullptr ? MKVC_OK : MKVC_ERROR_INTERNAL;
 #endif
 }
 
@@ -217,6 +273,7 @@ mkvc_result IntelWebmDecoder::close(std::string& error) {
     }
     impl_->decoder.reset();
     impl_->completed.clear();
+    impl_->completed_gpu.clear();
     impl_->segment.reset();
     impl_->reader.reset();
 #endif

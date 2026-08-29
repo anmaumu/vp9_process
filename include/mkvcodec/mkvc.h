@@ -323,6 +323,10 @@ MKVC_API mkvc_result mkvc_decoder_create(
 MKVC_API mkvc_result mkvc_decoder_read(
     mkvc_decoder* decoder,
     mkvc_frame** out_frame);
+/** Read one GPU-resident frame; initially supported by synchronous Intel decode. */
+MKVC_API mkvc_result mkvc_decoder_read_gpu(
+    mkvc_decoder* decoder,
+    mkvc_gpu_frame** out_frame);
 /** Close the decoder and release codec/container resources idempotently. */
 MKVC_API mkvc_result mkvc_decoder_close(mkvc_decoder* decoder);
 /** Snapshot cumulative decoder metrics without resetting them. */

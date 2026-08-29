@@ -35,6 +35,64 @@ class PipelineMetrics:
     copy_path: str
 
 
+class GpuFrame:
+    """Lease over a backend-owned GPU frame and its borrowed native handle."""
+    def __init__(self, handle: native.GpuFrameHandle) -> None:
+        self._handle = handle
+        self._closed = False
+
+    @property
+    def descriptor(self) -> dict[str, object]:
+        if self._closed:
+            raise RuntimeError("GPU frame is released")
+        value = native.GpuFrameDesc()
+        value.struct_size, value.struct_version = ct.sizeof(value), 1
+        native.check(native.lib.mkvc_gpu_frame_get_desc(self._handle, ct.byref(value)))
+        return {
+            "backend": value.backend, "memory_type": value.memory_type,
+            "device_id": value.device_id, "generation": value.generation,
+            "pixel_format": value.pixel_format, "width": value.width,
+            "height": value.height, "plane_count": value.plane_count,
+            "plane_offsets": tuple(value.plane_offsets),
+            "pitches": tuple(value.pitches), "pts_ns": value.pts,
+        }
+
+    @property
+    def native_handle(self) -> dict[str, object]:
+        if self._closed:
+            raise RuntimeError("GPU frame is released")
+        value = native.GpuNativeHandleDesc()
+        value.struct_size, value.struct_version = ct.sizeof(value), 1
+        native.check(native.lib.mkvc_gpu_frame_get_native_handle(
+            self._handle, ct.byref(value)
+        ))
+        return {
+            "type": value.type, "borrowed": bool(value.borrowed),
+            "device_id": value.device_id, "generation": value.generation,
+            "handles": tuple(value.handles),
+        }
+
+    def wait(self, timeout_ms: int = 0xFFFFFFFF) -> None:
+        if self._closed:
+            raise RuntimeError("GPU frame is released")
+        if timeout_ms < 0 or timeout_ms > 0xFFFFFFFF:
+            raise ValueError("timeout_ms is outside uint32 range")
+        native.check(native.lib.mkvc_gpu_frame_wait(self._handle, timeout_ms))
+
+    def close(self) -> None:
+        if not self._closed:
+            native.lib.mkvc_gpu_frame_release(self._handle)
+            self._handle = native.GpuFrameHandle()
+            self._closed = True
+
+    release = close
+    def __enter__(self) -> "GpuFrame": return self
+    def __exit__(self, *args: object) -> None: self.close()
+    def __del__(self) -> None:
+        if getattr(self, "_closed", True) is False:
+            self.close()
+
+
 def _read_metrics(handle: ct.c_void_p, function: object) -> PipelineMetrics:
     metrics = native.PipelineMetrics()
     metrics.struct_size = ct.sizeof(metrics)
@@ -353,6 +411,17 @@ class VideoCapture(Iterator[U8Plane]):
             return CpuFrame(arrays[0], arrays[1], arrays[2], view.pts)
         finally:
             native.lib.mkvc_frame_release(handle)
+
+    def read_surface(self) -> GpuFrame | None:
+        """Read one GPU-resident frame without a CPU readback."""
+        if self._closed:
+            raise RuntimeError("capture is closed")
+        handle = native.GpuFrameHandle()
+        result = native.lib.mkvc_decoder_read_gpu(self._handle, ct.byref(handle))
+        if result == native.MKVC_END_OF_STREAM:
+            return None
+        native.check(result)
+        return GpuFrame(handle)
 
     def _read_packed(self, channels: int, pixel_format: int) -> U8Plane | None:
         handle = self._read_handle()

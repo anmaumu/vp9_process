@@ -60,8 +60,16 @@ The Intel GPU surface factory can now wrap an NV12/P010 oneVPL video-memory
 surface plus SyncPoint into `GpuFramePool` without CPU Map, export its D3D11 or
 VA native descriptor, and defer `FrameInterface::Release` until completion and
 all leases finish. Abandoned internal frames perform a best-effort completion
-wait before releasing the backend resource. The existing decoder still requests
-system-memory output, so public `read_gpu` integration is the next incomplete step.
+wait before releasing the backend resource. The factory is now consumed by the
+Linux Intel public GPU decode path; D3D11 and VPP/encode consumers remain incomplete.
+
+Linux Intel public GPU decode is now connected end to end: the decoder requests
+`MFX_IOPATTERN_OUT_VIDEO_MEMORY`, `mkvc_decoder_read_gpu` returns a leased VA
+surface, and Python exposes it as `VideoCapture.read_surface()`. The frame retains
+the oneVPL session after Capture close, reports `zero_copy`, and releases the VA
+surface/session at final lease release. VP9 native and Python hardware tests pass
+on `linux-machine`; AV1 Python GPU surface acquisition also passes. VPP→encode
+connection and Windows D3D11 hardware qualification remain pending.
 
 | Specification | Implementation | Verification | Status |
 |---|---|---|---|

@@ -7,6 +7,7 @@ from pathlib import Path
 
 MKVC_OK = 0
 MKVC_ERROR_INVALID_STATE = 5
+MKVC_ERROR_TIMEOUT = 10
 MKVC_END_OF_STREAM = 8
 MKVC_WOULD_BLOCK = 9
 MKVC_BACKEND_CPU = 1
@@ -19,6 +20,7 @@ MKVC_PIXEL_FORMAT_NV12 = 2
 MKVC_PIXEL_FORMAT_BGR24 = 3
 MKVC_PIXEL_FORMAT_RGB24 = 4
 MKVC_PIXEL_FORMAT_BGRA32 = 5
+MKVC_PIXEL_FORMAT_P010 = 6
 MKVC_FRAME_FIT_STRETCH = 0
 MKVC_FRAME_FIT_CONTAIN = 1
 MKVC_FRAME_FIT_COVER = 2
@@ -116,6 +118,29 @@ class FrameProcessConfig(ct.Structure):
     ]
 
 
+class GpuFrameDesc(ct.Structure):
+    _fields_ = [
+        ("struct_size", ct.c_uint32), ("struct_version", ct.c_uint32),
+        ("backend", ct.c_uint32), ("memory_type", ct.c_uint32),
+        ("device_id", ct.c_uint64), ("generation", ct.c_uint64),
+        ("pixel_format", ct.c_uint32), ("width", ct.c_uint32),
+        ("height", ct.c_uint32), ("plane_count", ct.c_uint32),
+        ("plane_offsets", ct.c_uint64 * 4), ("pitches", ct.c_uint64 * 4),
+        ("pts", ct.c_int64), ("color_primaries", ct.c_uint32),
+        ("color_transfer", ct.c_uint32), ("color_matrix", ct.c_uint32),
+        ("color_range", ct.c_uint32),
+    ]
+
+
+class GpuNativeHandleDesc(ct.Structure):
+    _fields_ = [
+        ("struct_size", ct.c_uint32), ("struct_version", ct.c_uint32),
+        ("type", ct.c_uint32), ("borrowed", ct.c_uint32),
+        ("device_id", ct.c_uint64), ("generation", ct.c_uint64),
+        ("handles", ct.c_uint64 * 4),
+    ]
+
+
 def _candidate_paths() -> list[str]:
     explicit = os.environ.get("MKVC_LIBRARY_PATH")
     candidates = [explicit] if explicit else []
@@ -145,6 +170,7 @@ lib = _load()
 EncoderHandle = ct.c_void_p
 DecoderHandle = ct.c_void_p
 FrameHandle = ct.c_void_p
+GpuFrameHandle = ct.c_void_p
 
 lib.mkvc_encoder_create.argtypes = [ct.POINTER(EncoderConfig), ct.POINTER(EncoderHandle)]
 lib.mkvc_encoder_create.restype = ct.c_int
@@ -164,6 +190,8 @@ lib.mkvc_decoder_create.argtypes = [ct.POINTER(DecoderConfig), ct.POINTER(Decode
 lib.mkvc_decoder_create.restype = ct.c_int
 lib.mkvc_decoder_read.argtypes = [DecoderHandle, ct.POINTER(FrameHandle)]
 lib.mkvc_decoder_read.restype = ct.c_int
+lib.mkvc_decoder_read_gpu.argtypes = [DecoderHandle, ct.POINTER(GpuFrameHandle)]
+lib.mkvc_decoder_read_gpu.restype = ct.c_int
 lib.mkvc_decoder_close.argtypes = [DecoderHandle]
 lib.mkvc_decoder_close.restype = ct.c_int
 lib.mkvc_decoder_get_metrics.argtypes = [DecoderHandle, ct.POINTER(PipelineMetrics)]
@@ -179,6 +207,15 @@ lib.mkvc_frame_process.argtypes = [
 ]
 lib.mkvc_frame_process.restype = ct.c_int
 lib.mkvc_frame_release.argtypes = [FrameHandle]
+lib.mkvc_gpu_frame_get_desc.argtypes = [GpuFrameHandle, ct.POINTER(GpuFrameDesc)]
+lib.mkvc_gpu_frame_get_desc.restype = ct.c_int
+lib.mkvc_gpu_frame_get_native_handle.argtypes = [
+    GpuFrameHandle, ct.POINTER(GpuNativeHandleDesc)
+]
+lib.mkvc_gpu_frame_get_native_handle.restype = ct.c_int
+lib.mkvc_gpu_frame_wait.argtypes = [GpuFrameHandle, ct.c_uint32]
+lib.mkvc_gpu_frame_wait.restype = ct.c_int
+lib.mkvc_gpu_frame_release.argtypes = [GpuFrameHandle]
 lib.mkvc_get_last_error.restype = ct.c_char_p
 
 
@@ -189,4 +226,6 @@ def check(result: int) -> None:
     message = detail.decode("utf-8", errors="replace") if detail else f"result={result}"
     if result == MKVC_ERROR_INVALID_STATE:
         raise RuntimeError(message)
+    if result == MKVC_ERROR_TIMEOUT:
+        raise TimeoutError(message)
     raise ValueError(message)

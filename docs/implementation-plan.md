@@ -75,9 +75,13 @@
 - [ ] connect completion adapters to decode/VPP/encode surface factories; add D3D11 fence/VA synchronization
 - [x] oneVPL video-memory surface wrapper with SyncPoint, native handle, pool lease and deferred Surface Release
 - [ ] Intel decode→VPP→encode shared-surface pipeline
+- [x] Linux Intel oneVPL video-memory decode→`mkvc_decoder_read_gpu`→VA surface lease
+- [x] Python Intel `VideoCapture.read_surface()` descriptor/native-handle lease
+- [ ] Windows Intel D3D11 `read_surface` hardware qualification
 - [ ] NVIDIA NVDEC→NVENC registered-resource pipeline
 - [x] backend-neutral borrowed native-handle descriptor and lease validation
-- [ ] connect Intel D3D11 texture/VA surface factories to real decoder/VPP surfaces
+- [x] connect Intel VA surface factory to real Linux decoder output
+- [ ] connect Intel D3D11 texture factory and VPP/encoder surfaces
 - [ ] connect NVIDIA CUdeviceptr/CUarray/context/stream/event factories to mapped NVDEC surfaces
 - [ ] Intel safe USM path and NVIDIA CUDA DLPack adapters
 - [ ] NVIDIA NPP/CUDA mapping

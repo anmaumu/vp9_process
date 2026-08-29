@@ -1,6 +1,7 @@
 #include "frame_conversion.hpp"
 
-#if defined(MKVC_HAS_CPU_VP9)
+#if defined(MKVC_HAS_CPU_VP9) || defined(MKVC_HAS_CPU_AV1) || \
+    defined(MKVC_HAS_INTEL_ONEVPL) || defined(MKVC_HAS_NVIDIA)
 #include <libyuv/convert_from.h>
 #include <libyuv/convert_from_argb.h>
 #include <libyuv/planar_functions.h>
@@ -13,7 +14,8 @@ namespace mkvc {
 mkvc_result copy_frame_to(const DecodedFrame& source,
                           mkvc_mutable_frame_view& destination,
                           std::string& error) {
-#if !defined(MKVC_HAS_CPU_VP9)
+#if !defined(MKVC_HAS_CPU_VP9) && !defined(MKVC_HAS_CPU_AV1) && \
+    !defined(MKVC_HAS_INTEL_ONEVPL) && !defined(MKVC_HAS_NVIDIA)
     (void)source;
     (void)destination;
     error = "CPU frame conversion was not built";
@@ -105,4 +107,3 @@ mkvc_result copy_frame_to(const DecodedFrame& source,
 }
 
 }  // namespace mkvc
-

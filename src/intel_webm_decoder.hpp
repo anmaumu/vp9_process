@@ -18,6 +18,8 @@ class IntelWebmDecoder {
     IntelWebmDecoder(const IntelWebmDecoder&) = delete;
     IntelWebmDecoder& operator=(const IntelWebmDecoder&) = delete;
     mkvc_result read(std::unique_ptr<DecodedFrame>& frame, std::string& error);
+    /** Read one GPU-resident oneVPL decode surface. */
+    mkvc_result read_gpu(mkvc_gpu_frame** frame, std::string& error);
     mkvc_result close(std::string& error);
     uint32_t max_pending_observed() const;
 

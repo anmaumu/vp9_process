@@ -46,6 +46,7 @@ struct mkvc_decoder {
     uint64_t backend_time_ns = 0;
     uint32_t peak_queue_depth = 0;
     uint32_t hardware_pending_peak = 0;
+    bool gpu_path_exercised = false;
 };
 
 struct mkvc_frame {
@@ -522,6 +523,44 @@ mkvc_result mkvc_decoder_read(mkvc_decoder* decoder, mkvc_frame** out_frame) {
     }
 }
 
+mkvc_result mkvc_decoder_read_gpu(mkvc_decoder* decoder,
+                                  mkvc_gpu_frame** out_frame) {
+    last_error.clear();
+    if (out_frame != nullptr) *out_frame = nullptr;
+    if (decoder == nullptr || out_frame == nullptr) {
+        return fail(MKVC_ERROR_INVALID_ARGUMENT, "invalid decoder or GPU frame output");
+    }
+    if (decoder->capacity != 0) {
+        return fail(MKVC_ERROR_NOT_SUPPORTED,
+                    "GPU read currently requires decoder prefetch=0");
+    }
+    if (!decoder->intel_implementation) {
+        return fail(MKVC_ERROR_NOT_SUPPORTED,
+                    "GPU read is not implemented for this decoder backend");
+    }
+    try {
+        std::string error;
+        const auto started = std::chrono::steady_clock::now();
+        const mkvc_result result =
+            decoder->intel_implementation->read_gpu(out_frame, error);
+        {
+            std::lock_guard<std::mutex> lock(decoder->mutex);
+            decoder->backend_time_ns += elapsed_ns(started);
+            if (result == MKVC_OK) {
+                ++decoder->accepted_frames;
+                ++decoder->completed_frames;
+                decoder->gpu_path_exercised = true;
+            }
+        }
+        return result == MKVC_OK || result == MKVC_END_OF_STREAM
+            ? result : fail(result, std::move(error));
+    } catch (const std::exception& exception) {
+        return fail(MKVC_ERROR_INTERNAL, exception.what());
+    } catch (...) {
+        return fail(MKVC_ERROR_INTERNAL, "unknown GPU decoder read failure");
+    }
+}
+
 mkvc_result mkvc_decoder_close(mkvc_decoder* decoder) {
     last_error.clear();
     if (decoder == nullptr) {
@@ -562,6 +601,9 @@ mkvc_result mkvc_decoder_get_metrics(
         metrics.hardware_pending_peak = decoder->hardware_pending_peak;
         metrics.copy_path = decoder->completed_frames == 0
             ? MKVC_COPY_PATH_UNKNOWN : MKVC_COPY_PATH_CPU;
+        if (decoder->gpu_path_exercised) {
+            metrics.copy_path = MKVC_COPY_PATH_ZERO_COPY;
+        }
         *out_metrics = metrics;
         return MKVC_OK;
     } catch (const std::exception& exception) {

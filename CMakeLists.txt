@@ -204,6 +204,11 @@ if(MKVC_BUILD_TESTS)
         target_link_libraries(mkvc_intel_vpl_probe_test PRIVATE VPL::dispatcher)
         add_test(NAME mkvc_intel_vpl_probe COMMAND mkvc_intel_vpl_probe_test)
         set_tests_properties(mkvc_intel_vpl_probe PROPERTIES SKIP_RETURN_CODE 77)
+
+        add_executable(mkvc_intel_gpu_surface_test
+            tests/intel_gpu_surface_test.cpp)
+        target_compile_features(mkvc_intel_gpu_surface_test PRIVATE cxx_std_17)
+        target_link_libraries(mkvc_intel_gpu_surface_test PRIVATE mkvcodec)
     endif()
 
     if(MKVC_ENABLE_NVIDIA)
@@ -304,6 +309,13 @@ if(MKVC_BUILD_TESTS)
         endif()
     endif()
 
+    if(MKVC_ENABLE_INTEL_ONEVPL AND MKVC_ENABLE_CPU_VP9)
+        add_test(NAME mkvc_intel_gpu_surface
+            COMMAND mkvc_intel_gpu_surface_test "${MKVC_VP9_TEST_OUTPUT}")
+        set_tests_properties(mkvc_intel_gpu_surface PROPERTIES
+            FIXTURES_REQUIRED cpu_vp9_sample SKIP_RETURN_CODE 77)
+    endif()
+
     if(MKVC_BUILD_PYTHON_TESTS)
         find_package(Python3 REQUIRED COMPONENTS Interpreter)
         add_test(NAME mkvc_python_roundtrip
@@ -337,6 +349,17 @@ if(MKVC_BUILD_TESTS)
                     "${CMAKE_CURRENT_SOURCE_DIR}/tests/python_intel_roundtrip.py")
             set_tests_properties(mkvc_python_intel_roundtrip
                 PROPERTIES SKIP_RETURN_CODE 77)
+            if(MKVC_ENABLE_CPU_VP9)
+                add_test(NAME mkvc_python_intel_gpu_surface
+                    COMMAND ${CMAKE_COMMAND} -E env
+                        "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/python"
+                        "MKVC_LIBRARY_PATH=$<TARGET_FILE:mkvcodec>"
+                        "${Python3_EXECUTABLE}"
+                        "${CMAKE_CURRENT_SOURCE_DIR}/tests/python_intel_gpu_surface.py"
+                        "${MKVC_VP9_TEST_OUTPUT}")
+                set_tests_properties(mkvc_python_intel_gpu_surface PROPERTIES
+                    FIXTURES_REQUIRED cpu_vp9_sample SKIP_RETURN_CODE 77)
+            endif()
         endif()
     endif()
 

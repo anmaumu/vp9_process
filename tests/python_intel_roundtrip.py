@@ -61,6 +61,25 @@ def main() -> None:
             assert writer.metrics.hardware_pending_peak == 4
             assert writer.metrics.copy_path == "cpu"
 
+            capture = mkvcodec.VideoCapture(
+                path, codec=codec, backend="intel", prefetch=0
+            )
+            surface = capture.read_surface()
+            assert surface is not None
+            surface.wait(5000)
+            descriptor = surface.descriptor
+            native_handle = surface.native_handle
+            assert descriptor["backend"] == 3
+            assert descriptor["width"] == width
+            assert descriptor["height"] == height
+            assert descriptor["generation"] > 0
+            assert native_handle["borrowed"] is True
+            assert native_handle["handles"][0] != 0
+            capture.close()
+            assert capture.metrics.copy_path == "zero_copy"
+            assert surface.descriptor["generation"] == descriptor["generation"]
+            surface.close()
+
             for backend, prefetch in (("intel", 0), ("intel", 4), ("cpu", 4)):
                 with mkvcodec.VideoCapture(
                     path, codec=codec, backend=backend, prefetch=prefetch
