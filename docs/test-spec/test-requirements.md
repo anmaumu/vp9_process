@@ -55,6 +55,20 @@ profile: test-spec@1.0
 | `TEST-NV-003` | CPU BGR upload→GPU convert→NVENC | hardware/perf | NVIDIA |
 | `TEST-NV-004` | CUarray NVDEC→NVENC direct path | hardware/perf | supported NVIDIA |
 | `TEST-NV-005` | NVENC VP9拒否、非対応世代のerror、driver reset cleanup | hardware | NVIDIA |
+| `TEST-GPU-001` | retain/release/export lease中のnative resource非再利用とreleased/generation不一致access拒否 | concurrency/sanitizer | Intel/NVIDIA |
+| `TEST-GPU-002` | producer/複数consumer completion順序を全順列で変え、最後のcompletion後だけpoolへ戻る | deterministic concurrency | Intel/NVIDIA |
+| `TEST-GPU-003` | CUDA context/device、D3D11 device、VA display不一致と別process handle使用を拒否 | negative/hardware | Windows/Linux GPU |
+| `TEST-GPU-004` | device-wide syncなしでconsumer stream/fence dependencyが正しく待機する | trace/race | Intel/NVIDIA |
+| `TEST-GPU-005` | NV12/P010のplane offset、pitch、alignment、D3D11 subresource、VA surface、CUDA pointer/CUarray descriptorをguard付き検証 | hardware | Intel/NVIDIA |
+| `TEST-GPU-006` | Intel oneVPL decode→VPP→encodeをCPU Mapなしで実行し、PTS/order/golden decodeを検証 | end-to-end/trace | Windows D3D11/Linux VA-API Intel |
+| `TEST-GPU-007` | NVIDIA NVDEC→NVENCをDtoH/HtoDなしで実行し、map/register/unmap lifetime、PTS/order/golden decodeを検証 | end-to-end/trace | NVIDIA |
+| `TEST-GPU-008` | Intel/NVIDIA decode→全GPU処理→encodeでformat、色metadata、PTS、crop/rotation geometryを検証 | end-to-end | Intel/NVIDIA |
+| `TEST-GPU-009` | DLPackをconsumer stream付きでCuPy等へ渡し、producer dependency、shape/stride/device/deleterを検証 | Python/hardware | Intel対応環境/NVIDIA |
+| `TEST-GPU-010` | Python objectを先にGC、DLPack consumerを先に解放、循環参照、interpreter shutdownの各順序でcrash/leakなし | stress/subprocess | Python GPU CI |
+| `TEST-GPU-011` | `require_gpu_resident`、`allow_gpu_copy`、`allow_cpu_copy`の組合せ表どおり成功/失敗し、silent fallbackがない | parameterized | all |
+| `TEST-GPU-012` | decode/VPP/encode各stageのdevice lost、timeout、cancelで全waiterが起床し一度だけcleanupされる | fault injection | Intel/NVIDIA |
+| `TEST-GPU-013` | API traceとCUDA/oneVPL/OS traceでoperation別copy-pathを照合し、CPU transfer counterがzero | trace/performance | Intel/NVIDIA |
+| `TEST-GPU-014` | pool枯渇、遅いconsumer、複数stream、30分soakでdeadlockせずVRAM/handle/pending数がbounded | stress/soak | Intel/NVIDIA |
 
 ### 1.4 Frame Processing（将来対応）
 
@@ -121,4 +135,3 @@ profile: test-spec@1.0
 3. crash、hang、data race、use-after-free、leakがない。
 4. performanceは承認baselineから理由のない重大回帰がない。
 5. release artifact compliance testがすべてPASSする。
-

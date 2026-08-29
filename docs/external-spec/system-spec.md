@@ -132,6 +132,21 @@ AV1 decode: supported GPU backend -> libaom -> error
 - `EXT-FRAME-004`: 実際に選択した`cpu/cpu_upload/gpu_copy/zero_copy`を統計で公開する。
 - `EXT-FRAME-005`: released Surfaceへのaccessは判定可能なerrorとする。
 
+### 5.5.1 GPU-resident Frame Interoperability（実装予定）
+
+- `EXT-GPU-001`: 共通opaque handle `mkvc_gpu_frame`はbackend、device identity、memory type、pixel format、dimensions、planes/pitch、color metadata、PTSを問い合わせ可能にする。
+- `EXT-GPU-002`: `mkvc_gpu_frame`はretain/release可能なleaseとし、producer completionと全consumer lease解放の両方が成立するまでnative resourceを再利用・破棄しない。
+- `EXT-GPU-003`: completionはquery/wait(timeout)/dependency登録を提供し、通常経路でdevice-wide synchronizationを要求しない。
+- `EXT-GPU-004`: Intelでは互換条件を満たすoneVPL decode surfaceをVPPへ渡し、その出力をencodeへ渡すCPU readbackなしの経路を提供する。
+- `EXT-GPU-005`: NVIDIAではNVDEC outputをCUDA/NPP処理またはNVENCへ渡すCPU readbackなしの経路を提供する。
+- `EXT-GPU-006`: Intel GPU frameからWindows D3D11 texture/subresourceおよびLinux VA display/surfaceのborrowed native handleを取得できる。D3D11/VA resourceの所有権はlibraryに残す。
+- `EXT-GPU-007`: NVIDIA GPU frameからCUDA device pointerまたはCUarray、pitch、CUDA context/device、producer stream/eventをborrowed viewとして取得できる。
+- `EXT-GPU-008`: PythonではIntel USM対応経路およびNVIDIA CUDA対応経路をDLPack protocolで受け渡しでき、consumer指定streamへ正しいdependencyを設定する。
+- `EXT-GPU-009`: PythonのGPU frameでもCPU frameと同じ`process/resize/crop/convert/rotate/flip`操作感を提供し、結果はCuPy等の対応consumerへCPU copyなしで渡せる。
+- `EXT-GPU-010`: `require_gpu_resident=True`、`allow_gpu_copy`、`allow_cpu_copy`をdecode/process/encode全体へ適用し、実行結果にoperation別copy-pathとfallback理由を返す。
+
+Native handleとDLPackはborrowed exportであり、利用者は元の`mkvc_gpu_frame` leaseを保持する。外部consumerがresourceを保持する必要がある場合は、completion付きexport leaseを明示取得する。
+
 ### 5.6 Frame Processing（将来対応）
 
 - `EXT-PROC-001`: CPU frameとGPU Surfaceへ同じ`process/resize/crop/convert/rotate/flip`操作感を提供し、OS/vendor差を通常APIから隠蔽する。
@@ -295,6 +310,7 @@ Status: `PROPOSED`
 | `AC-BACK-001` | device/capability/auto selectionが実機能力と一致する | EXT-BACK-001..006 |
 | `AC-FRAME-001` | Surface lease中の再利用がなく、release後accessを拒否する | EXT-FRAME-001..005 |
 | `AC-ZC-001` | zero-copy対応経路をtraceで証明し、require時に降格しない | EXT-FRAME-003..004 |
+| `AC-GPU-001` | Intel/NVIDIAでdecode→process→encodeがGPU-resident契約、lease/completion、native export、DLPack stream semantics、copy policyを満たす | EXT-GPU-001..010 |
 | `AC-PROC-001` | 5種のframe処理がCPU/GPU共通契約、幾何・色metadata、copy制約どおり動作する | EXT-PROC-001..008 |
 | `AC-ABI-001` | C/C#/Pythonから同じCoreのcreate/read-write/destroyが成立する | EXT-ABI-001..005, EXT-CS-001..004 |
 | `AC-ERR-001` | 全失敗でexception leak、double free、resource leakがない | EXT-ERR-001..006 |

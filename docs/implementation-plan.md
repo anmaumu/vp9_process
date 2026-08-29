@@ -66,16 +66,22 @@
 
 ## Phase 3D: common GPU-resident frame processing
 
-- [ ] common immutable Frame/GPU Surface lease and process-plan C ABI
-- [ ] resize and crop
-- [ ] basic pixel/color-space/range conversion
-- [ ] rotate and horizontal/vertical flip
-- [ ] letterbox and pillarbox
+- [x] CPU immutable process-plan C ABI and Python Capture convenience API
+- [x] CPU resize/crop/basic 8-bit conversion/rotate/flip/contain/cover subset
+- [ ] common `mkvc_gpu_frame`, external lease, generation and completion C ABI
+- [ ] Intel SyncPoint/D3D11 fence/VA completion adapters
+- [ ] NVIDIA CUDA event completion adapter
+- [ ] Intel decode→VPP→encode shared-surface pipeline
+- [ ] NVIDIA NVDEC→NVENC registered-resource pipeline
+- [ ] Intel D3D11/VA-API borrowed native handle export
+- [ ] NVIDIA CUdeviceptr/CUarray/context/event export
+- [ ] Intel safe USM path and NVIDIA CUDA DLPack adapters
 - [ ] NVIDIA NPP/CUDA mapping
 - [ ] Intel oneVPL VPP/D3D11/VA-API mapping
-- [ ] CPU mapping and cross-backend golden tests
 - [ ] fused processing, strict GPU-resident policy and copy-path trace
-- [ ] Python/C++/.NET common operation surface
+- [ ] Python GPU Frame/DLPack/CuPy processing surface
+- [ ] C++/.NET GPU Frame and native handle surface
+- [ ] `TEST-GPU-001..014` lifetime, interop, fault, trace and soak qualification
 
 ## Phase 4: language bindings and distribution
 

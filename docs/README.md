@@ -15,6 +15,7 @@
 | `docgen.md` | 自動文書生成の入力、出力、検証、CI規則 |
 | `design-model.json` | 同じ追跡情報の機械可読な正規化表現 |
 | `quality-gate.json` | 仕様品質ゲートの結果 |
+| `gpu-risk-register.md` | GPU-resident実装のrisk、mitigation、必須test対応 |
 | `legacy-coverage.md` | 旧仕様の全節がどこへ移行したかの監査表 |
 | `../LICENSE_POLICY.md` | ライセンス・特許・商標・再配布方針 |
 
@@ -39,6 +40,7 @@ Domain code:
 - `ENC`: encode
 - `BACK`: backend/device selection
 - `FRAME`: frame/memory interop
+- `GPU`: GPU-resident frame、native handle、DLPack、zero-copy pipeline
 - `PIPE`: concurrency/async/resource lifetime
 - `ABI`: C ABI
 - `PY`: Python

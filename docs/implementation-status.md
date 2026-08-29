@@ -22,6 +22,12 @@ letterbox/pillarbox (`contain`/`cover`). Python exposes the same native plan thr
 color-metadata conversion, surface pooling/fusion, and C# bindings remain future
 work; GPU requests are rejected instead of silently falling back to CPU.
 
+GPU-resident implementation contract is now specified by `EXT-GPU-001..010`,
+`INT-GPU-001..014`, `AC-GPU-001`, and `TEST-GPU-001..014`. The associated
+ownership, synchronization, DLPack, device-loss, hidden-copy, and pool-exhaustion
+risks are tracked in `gpu-risk-register.md`; these entries describe planned work,
+not current implementation.
+
 | Specification | Implementation | Verification | Status |
 |---|---|---|---|
 | `EXT-CODEC-001` / `AC-CODEC-001` | libvpx VP9 CPU encode/decode | `mkvc_cpu_vp9_encode` | synchronous I420 round-trip passing with PSNR >= 28 dB |

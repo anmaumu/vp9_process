@@ -282,6 +282,34 @@ Status: `PROPOSED`
 
 GPU処理が同一surfaceを共有できる場合は`zero_copy/shared_surface`、GPU内の別surfaceを必要とする場合は`gpu_copy`と記録する。いずれもCPU round-tripを行わない。CPU fallbackが許可されていない場合、未対応処理をCPUへ降格しない。
 
+### 9.6 GPU Frame、Lease、Interop（実装予定）
+
+- `INT-GPU-001`: `mkvc_gpu_frame`は`GpuFrameCore`へのopaque C handleとし、backend固有objectをABI structへ直接埋め込まない。
+- `INT-GPU-002`: `GpuFrameCore`はsurface resource、immutable metadata、device identity、producer completion、atomic external lease count、pool generationを保持する。
+- `INT-GPU-003`: pool再利用条件を`producer complete && consumer completion complete && external lease count == 0`とし、generation不一致handleを拒否する。
+- `INT-GPU-004`: completion backendはIntel SyncPoint/D3D11 fence/VA sync、NVIDIA CUDA eventを共通query/wait/dependency interfaceへadapterする。
+- `INT-GPU-005`: Intel pipelineは同一oneVPL session/deviceのdecode surfaceをVPP inputとしてretainし、VPP output surfaceをencode completionまでretainする。CPU Mapは明示CPU export時だけ許可する。
+- `INT-GPU-006`: Intel native exportはWindowsで`ID3D11Texture2D* + subresource`、Linuxで`VADisplay + VASurfaceID`を返し、AddRef/Releaseまたはlease lifetime規則をplatform別に固定する。
+- `INT-GPU-007`: Intel external consumerとの同期はD3D11 fence/keyed mutexまたはoneVPL/VA completionを明示し、暗黙の同時accessを許可しない。
+- `INT-GPU-008`: NVIDIA pipelineはmapped NVDEC CUarray/device viewをcompletion付きslotとして保持し、対応時NVENC registered resourceへ登録する。unmap/unregisterは全consumer完了後に行う。
+- `INT-GPU-009`: NVIDIA exportはCUDA primary/owned context identity、device ordinal、CUdeviceptr/CUarray、pitch、plane offset、producer CUDA eventを返し、別context pointerの誤使用を拒否する。
+- `INT-GPU-010`: DLPack producerはmanaged tensorのdeleterへGPU frame leaseを保持させ、`__dlpack__(stream=...)`でconsumer streamがproducer completionを待つdependencyを挿入する。
+- `INT-GPU-011`: Intel USM/DLPackは実memoryがUSM pointerとして安全に表現できる経路だけを公開し、D3D11 texture/VA surfaceを偽のlinear pointerとして公開しない。非対応時はnative surface APIを使用させる。
+- `INT-GPU-012`: Python wrapperはGPU待機中GILを解放し、GC/finalizerは例外を出さず、interpreter shutdown後にPython APIへcallbackしない。
+- `INT-GPU-013`: copy-path recorderは各edgeを`shared_surface/zero_copy/gpu_copy/cpu_upload/cpu_readback`として実測記録し、要求値から推測しない。
+- `INT-GPU-014`: device lost/cancel/timeout時は全completionをterminal failureへ遷移させ、waiterを起床し、resourceを依存順に一度だけ解放する。
+
+所有権の基準シーケンス:
+
+```text
+pool slot lease -> producer submit -> producer completion
+                -> zero or more consumer leases/dependencies
+                -> all consumer completions + external lease count zero
+                -> generation increment -> pool recyclable
+```
+
+`zero_copy`は同一native allocationを共有する場合、`shared_surface`は同一surfaceをAPI間で共有する場合、`gpu_copy`はGPU内の別allocationへcopy/VPPする場合とする。いずれも`cpu_readback`を含まない。
+
 ## 10. Performance / Observability
 
 Status: `PROPOSED`
@@ -356,4 +384,3 @@ Status: `PROPOSED`
 ## 17. Traceability
 
 `docs/traceability.md`と`docs/design-model.json`を正とする。
-
