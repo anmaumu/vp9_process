@@ -80,6 +80,23 @@ GpuFrameCore::GpuFrameCore(mkvc_gpu_frame_desc desc,
     : desc_(desc), producer_(std::move(producer)), recycle_(std::move(recycle)),
       native_(std::move(native)) {}
 
+GpuFrameCore::~GpuFrameCore() {
+    std::vector<std::shared_ptr<Completion>> completions;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (recycled_) return;
+        if (producer_) completions.push_back(producer_);
+        completions.insert(completions.end(), consumers_.begin(), consumers_.end());
+    }
+    for (const auto& completion : completions) {
+        std::string ignored;
+        (void)completion->wait(std::numeric_limits<uint32_t>::max(), ignored);
+    }
+    std::unique_lock<std::mutex> lock(mutex_);
+    external_leases_ = 0;
+    maybe_recycle_locked(lock);
+}
+
 void GpuFrameCore::acquire_external() {
     std::lock_guard<std::mutex> lock(mutex_);
     if (recycled_) throw std::logic_error("GPU frame slot is already recycled");

@@ -56,6 +56,13 @@ single recycle. Producer completion alone cannot recycle a slot while an externa
 lease or consumer completion remains. This is the deterministic foundation for
 `TEST-GPU-001/002/014`; VRAM allocation and long hardware soak remain pending.
 
+The Intel GPU surface factory can now wrap an NV12/P010 oneVPL video-memory
+surface plus SyncPoint into `GpuFramePool` without CPU Map, export its D3D11 or
+VA native descriptor, and defer `FrameInterface::Release` until completion and
+all leases finish. Abandoned internal frames perform a best-effort completion
+wait before releasing the backend resource. The existing decoder still requests
+system-memory output, so public `read_gpu` integration is the next incomplete step.
+
 | Specification | Implementation | Verification | Status |
 |---|---|---|---|
 | `EXT-CODEC-001` / `AC-CODEC-001` | libvpx VP9 CPU encode/decode | `mkvc_cpu_vp9_encode` | synchronous I420 round-trip passing with PSNR >= 28 dB |

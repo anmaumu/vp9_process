@@ -98,7 +98,9 @@ if(MKVC_ENABLE_CPU_VP9)
 endif()
 
 if(MKVC_ENABLE_INTEL_ONEVPL)
-    target_sources(mkvcodec PRIVATE src/gpu/intel/intel_completion.cpp)
+    target_sources(mkvcodec PRIVATE
+        src/gpu/intel/intel_completion.cpp
+        src/gpu/intel/intel_surface_factory.cpp)
     target_compile_definitions(mkvcodec PRIVATE MKVC_HAS_INTEL_ONEVPL=1)
     target_include_directories(mkvcodec PRIVATE ${LIBWEBM_COMPAT_INCLUDE_DIR})
     target_link_libraries(mkvcodec PRIVATE

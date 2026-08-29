@@ -83,7 +83,8 @@ typedef enum mkvc_pixel_format {
     MKVC_PIXEL_FORMAT_NV12 = 2,   /**< Y plus interleaved UV 4:2:0. */
     MKVC_PIXEL_FORMAT_BGR24 = 3,  /**< Interleaved B, G, R bytes. */
     MKVC_PIXEL_FORMAT_RGB24 = 4,  /**< Interleaved R, G, B bytes. */
-    MKVC_PIXEL_FORMAT_BGRA32 = 5  /**< Interleaved B, G, R, A bytes. */
+    MKVC_PIXEL_FORMAT_BGRA32 = 5, /**< Interleaved B, G, R, A bytes. */
+    MKVC_PIXEL_FORMAT_P010 = 6    /**< 10-bit 4:2:0 in 16-bit NV12 layout. */
 } mkvc_pixel_format;
 
 /** Pixel transfer path actually exercised by a pipeline. */

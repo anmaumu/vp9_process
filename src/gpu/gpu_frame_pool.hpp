@@ -15,6 +15,7 @@ namespace mkvc::gpu {
 /** Fixed-capacity generation-safe pool for backend GPU resources. */
 class GpuFramePool : public std::enable_shared_from_this<GpuFramePool> {
  public:
+    using ResourceRecycle = std::function<void()>;
     struct Acquisition {
         std::shared_ptr<GpuFrameCore> core;
         size_t slot = 0;
@@ -25,6 +26,7 @@ class GpuFramePool : public std::enable_shared_from_this<GpuFramePool> {
     mkvc_result acquire(mkvc_gpu_frame_desc desc,
                         std::shared_ptr<Completion> producer,
                         std::optional<mkvc_gpu_native_handle_desc> native,
+                        ResourceRecycle resource_recycle,
                         Acquisition& output, std::string& error);
     size_t capacity() const noexcept;
     size_t in_use() const noexcept;

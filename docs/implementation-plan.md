@@ -73,6 +73,7 @@
 - [ ] backend resource allocation/frame factories and consumer dependency registration integration
 - [x] oneVPL SyncPoint and NVIDIA CUDA event completion adapter foundations
 - [ ] connect completion adapters to decode/VPP/encode surface factories; add D3D11 fence/VA synchronization
+- [x] oneVPL video-memory surface wrapper with SyncPoint, native handle, pool lease and deferred Surface Release
 - [ ] Intel decode→VPP→encode shared-surface pipeline
 - [ ] NVIDIA NVDEC→NVENC registered-resource pipeline
 - [x] backend-neutral borrowed native-handle descriptor and lease validation

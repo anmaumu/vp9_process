@@ -58,6 +58,7 @@ class GpuFrameCore : public std::enable_shared_from_this<GpuFrameCore> {
                  std::shared_ptr<Completion> producer,
                  RecycleCallback recycle,
                  std::optional<mkvc_gpu_native_handle_desc> native = std::nullopt);
+    ~GpuFrameCore();
     const mkvc_gpu_frame_desc& desc() const noexcept { return desc_; }
     std::shared_ptr<Completion> producer_completion() const { return producer_; }
     void acquire_external();

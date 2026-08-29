@@ -10,6 +10,7 @@ GpuFramePool::GpuFramePool(size_t capacity) : slots_(capacity) {}
 mkvc_result GpuFramePool::acquire(
     mkvc_gpu_frame_desc desc, std::shared_ptr<Completion> producer,
     std::optional<mkvc_gpu_native_handle_desc> native,
+    ResourceRecycle resource_recycle,
     Acquisition& output, std::string& error) {
     output = {};
     if (!producer || slots_.empty()) {
@@ -39,7 +40,9 @@ mkvc_result GpuFramePool::acquire(
     try {
         output.core = std::make_shared<GpuFrameCore>(
             desc, std::move(producer),
-            [weak, index](uint64_t completed_generation) {
+            [weak, index, release = std::move(resource_recycle)](
+                uint64_t completed_generation) {
+                if (release) release();
                 if (auto pool = weak.lock()) pool->recycle(index, completed_generation);
             }, std::move(native));
         output.slot = index;

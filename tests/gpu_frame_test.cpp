@@ -7,6 +7,7 @@
 #include <memory>
 #include <string>
 #include <atomic>
+#include <thread>
 
 thread_local std::string mkvc_last_error;
 
@@ -121,11 +122,14 @@ int main() {
     mkvc::gpu::GpuFramePool::Acquisition acquired_a;
     mkvc::gpu::GpuFramePool::Acquisition acquired_b;
     mkvc::gpu::GpuFramePool::Acquisition blocked;
-    assert(pool->acquire(desc, pool_done_a, native, acquired_a, error) == MKVC_OK);
-    assert(pool->acquire(desc, pool_done_b, native, acquired_b, error) == MKVC_OK);
+    unsigned resources_released = 0;
+    assert(pool->acquire(desc, pool_done_a, native, [&] { ++resources_released; },
+                         acquired_a, error) == MKVC_OK);
+    assert(pool->acquire(desc, pool_done_b, native, [&] { ++resources_released; },
+                         acquired_b, error) == MKVC_OK);
     assert(pool->in_use() == 2 && pool->peak_in_use() == 2);
     assert(pool->acquire(desc, std::make_shared<mkvc::gpu::ManualCompletion>(),
-                         native, blocked, error) == MKVC_WOULD_BLOCK);
+                         native, {}, blocked, error) == MKVC_WOULD_BLOCK);
     mkvc_gpu_frame* pooled_handle = mkvc::gpu::make_handle(acquired_a.core);
     pool_done_a->complete();
     acquired_a.core->poll_recycle();
@@ -135,12 +139,24 @@ int main() {
     const uint64_t first_generation = acquired_a.generation;
     acquired_a.core.reset();
     auto pool_done_c = std::make_shared<mkvc::gpu::ManualCompletion>();
-    assert(pool->acquire(desc, pool_done_c, native, blocked, error) == MKVC_OK);
+    assert(pool->acquire(desc, pool_done_c, native, [&] { ++resources_released; },
+                         blocked, error) == MKVC_OK);
     assert(blocked.generation > first_generation);
     pool_done_b->complete();
     acquired_b.core->poll_recycle();
     pool_done_c->complete();
     blocked.core->poll_recycle();
     assert(pool->in_use() == 0 && pool->peak_in_use() == 2);
+    assert(resources_released == 3);
+
+    unsigned abandoned_releases = 0;
+    auto abandoned_done = std::make_shared<mkvc::gpu::ManualCompletion>();
+    mkvc::gpu::GpuFramePool::Acquisition abandoned;
+    assert(pool->acquire(desc, abandoned_done, native,
+                         [&] { ++abandoned_releases; }, abandoned, error) == MKVC_OK);
+    std::thread complete_abandoned([abandoned_done] { abandoned_done->complete(); });
+    abandoned.core.reset();  // destructor waits and releases backend resource
+    complete_abandoned.join();
+    assert(abandoned_releases == 1 && pool->in_use() == 0);
     return 0;
 }
