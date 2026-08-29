@@ -10,7 +10,7 @@ const std::vector<mkvc_backend_capability>& backend_capabilities() {
 #endif
 #if defined(MKVC_HAS_CPU_AV1)
         {sizeof(mkvc_backend_capability), MKVC_BACKEND_CPU, MKVC_CODEC_AV1,
-         0, 1, 0, 0},
+         1, 1, 0, 0},
 #endif
     };
     return capabilities;

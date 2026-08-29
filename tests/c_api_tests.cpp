@@ -33,7 +33,7 @@ int main() {
         assert(capabilities[0].can_decode == 1 && capabilities[0].can_encode == 1);
         if (count == 2) {
             assert(capabilities[1].codec == MKVC_CODEC_AV1);
-            assert(capabilities[1].can_decode == 0 && capabilities[1].can_encode == 1);
+            assert(capabilities[1].can_decode == 1 && capabilities[1].can_encode == 1);
         }
     }
     assert(mkvc_get_backend_capabilities(nullptr, nullptr) ==

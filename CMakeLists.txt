@@ -32,6 +32,7 @@ add_library(mkvcodec SHARED
     src/frame_conversion.cpp
     src/encoder_session.cpp
     src/cpu_av1_encoder.cpp
+    src/cpu_av1_decoder.cpp
 )
 
 target_compile_features(mkvcodec PRIVATE cxx_std_17)

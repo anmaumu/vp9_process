@@ -20,6 +20,14 @@
 - Python NumPy copy API
 - WebM VP9 round-trip integration test
 
+## Phase 1B: CPU AV1 vertical slice
+
+- [x] SVT-AV1 8-bit encode with VP9-equivalent CPU input formats
+- [x] libaom 8-bit decode with VP9-equivalent CPU output formats
+- [x] WebM AV1 codec configuration and independent FFmpeg verification
+- [x] ordered flush with sequence restart and bounded prefetch
+- [ ] 10-bit public frame formats and SSIM gate
+
 ## Phase 2: asynchronous pipeline
 
 - [x] bounded encode queue and reusable owned-frame buffer pool

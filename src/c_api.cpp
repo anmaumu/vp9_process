@@ -2,6 +2,7 @@
 
 #include "backend_registry.hpp"
 #include "cpu_vp9_decoder.hpp"
+#include "cpu_av1_decoder.hpp"
 #include "encoder_session.hpp"
 #include "frame_conversion.hpp"
 
@@ -22,6 +23,7 @@ struct mkvc_encoder {
 
 struct mkvc_decoder {
     std::unique_ptr<mkvc::CpuVp9Decoder> implementation;
+    std::unique_ptr<mkvc::CpuAv1Decoder> av1_implementation;
     std::mutex mutex;
     std::condition_variable not_empty;
     std::condition_variable not_full;
@@ -47,6 +49,21 @@ mkvc_result fail(mkvc_result result, std::string message) {
     return result;
 }
 
+mkvc_result decoder_read_backend(
+    mkvc_decoder* decoder, std::unique_ptr<mkvc::DecodedFrame>& frame,
+    std::string& error) {
+    return decoder->implementation
+        ? decoder->implementation->read(frame, error)
+        : decoder->av1_implementation->read(frame, error);
+}
+
+mkvc_result decoder_close_backend(mkvc_decoder* decoder,
+                                  std::string& error) {
+    return decoder->implementation
+        ? decoder->implementation->close(error)
+        : decoder->av1_implementation->close(error);
+}
+
 void decoder_worker(mkvc_decoder* decoder) noexcept {
     try {
         while (true) {
@@ -64,7 +81,7 @@ void decoder_worker(mkvc_decoder* decoder) noexcept {
             std::unique_ptr<mkvc::DecodedFrame> frame;
             std::string error;
             const mkvc_result result =
-                decoder->implementation->read(frame, error);
+                decoder_read_backend(decoder, frame, error);
             std::lock_guard<std::mutex> lock(decoder->mutex);
             if (decoder->stop_requested) {
                 return;
@@ -293,18 +310,25 @@ mkvc_result mkvc_decoder_create(const mkvc_decoder_config* config,
     if (config == nullptr || out_decoder == nullptr ||
         config->struct_size < sizeof(mkvc_decoder_config) ||
         config->struct_version != 1 || config->input_path_utf8 == nullptr ||
-        config->input_path_utf8[0] == '\0' || config->codec != MKVC_CODEC_VP9 ||
+        config->input_path_utf8[0] == '\0' ||
+        (config->codec != MKVC_CODEC_VP9 && config->codec != MKVC_CODEC_AV1) ||
         config->backend != MKVC_BACKEND_CPU) {
-        return fail(MKVC_ERROR_INVALID_ARGUMENT, "invalid CPU VP9 decoder config");
+        return fail(MKVC_ERROR_INVALID_ARGUMENT, "invalid CPU decoder config");
     }
     try {
         std::string error;
-        auto implementation = mkvc::CpuVp9Decoder::create(*config, error);
-        if (!implementation) {
-            return fail(MKVC_ERROR_CODEC, std::move(error));
-        }
         auto handle = std::make_unique<mkvc_decoder>();
-        handle->implementation = std::move(implementation);
+        if (config->codec == MKVC_CODEC_VP9) {
+            handle->implementation = mkvc::CpuVp9Decoder::create(*config, error);
+            if (!handle->implementation) {
+                return fail(MKVC_ERROR_CODEC, std::move(error));
+            }
+        } else {
+            handle->av1_implementation = mkvc::CpuAv1Decoder::create(*config, error);
+            if (!handle->av1_implementation) {
+                return fail(MKVC_ERROR_CODEC, std::move(error));
+            }
+        }
         handle->capacity = config->prefetch;
         if (handle->capacity > 0) {
             handle->worker = std::thread(decoder_worker, handle.get());
@@ -361,7 +385,7 @@ mkvc_result mkvc_decoder_read(mkvc_decoder* decoder, mkvc_frame** out_frame) {
         }
         std::string error;
         std::unique_ptr<mkvc::DecodedFrame> decoded;
-        const mkvc_result result = decoder->implementation->read(decoded, error);
+        const mkvc_result result = decoder_read_backend(decoder, decoded, error);
         if (result == MKVC_END_OF_STREAM) {
             return result;
         }
@@ -387,7 +411,7 @@ mkvc_result mkvc_decoder_close(mkvc_decoder* decoder) {
     try {
         stop_decoder_worker(decoder);
         std::string error;
-        const mkvc_result result = decoder->implementation->close(error);
+        const mkvc_result result = decoder_close_backend(decoder, error);
         return result == MKVC_OK ? result : fail(result, std::move(error));
     } catch (const std::exception& exception) {
         return fail(MKVC_ERROR_INTERNAL, exception.what());
@@ -401,7 +425,7 @@ void mkvc_decoder_destroy(mkvc_decoder* decoder) {
         if (decoder != nullptr) {
             stop_decoder_worker(decoder);
             std::string ignored;
-            decoder->implementation->close(ignored);
+            decoder_close_backend(decoder, ignored);
         }
         delete decoder;
     } catch (...) {
