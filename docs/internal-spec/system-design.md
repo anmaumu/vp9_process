@@ -1,0 +1,338 @@
+---
+document_type: internal-specification
+document_id: INT-SYSTEM
+status: proposed
+profile: internal-spec@1.1
+---
+
+# MKVCodec 内部仕様書
+
+> 本文書は外部仕様を実現するArchitecture、処理、制約および検証方法を定義する。
+
+## 1. 関連外部仕様
+
+Status: `CONFIRMED`
+
+`docs/external-spec/system-spec.md`の全`EXT-*`を対象とする。対応関係は`docs/traceability.md`を正とする。
+
+## 2. Architecture / Components
+
+Status: `PROPOSED`
+
+- `INT-ARCH-001`: C++ Coreを唯一の処理本体とし、Python/C# bindingは薄く保つ。
+- `INT-ARCH-002`: 公開境界をC ABIとし、C++ ABI/STL/exceptionを越境させない。
+- `INT-ARCH-003`: container、codec backend、pixel conversion、memory interop、queue、statisticsを分離する。
+- `INT-ARCH-004`: GPU adapterはoptional moduleとし、GPUなしでもCoreをload可能にする。
+- `INT-ARCH-005`: component依存方向をBinding → C ABI → Core → Interface → Backendとし、逆依存を禁止する。
+
+```text
+Python / C#
+    |
+    v
+C ABI
+    |
+    v
+VideoCapture / VideoWriter
+    +-- IDemuxer / IMuxer (libwebm)
+    +-- IVideoDecoder
+    +-- IVideoEncoder
+    +-- IPixelConverter / VPP
+    +-- DeviceRegistry / CapabilityRegistry
+    +-- FramePool / BitstreamPool / BoundedQueue
+    `-- Statistics / Trace
+```
+
+Backend:
+
+```text
+CPU:     libvpx VP9, SVT-AV1 encode, libaom AV1 decode, libyuv
+Intel:   oneVPL + D3D11 (Windows) / VA-API (Linux)
+NVIDIA:  NVDEC/NVENC + CUDA, optional D3D11 interop
+```
+
+## 3. Internal Interfaces / Data Flow
+
+Status: `PROPOSED`
+
+- `INT-IF-001`: decoder/encoderはbackend差を`Submit/TryReceive/Flush`で吸収する。
+- `INT-IF-002`: sync backendは専用workerで同じsubmit/receive modelへ適合する。
+- `INT-IF-003`: muxerはcodec backendに依存せず`EncodedPacket`のみを受け取る。
+- `INT-IF-004`: encoderはcontainerに依存せず`VideoFrame`を受けて`EncodedPacket`を返す。
+- `INT-IF-005`: capability queryはsession生成前に実施し、無効な組合せを拒否する。
+
+```cpp
+class IVideoDecoder {
+ public:
+  virtual SubmitResult Submit(const EncodedPacket&) = 0;
+  virtual ReceiveResult TryReceive(VideoFrame*) = 0;
+  virtual void Flush() = 0;
+};
+
+class IVideoEncoder {
+ public:
+  virtual SubmitResult Submit(const VideoFrame&) = 0;
+  virtual ReceiveResult TryReceive(EncodedPacket*) = 0;
+  virtual void Flush() = 0;
+};
+```
+
+Decode flow:
+
+```text
+libwebm demux -> EncodedPacket -> decoder submit -> completion/reorder
+-> VideoFrame lease -> format-specific external API
+```
+
+Encode flow:
+
+```text
+external frame -> validate/copy-or-retain -> convert/VPP -> encoder submit
+-> completion -> EncodedPacket -> libwebm mux -> finalize
+```
+
+## 4. Data Model / Invariants
+
+Status: `PROPOSED`
+
+- `INT-DATA-001`: timestamp/durationはsigned `int64_t` nanosecondsで保持する。
+- `INT-DATA-002`: `EncodedPacket`はdata、PTS、duration、keyframe、codecを持つ。
+- `INT-DATA-003`: `VideoFrame`はCPU/D3D11/VA-API/CUDAのtagged representationとする。
+- `INT-DATA-004`: CPU planeはdata pointer、size、strideを持ち、visible widthとallocation pitchを区別する。
+- `INT-DATA-005`: 公開C structは先頭に`struct_size`とABI versionを持つ。
+- `INT-DATA-006`: width/height、pixel format、plane count、stride、device/context互換性を投入前に検証する。
+- `INT-DATA-007`: frame/packetのPTSはmuxまで失わない。decode orderとdisplay orderを区別する。
+- `INT-DATA-008`: released frameのnative handle/planeへaccessできない。
+
+```cpp
+struct EncodedPacket {
+  Buffer data;
+  int64_t pts_ns;
+  int64_t duration_ns;
+  bool keyframe;
+  Codec codec;
+};
+
+using VideoFrame = std::variant<CpuFrame, D3D11Frame, VaapiFrame, CudaFrame>;
+```
+
+Invariant:
+
+1. queue size ≤ configured capacity。
+2. pool resourceはfree、submitted、in-use-by-consumerのいずれか1状態にある。
+3. GPU完了前のSurfaceをfree poolへ戻さない。
+4. mux済みpacketのPTSはcontainer規則を満たす。
+5. `close`完了後に新規submitを受理しない。
+
+## 5. Normal and Failure Sequences
+
+Status: `PROPOSED`
+
+### 5.1 CPU VP9 encode
+
+```text
+write(BGR)
+-> validate ndarray
+-> copy to library buffer
+-> libyuv BGR-to-I420
+-> libvpx submit/get packet
+-> libwebm add frame
+-> release input slot
+```
+
+### 5.2 Intel GPU transcode
+
+```text
+demux -> DecodeFrameAsync -> SyncPoint
+-> decoded D3D11/VA Surface lease
+-> optional VPP/GPU copy
+-> EncodeFrameAsync -> SyncPoint
+-> packet -> mux
+```
+
+### 5.3 NVIDIA zero-copy transcode
+
+```text
+demux -> NVDEC direct output CUarray
+-> same CUDA context/ordered stream
+-> register/map CUarray in NVENC
+-> NVENC AV1 -> compressed packet host readback
+-> mux
+```
+
+### 5.4 Failure
+
+```text
+detect error
+-> stop accepting input
+-> cancel/wake bounded queues
+-> drain safe completions or abort backend
+-> unmap/unregister resources
+-> release frame/bitstream pools
+-> best-effort mux finalize
+-> publish stable error
+```
+
+## 6. State Model
+
+Status: `PROPOSED`
+
+- `INT-STATE-001`: capture/writerは`CREATED → RUNNING → FLUSHING → CLOSED`を基本状態とする。
+- `INT-STATE-002`: failure時は`RUNNING/FLUSHING → FAILED → CLOSED`とする。
+- `INT-STATE-003`: `close`はどの非終端状態からも呼べ、冪等である。
+- `INT-STATE-004`: frame leaseは`AVAILABLE → SUBMITTED → EXTERNAL_LEASED → RECYCLABLE`を取る。
+
+禁止遷移:
+
+- `CLOSED`から`RUNNING`
+- `FAILED`後の新規write/read submit
+- GPU completion前の`RECYCLABLE`
+
+## 7. Error Handling / Retry / Cleanup
+
+Status: `PROPOSED`
+
+- `INT-ERR-001`: C ABI entryは`noexcept`とし全C++ exceptionを捕捉する。
+- `INT-ERR-002`: error categoryをinvalid argument、unsupported、would block、timeout、backend、I/O、device lost、EOSへ正規化する。
+- `INT-ERR-003`: detail messageはthread-local storageへ保存し、次のsame-thread API callまで有効とする。
+- `INT-ERR-004`: `destroy/release/close`を冪等にする。
+- `INT-ERR-005`: destructorはexceptionを外へ出さない。
+- `INT-ERR-006`: GPU device lost時は全pending slotをfailedにし、waiterを起床する。
+- `INT-ERR-007`: disk full/I/O errorでは以後のwriteを拒否し、可能な範囲でcontainerを閉じる。
+- `INT-ERR-008`: codec/backendを別codecへretry/fallbackしない。`auto`のsession生成前探索のみ許可する。
+
+## 8. Concurrency / Resource Lifetime
+
+Status: `PROPOSED`
+
+- `INT-PIPE-001`: 全queueをboundedにし、既定overflowはblockとする。
+- `INT-PIPE-002`: decode workerとencode workerを基本とし、libvpx内部threadとの過剰並列を避ける。
+- `INT-PIPE-003`: GPU backendは複数SyncPoint/event/slotを保持し、submit直後の全面waitを避ける。
+- `INT-PIPE-004`: frame leaseはatomic reference countとbackend completionの両方が成立した時だけpoolへ返す。
+- `INT-PIPE-005`: queue close/cancelは全block中threadを起床する。
+- `INT-PIPE-006`: Python objectを非同期で参照しない。MVPはlibrary bufferへ同期copyしてからGILを解放する。
+- `INT-PIPE-007`: long-running native処理、queue wait、GPU waitではGILを解放する。
+- `INT-PIPE-008`: borrowed NumPyを将来追加する場合はcompletion tokenまでPython referenceを保持する。
+
+Mode初期値:
+
+| Mode | Prefetch | Async depth | Queue | Backend mapping |
+|---|---:|---:|---:|---|
+| low_latency | 1-2 | 1-2 | 1-2 | lag/lookahead 0 |
+| balanced | 4 | 4 | 8 | 標準 |
+| throughput | 8-16 | 6-8 | 16 | 深いpipeline |
+
+CPUではasync depthをworker queue、codec internal threads、lagへ読み替える。
+
+## 9. Backend Design Rules
+
+Status: `PROPOSED`
+
+### 9.1 Container
+
+- `INT-CONT-001`: libwebmをIDemuxer/IMuxer adapterで包む。
+- `INT-CONT-002`: `.webm`はDocType `webm`、`.mkv`は`matroska`とする。
+- `INT-CONT-003`: VP9/AV1 CodecID、codec configuration、keyframe、PTS/durationを正しく設定する。
+- `INT-CONT-004`: closeでは全codec packet回収後にSegmentをfinalizeする。
+
+### 9.2 CPU
+
+- `INT-CPU-001`: VP9 encode/decodeはlibvpx、AV1 encodeはSVT-AV1、AV1 decodeはlibaomを使う。
+- `INT-CPU-002`: BGR/RGB/BGRA conversionはlibyuv、I420/NV12入力は可能なら変換を省略する。
+- `INT-CPU-003`: 1 stream原則1 application workerとしcodec内部threadを設定する。
+- `INT-CPU-004`: reusable buffer poolを使い、per-frame allocationを通常経路から除く。
+- `INT-CPU-005`: flush時にcodec内の遅延packetを全回収する。
+
+### 9.3 Intel oneVPL
+
+- `INT-INTEL-001`: WindowsはD3D11、LinuxはVA-API memoryを使用する。
+- `INT-INTEL-002`: `DecodeFrameAsync/EncodeFrameAsync`と複数SyncPointを使用する。
+- `INT-INTEL-003`: RGB変換、resize等は対応時oneVPL VPPでGPU実行する。
+- `INT-INTEL-004`: decode/encode deviceとSurface互換ならzero-copy、同GPU非互換ならGPU copy/VPP、それ以外は明示経路とする。
+- `INT-INTEL-005`: CPU plane access時のみsync/map/copyする。
+
+### 9.4 NVIDIA
+
+- `INT-NV-001`: `nv-codec-headers`を使用したclean implementationとしSDK sample/base classを取り込まない。
+- `INT-NV-002`: driver API DLL/SOを動的loadし、不在を利用不可capabilityとして扱う。
+- `INT-NV-003`: NVDECはVP9/AV1、NVENCはAV1のみ公開する。
+- `INT-NV-004`: input/output slotをringとして再利用する。
+- `INT-NV-005`: CUDA stream/eventまたはD3D同期を使い、context全体同期を通常経路で避ける。
+- `INT-NV-006`: 対応時NVDEC application-provided block-linear CUarrayをNVENCへ直接登録する。
+- `INT-NV-007`: libwebmへ渡す圧縮packetのみhostへ回収する。
+
+## 10. Performance / Observability
+
+Status: `PROPOSED`
+
+- `INT-OBS-001`: demux、decode、surface wait、queue wait、upload、convert、encode、muxを別metricにする。
+- `INT-OBS-002`: CPU timerとGPU event timerを区別する。
+- `INT-OBS-003`: input/encoded fps、drop、peak queue、prefetch hit/miss、RAM/VRAM概算を公開する。
+- `INT-OBS-004`: copy path判定は実際に実行したoperationから設定し、requested pathから推測しない。
+- `INT-PERF-001`: benchmarkは1080p30/60、4K30、対応時4K60をbackend別に保存する。
+- `INT-PERF-002`: absolute target確定前は直近承認baselineに対する回帰でgateする。
+- `INT-PERF-003`: long-runでresource countが単調増加しないことをtraceする。
+
+## 11. Security
+
+Status: `PROPOSED`
+
+- `INT-SEC-001`: container size、track count、packet size、resolution、frame countに上限とoverflow checkを設ける。
+- `INT-SEC-002`: path、codec metadata、backend optionをcode/shellとして評価しない。
+- `INT-SEC-003`: untrusted bitstreamによるlibrary errorをC ABI errorへ閉じ込める。
+- `INT-SEC-004`: dynamic library searchはOSの安全な検索規則と検証済みlibrary名を使用する。
+- `INT-SEC-005`: fuzz test対象をdemux、C ABI struct validation、packet/frame validationとする。
+- `INT-SEC-006`: dependency SBOMとsecurity update手順を維持する。
+
+## 12. C ABI / Binding Rules
+
+Status: `PROPOSED`
+
+- `INT-ABI-001`: symbol prefixは`mkvc_`、calling conventionをplatformごとに固定する。
+- `INT-ABI-002`: ABIには`std::string/vector/bool/long`を露出しない。
+- `INT-ABI-003`: allocatorを越境させず、Core生成物はCoreのrelease APIで解放する。
+- `INT-ABI-004`: compatible minor versionでは既存struct prefixを保持する。
+- `INT-PY-001`: pybind11 wrapperはNumPy dtype/shape/strideを検証し、native errorをPython exceptionへ変換する。
+- `INT-CS-001`: P/Invoke struct layoutを自動testし、handleをSafeHandleで所有する。
+
+## 13. Test Requirements
+
+Status: `PROPOSED`
+
+`docs/test-spec/test-requirements.md`の全`TEST-*`を実装する。各INT ruleに少なくとも1 testを割り当てる。
+
+## 14. Design Decisions / Alternatives
+
+Status: `CONFIRMED`
+
+- `ADR-ARCH-001`: C++ class直接公開ではなくC ABIを採用する。理由はPython/C#/compiler間のABI安定性。
+- `ADR-CODEC-001`: H.264/HEVCを除外しVP9/AV1に限定する。
+- `ADR-CPU-001`: CPU AV1をSVT-AV1 encode/libaom decodeへ分割する。
+- `ADR-NV-001`: NVIDIA SDK sampleを使わずnv-codec-headers + dynamic driver loadを採用する。
+- `ADR-NP-001`: borrowed NumPyをMVPから外し、安全なcopyを採用する。
+- `ADR-DROP-001`: file完全性のためMVPはblock/try_writeのみとする。
+- `ADR-PKG-001`: OSS CPU dependencyをartifactへ同梱しvendor driver/runtimeは同梱しない。
+
+## 15. Known Limitations
+
+Status: `CONFIRMED`
+
+- NVIDIA NVENCでVP9 encodeできない。
+- zero-copyはdevice/context/format/operation互換時のみ成立する。
+- NumPy入力はCPU memoryであり、GPU backendではuploadが必要。
+- process強制終了時のcontainer finalizeを保証しない。
+- backend間の同一quality値は同一画質を保証しない。
+- MVPは映像1track、固定FPS中心、Python 3.12、x64のみ。
+
+## 16. Open Questions
+
+Status: `PROPOSED`
+
+- hardware class別の絶対性能SLO。
+- project licenseと公開brand名。
+- package容量によるCPU AV1 optional splitの要否。
+
+## 17. Traceability
+
+`docs/traceability.md`と`docs/design-model.json`を正とする。
+
+

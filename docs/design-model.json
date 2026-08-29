@@ -1,0 +1,46 @@
+{
+  "version": "0.2",
+  "status": "PROPOSED",
+  "sources": [
+    "SPECIFICATION.md",
+    "LICENSE_POLICY.md",
+    "human_decision"
+  ],
+  "requirement_groups": [
+    {"domain": "SYS", "ids": ["EXT-SYS-001"], "acceptance": ["AC-SYS-001"], "internal": ["INT-ARCH-001", "INT-ARCH-002", "INT-ARCH-003", "INT-ARCH-004", "INT-ARCH-005"], "tests": ["TEST-SYS-001"]},
+    {"domain": "CONT", "ids": ["EXT-CONT-001", "EXT-CONT-002", "EXT-CONT-003"], "acceptance": ["AC-CONT-001"], "internal": ["INT-CONT-001", "INT-CONT-002", "INT-CONT-003", "INT-CONT-004"], "tests": ["TEST-CONT-001", "TEST-CONT-002", "TEST-CONT-003"]},
+    {"domain": "CODEC", "ids": ["EXT-CODEC-001", "EXT-CODEC-002", "EXT-CODEC-003", "EXT-CODEC-004"], "acceptance": ["AC-CODEC-001", "AC-CODEC-002", "AC-CODEC-003", "AC-BACK-001"], "internal": ["INT-CPU-001", "INT-INTEL-001", "INT-NV-001", "INT-NV-003"], "tests": ["TEST-CODEC-001", "TEST-CODEC-002", "TEST-CODEC-003", "TEST-CODEC-004"]},
+    {"domain": "DEC", "ids": ["EXT-DEC-001", "EXT-DEC-002", "EXT-DEC-003", "EXT-DEC-004", "EXT-DEC-005"], "acceptance": ["AC-DEC-001"], "internal": ["INT-IF-001", "INT-IF-002", "INT-PIPE-001", "INT-PIPE-002"], "tests": ["TEST-DEC-001", "TEST-DEC-002", "TEST-DEC-003", "TEST-DEC-004"]},
+    {"domain": "ENC", "ids": ["EXT-ENC-001", "EXT-ENC-002", "EXT-ENC-003", "EXT-ENC-004", "EXT-ENC-005", "EXT-ENC-006", "EXT-ENC-007", "EXT-ENC-008", "EXT-ENC-009", "EXT-ENC-010"], "acceptance": ["AC-ENC-001"], "internal": ["INT-IF-001", "INT-IF-003", "INT-IF-004", "INT-PIPE-001", "INT-PIPE-006"], "tests": ["TEST-ENC-001", "TEST-ENC-002", "TEST-ENC-003", "TEST-ENC-004", "TEST-ENC-005"]},
+    {"domain": "BACK", "ids": ["EXT-BACK-001", "EXT-BACK-002", "EXT-BACK-003", "EXT-BACK-004", "EXT-BACK-005", "EXT-BACK-006"], "acceptance": ["AC-BACK-001", "AC-SYS-001"], "internal": ["INT-IF-005", "INT-ARCH-004", "INT-NV-002"], "tests": ["TEST-BACK-001", "TEST-BACK-002", "TEST-BACK-003"]},
+    {"domain": "FRAME", "ids": ["EXT-FRAME-001", "EXT-FRAME-002", "EXT-FRAME-003", "EXT-FRAME-004", "EXT-FRAME-005"], "acceptance": ["AC-FRAME-001", "AC-ZC-001"], "internal": ["INT-DATA-003", "INT-DATA-004", "INT-DATA-006", "INT-DATA-008", "INT-PIPE-004"], "tests": ["TEST-FRAME-001", "TEST-FRAME-002", "TEST-FRAME-003", "TEST-ZC-001", "TEST-ZC-002"]},
+    {"domain": "PERF", "ids": ["EXT-PERF-001", "EXT-PERF-002", "EXT-PERF-003", "EXT-PERF-004", "EXT-PERF-005", "EXT-PERF-006"], "acceptance": ["AC-PERF-001", "AC-ZC-001"], "internal": ["INT-PIPE-001", "INT-PIPE-003", "INT-PIPE-007", "INT-PERF-001", "INT-PERF-002", "INT-PERF-003"], "tests": ["TEST-PERF-001", "TEST-PERF-002", "TEST-PERF-003", "TEST-PERF-004", "TEST-PERF-005"]},
+    {"domain": "OBS", "ids": ["EXT-OBS-001"], "acceptance": ["AC-OBS-001"], "internal": ["INT-OBS-001", "INT-OBS-002", "INT-OBS-003", "INT-OBS-004"], "tests": ["TEST-BACK-001", "TEST-PERF-001"]},
+    {"domain": "ABI", "ids": ["EXT-ABI-001", "EXT-ABI-002", "EXT-ABI-003", "EXT-ABI-004", "EXT-ABI-005"], "acceptance": ["AC-ABI-001"], "internal": ["INT-ABI-001", "INT-ABI-002", "INT-ABI-003", "INT-ABI-004"], "tests": ["TEST-ABI-001", "TEST-ABI-002", "TEST-ABI-003"]},
+    {"domain": "PY", "ids": ["EXT-PY-001"], "acceptance": ["AC-ABI-001"], "internal": ["INT-PY-001"], "tests": ["TEST-PY-001"]},
+    {"domain": "CS", "ids": ["EXT-CS-001", "EXT-CS-002", "EXT-CS-003", "EXT-CS-004"], "acceptance": ["AC-ABI-001"], "internal": ["INT-CS-001"], "tests": ["TEST-CS-001"]},
+    {"domain": "ERR", "ids": ["EXT-ERR-001", "EXT-ERR-002", "EXT-ERR-003", "EXT-ERR-004", "EXT-ERR-005", "EXT-ERR-006"], "acceptance": ["AC-ERR-001"], "internal": ["INT-ERR-001", "INT-ERR-002", "INT-ERR-003", "INT-ERR-004", "INT-ERR-005", "INT-ERR-006", "INT-ERR-007", "INT-ERR-008"], "tests": ["TEST-ERR-001", "TEST-ERR-002", "TEST-ABI-002", "TEST-ABI-003"]},
+    {"domain": "PKG", "ids": ["EXT-PKG-001", "EXT-PKG-002", "EXT-PKG-003", "EXT-PKG-004", "EXT-PKG-005", "EXT-PKG-006"], "acceptance": ["AC-PKG-001"], "internal": ["INT-SEC-006", "INT-NV-001"], "tests": ["TEST-PKG-001", "TEST-PKG-002", "TEST-PKG-003", "TEST-PKG-004", "TEST-PKG-005"]}
+  ],
+  "acceptance_criteria": [
+    "AC-SYS-001", "AC-CONT-001", "AC-CODEC-001", "AC-CODEC-002", "AC-CODEC-003",
+    "AC-DEC-001", "AC-ENC-001", "AC-BACK-001", "AC-FRAME-001", "AC-ZC-001",
+    "AC-ABI-001", "AC-ERR-001", "AC-PERF-001", "AC-OBS-001", "AC-PKG-001"
+  ],
+  "components": [
+    "Python Binding", "C# Binding", "C ABI", "VideoCapture", "VideoWriter",
+    "libwebm Adapter", "Device Registry", "Frame Pool", "Bitstream Pool", "Statistics",
+    "libvpx Backend", "SVT-AV1 Backend", "libaom Backend", "oneVPL Backend", "NVIDIA Backend"
+  ],
+  "state_transitions": [
+    {"from": "CREATED", "to": "RUNNING", "event": "first read/write or start"},
+    {"from": "RUNNING", "to": "FLUSHING", "event": "flush/close"},
+    {"from": "FLUSHING", "to": "CLOSED", "event": "drain/finalize complete"},
+    {"from": "RUNNING", "to": "FAILED", "event": "fatal error"},
+    {"from": "FAILED", "to": "CLOSED", "event": "cleanup"}
+  ],
+  "traceability_source": "traceability.md",
+  "open_questions": ["TBD-PERF-001", "TBD-LIC-001", "TBD-BRAND-001", "TBD-PKG-001"]
+}
+
+

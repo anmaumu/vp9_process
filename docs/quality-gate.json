@@ -1,0 +1,36 @@
+{
+  "id": "mkvcodec-specification-quality-gate",
+  "version": "0.2",
+  "result": "CONDITIONAL_PASS",
+  "metrics": {
+    "external_requirement_domains": 14,
+    "external_requirements": 63,
+    "acceptance_criteria": 15,
+    "internal_design_rules": 78,
+    "test_requirements": 51,
+    "legacy_sections_mapped": 26,
+    "conflicting_fields": 0,
+    "blocking_questions_for_mvp": 0,
+    "open_decisions": 4
+  },
+  "rules": {
+    "required_documents_present": true,
+    "no_conflicting_fields": true,
+    "requirements_have_acceptance_criteria": true,
+    "external_requirements_have_internal_specs": true,
+    "internal_specs_have_tests": true,
+    "acceptance_criteria_have_tests": true,
+    "legacy_content_has_migration_target": true,
+    "h264_hevc_excluded": true,
+    "gpu_optional_load_defined": true,
+    "license_gate_traced": true
+  },
+  "warnings": [
+    "Absolute hardware performance targets are not confirmed.",
+    "Project license is not finally selected.",
+    "Public commercial brand name is not selected.",
+    "Single-package size with CPU AV1 dependencies is not measured."
+  ],
+  "failures": []
+}
+

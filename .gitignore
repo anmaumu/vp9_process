@@ -1,0 +1,16 @@
+/build/
+/out/
+/.vs/
+/.vscode/
+__pycache__/
+*.py[cod]
+*.pyd
+*.dll
+*.so
+*.dylib
+*.lib
+*.exp
+*.obj
+*.o
+*.user
+
