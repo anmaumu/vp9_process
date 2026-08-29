@@ -43,8 +43,8 @@ Status: `PARTIAL`
 | `TEST-CONT-001` | independent decode and metadata verification | FFmpeg + ffprobe | VP9 WebM encode case passing |
 | `TEST-CODEC-001` | VP9 encode/decode round-trip with quality metrics | internal decode and Y-PSNR >= 28 dB | SSIM pending |
 | `TEST-CODEC-002` | SVT-AV1 to libaom/FFmpeg round-trip | 30-frame PTS/order/count, Y-PSNR >= 28 dB, all 8-bit inputs | SSIM pending |
-| `INT-INTEL-001/002` | oneVPL 2.x hardware session, internal NV12 surfaces, VP9/AV1 encode and libwebm mux | `mkvc_intel_vpl_probe`, `mkvc_intel_vpl_encode`, `mkvc_python_intel_roundtrip` in required-hardware mode | Linux VA-API public Writer passing for both codecs and all five 8-bit inputs; decode, multi-SyncPoint overlap, zero-copy and Windows hardware run pending |
-| `EXT-BACK-001` Intel | runtime capability exposes implemented VP9/AV1 encode only | C ABI capability assertions with real hardware and oneVPL-disabled builds | no false decode advertisement; unavailable build omits Intel rows |
+| `INT-INTEL-001/002` | oneVPL 2.x hardware session, internal NV12 surfaces, VP9/AV1 encode/decode and libwebm mux/demux | `mkvc_intel_vpl_probe`, `mkvc_intel_vpl_encode`, `mkvc_python_intel_roundtrip` in required-hardware mode | Linux VA-API public Writer/Capture passing for both codecs; sync/prefetch decode and all five writer inputs complete; multi-SyncPoint overlap, zero-copy and Windows hardware run pending |
+| `EXT-BACK-001` Intel | runtime capability exposes each Query-supported encode/decode direction | C ABI capability assertions with real hardware and oneVPL-disabled builds | no false direction advertisement; unavailable build omits Intel rows |
 | `EXT-CS-001/002`, `INT-CS-001` | .NET 8 P/Invoke types, typed exception and encoder/decoder/frame SafeHandle ownership | `mkvc_dotnet_build`, `mkvc_dotnet_smoke` | Linux ABI layout, native load, version and capability query passing; high-level IDisposable reader/writer and NuGet pending |
 
 The decoder keeps a libwebm cluster/block/frame cursor and reads compressed packets
@@ -57,6 +57,9 @@ and permits subsequent frames in the same WebM track; this preserves the public
 ordered-flush-and-continue contract despite SVT-AV1 lookahead.
 The Intel writer follows the same flush-and-continue contract by draining and
 recreating its oneVPL codec adapter while retaining monotonically increasing PTS.
+The Intel decoder incrementally demuxes WebM packets, maps oneVPL NV12 output,
+copies it into the common owned I420 frame, and participates in the same bounded
+native prefetch queue as CPU decode.
 The current oneVPL adapter sets `AsyncDepth=4`, but synchronizes each returned
 SyncPoint immediately; actual multi-frame GPU overlap remains a measured follow-up.
 

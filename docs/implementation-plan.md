@@ -40,7 +40,8 @@
 
 - [x] oneVPL hardware loader/session and VP9/AV1 Query probe
 - [x] Intel oneVPL VP9/AV1 encode, libwebm mux, C ABI/Python Writer on `linux-machine`
-- [ ] Intel oneVPL VP9/AV1 decode and Windows D3D11 hardware verification
+- [x] Intel oneVPL VP9/AV1 decode, libwebm demux, C ABI/Python Capture on `linux-machine`
+- [ ] Windows D3D11 Intel hardware verification
 - [ ] Intel multi-SyncPoint overlap, zero-copy surfaces and device-loss recovery
 - NVIDIA NVDEC VP9/AV1
 - NVIDIA NVENC AV1（対応GPUが必要）

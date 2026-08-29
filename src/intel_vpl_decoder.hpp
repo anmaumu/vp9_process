@@ -1,0 +1,41 @@
+#pragma once
+
+#include "cpu_vp9_decoder.hpp"
+#include "mkvcodec/mkvc.h"
+
+#include <cstdint>
+#include <memory>
+#include <string>
+#include <vector>
+
+namespace mkvc {
+
+/** oneVPL 2.x hardware decoder returning library-owned I420 frames. */
+class IntelVplDecoder {
+ public:
+    struct Impl;
+
+    /** Create a hardware session filtered to the requested VP9 or AV1 decoder. */
+    static std::unique_ptr<IntelVplDecoder> create(
+        uint32_t codec, std::string& error);
+    ~IntelVplDecoder();
+
+    IntelVplDecoder(const IntelVplDecoder&) = delete;
+    IntelVplDecoder& operator=(const IntelVplDecoder&) = delete;
+
+    /** Submit one complete compressed frame and return completed I420 frames. */
+    mkvc_result decode(const uint8_t* data, size_t size, int64_t pts,
+                       std::vector<std::unique_ptr<DecodedFrame>>& frames,
+                       std::string& error);
+    /** Drain delayed frames after the final compressed packet. */
+    mkvc_result drain(std::vector<std::unique_ptr<DecodedFrame>>& frames,
+                      std::string& error);
+    /** Release decoder, session, and dispatcher resources idempotently. */
+    mkvc_result close(std::string& error);
+
+ private:
+    IntelVplDecoder();
+    std::unique_ptr<Impl> impl_;
+};
+
+}  // namespace mkvc

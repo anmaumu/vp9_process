@@ -17,14 +17,14 @@ H.264とHEVCは対象外です。
 
 CPU VP9のWebM encode/decode、CPU AV1のSVT-AV1 encode/libaom decode、C ABI、
 NumPy用Python API、bounded非同期Writer、bounded decode prefetchまで実装済みです。
-Intel oneVPLによるVP9/AV1 WebM encodeはC ABIとPython Writerから選択でき、
-Linux Intel GPU実機で検証済みです。Intel decode、NVIDIA backend、
+Intel oneVPLによるVP9/AV1 WebM encode/decodeはC ABIとPython Writer/Captureから
+選択でき、Linux Intel GPU実機で検証済みです。NVIDIA backendと
 10-bit public frame APIは未実装です。
 薄い.NET 8 P/Invoke bindingではABI version/capability query、型付きerror、
 encoder/decoder/frame用SafeHandleとLinux native load smokeを実装済みです。
 利用可能と報告される機能は、実装済みbackendだけに限定します。
-Intel capabilityはruntime Queryに成功したcodecのencodeだけを公開し、未実装のdecodeは
-Query結果にかかわらず公開しません。Windows向けコードは含みますが実GPU検証は未完です。
+Intel capabilityはruntime Queryに成功したcodec/directionだけを公開します。
+Windows向けコードは含みますが実GPU検証は未完です。
 
 ## Build
 
@@ -67,7 +67,9 @@ native workerへ渡します。通常の`write`はqueue空きを待ち、`try_wr
 CPU AV1 writer/captureは`codec="av1"`で選択します。Writer入力とCapture出力は
 VP9と同じBGR/RGB/BGRA/I420/NV12を使用できます。
 Intel Writerは`backend="intel"`で選択でき、VP9/AV1と同じ5種類の8-bit入力を
-内部でNV12へ変換します。Captureは現在`backend="cpu"`のみです。
+内部でNV12へ変換します。Intel Captureも`backend="intel"`で選択でき、同期readと
+正数`prefetch`のbounded先読みを利用できます。返却フレームは所有されたI420を経由し、
+CPU Captureと同じBGR/RGB/BGRA/I420/NV12出力APIを使用できます。
 
 ## .NET ABI smoke
 

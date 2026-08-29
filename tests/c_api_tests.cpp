@@ -38,8 +38,10 @@ int main() {
         }
         for (size_t index = 2; index < count; ++index) {
             assert(capabilities[index].backend == MKVC_BACKEND_INTEL);
-            assert(capabilities[index].can_decode == 0);
-            assert(capabilities[index].can_encode == 1);
+            assert(capabilities[index].can_decode <= 1);
+            assert(capabilities[index].can_encode <= 1);
+            assert(capabilities[index].can_decode != 0 ||
+                   capabilities[index].can_encode != 0);
             assert(capabilities[index].is_hardware == 1);
         }
     }

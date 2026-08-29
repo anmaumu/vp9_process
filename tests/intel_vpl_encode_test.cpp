@@ -1,4 +1,5 @@
 #include "intel_vpl_encoder.hpp"
+#include "intel_vpl_decoder.hpp"
 
 #include <aom/aom_decoder.h>
 #include <aom/aomdx.h>
@@ -87,6 +88,42 @@ uint32_t decode_av1(const std::vector<mkvc::IntelEncodedPacket>& packets) {
     return count;
 }
 
+bool decode_intel(uint32_t codec,
+                  const std::vector<mkvc::IntelEncodedPacket>& packets,
+                  std::string& error) {
+    auto decoder = mkvc::IntelVplDecoder::create(codec, error);
+    if (!decoder) return false;
+    uint32_t count = 0;
+    int64_t expected_pts = 0;
+    for (const auto& packet : packets) {
+        std::vector<std::unique_ptr<mkvc::DecodedFrame>> completed;
+        if (decoder->decode(packet.data.data(), packet.data.size(), packet.pts,
+                            completed, error) != MKVC_OK) return false;
+        for (const auto& frame : completed) {
+            if (frame->width != kWidth || frame->height != kHeight ||
+                frame->pts_ns != expected_pts || frame->pixels.empty()) {
+                error = "Intel decoded frame metadata mismatch";
+                return false;
+            }
+            ++expected_pts;
+            ++count;
+        }
+    }
+    std::vector<std::unique_ptr<mkvc::DecodedFrame>> drained;
+    if (decoder->drain(drained, error) != MKVC_OK) return false;
+    for (const auto& frame : drained) {
+        if (frame->width != kWidth || frame->height != kHeight ||
+            frame->pts_ns != expected_pts || frame->pixels.empty()) {
+            error = "Intel drained frame metadata mismatch";
+            return false;
+        }
+        ++expected_pts;
+        ++count;
+    }
+    decoder->close(error);
+    return count == kFrames;
+}
+
 }  // namespace
 
 int main() {
@@ -103,6 +140,14 @@ int main() {
     }
     const uint32_t vp9_decoded = decode_vp9(vp9);
     const uint32_t av1_decoded = decode_av1(av1);
+    if (!decode_intel(MKVC_CODEC_VP9, vp9, error)) {
+        std::cerr << "Intel VP9 decode failed: " << error << '\n';
+        return 1;
+    }
+    if (!decode_intel(MKVC_CODEC_AV1, av1, error)) {
+        std::cerr << "Intel AV1 decode failed: " << error << '\n';
+        return 1;
+    }
     bool timestamps_ok = vp9.size() == kFrames && av1.size() == kFrames;
     for (uint32_t index = 0; timestamps_ok && index < kFrames; ++index) {
         timestamps_ok = timestamps_ok && vp9[index].pts == index &&
@@ -119,7 +164,7 @@ int main() {
                   << '\n';
         return 1;
     }
-    std::cout << "Intel oneVPL VP9/AV1 encoded and independently decoded "
-              << kFrames << " frames each\n";
+    std::cout << "Intel oneVPL VP9/AV1 encoded and decoded " << kFrames
+              << " frames each; software decoders independently verified output\n";
     return 0;
 }

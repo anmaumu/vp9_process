@@ -5,6 +5,7 @@
 #include "cpu_av1_decoder.hpp"
 #include "encoder_session.hpp"
 #include "frame_conversion.hpp"
+#include "intel_webm_decoder.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -24,6 +25,7 @@ struct mkvc_encoder {
 struct mkvc_decoder {
     std::unique_ptr<mkvc::CpuVp9Decoder> implementation;
     std::unique_ptr<mkvc::CpuAv1Decoder> av1_implementation;
+    std::unique_ptr<mkvc::IntelWebmDecoder> intel_implementation;
     std::mutex mutex;
     std::condition_variable not_empty;
     std::condition_variable not_full;
@@ -52,16 +54,18 @@ mkvc_result fail(mkvc_result result, std::string message) {
 mkvc_result decoder_read_backend(
     mkvc_decoder* decoder, std::unique_ptr<mkvc::DecodedFrame>& frame,
     std::string& error) {
-    return decoder->implementation
-        ? decoder->implementation->read(frame, error)
-        : decoder->av1_implementation->read(frame, error);
+    if (decoder->intel_implementation)
+        return decoder->intel_implementation->read(frame, error);
+    return decoder->implementation ? decoder->implementation->read(frame, error)
+                                   : decoder->av1_implementation->read(frame, error);
 }
 
 mkvc_result decoder_close_backend(mkvc_decoder* decoder,
                                   std::string& error) {
-    return decoder->implementation
-        ? decoder->implementation->close(error)
-        : decoder->av1_implementation->close(error);
+    if (decoder->intel_implementation)
+        return decoder->intel_implementation->close(error);
+    return decoder->implementation ? decoder->implementation->close(error)
+                                   : decoder->av1_implementation->close(error);
 }
 
 void decoder_worker(mkvc_decoder* decoder) noexcept {
@@ -313,13 +317,20 @@ mkvc_result mkvc_decoder_create(const mkvc_decoder_config* config,
         config->struct_version != 1 || config->input_path_utf8 == nullptr ||
         config->input_path_utf8[0] == '\0' ||
         (config->codec != MKVC_CODEC_VP9 && config->codec != MKVC_CODEC_AV1) ||
-        config->backend != MKVC_BACKEND_CPU) {
-        return fail(MKVC_ERROR_INVALID_ARGUMENT, "invalid CPU decoder config");
+        (config->backend != MKVC_BACKEND_CPU &&
+         config->backend != MKVC_BACKEND_INTEL)) {
+        return fail(MKVC_ERROR_INVALID_ARGUMENT, "invalid decoder config");
     }
     try {
         std::string error;
         auto handle = std::make_unique<mkvc_decoder>();
-        if (config->codec == MKVC_CODEC_VP9) {
+        if (config->backend == MKVC_BACKEND_INTEL) {
+            handle->intel_implementation =
+                mkvc::IntelWebmDecoder::create(*config, error);
+            if (!handle->intel_implementation) {
+                return fail(MKVC_ERROR_CODEC, std::move(error));
+            }
+        } else if (config->codec == MKVC_CODEC_VP9) {
             handle->implementation = mkvc::CpuVp9Decoder::create(*config, error);
             if (!handle->implementation) {
                 return fail(MKVC_ERROR_CODEC, std::move(error));

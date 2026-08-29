@@ -239,8 +239,8 @@ class VideoCapture(Iterator[U8Plane]):
         threads: int = 0,
         prefetch: int = 4,
     ) -> None:
-        if codec not in ("vp9", "av1") or backend != "cpu":
-            raise ValueError("the current Python capture supports VP9/AV1 on CPU")
+        if codec not in ("vp9", "av1") or backend not in ("cpu", "intel"):
+            raise ValueError("the Python capture supports VP9/AV1 on CPU or Intel")
         encoded_path = str(Path(path)).encode("utf-8")
         config = native.DecoderConfig()
         config.struct_size = ct.sizeof(config)
@@ -248,7 +248,8 @@ class VideoCapture(Iterator[U8Plane]):
         config.input_path_utf8 = encoded_path
         config.codec = (native.MKVC_CODEC_VP9 if codec == "vp9" else
                         native.MKVC_CODEC_AV1)
-        config.backend = native.MKVC_BACKEND_CPU
+        config.backend = (native.MKVC_BACKEND_CPU if backend == "cpu" else
+                          native.MKVC_BACKEND_INTEL)
         config.threads = threads
         if prefetch < 0:
             raise ValueError("prefetch must be zero or positive")

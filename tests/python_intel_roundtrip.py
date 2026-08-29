@@ -57,15 +57,16 @@ def main() -> None:
                     if index == 14:
                         writer.flush()
 
-            with mkvcodec.VideoCapture(
-                path, codec=codec, backend="cpu", prefetch=4
-            ) as capture:
-                frames = list(capture)
-            assert len(frames) == 30
-            assert frames[0].shape == (height, width, 3)
-            assert frames[-1].shape == (height, width, 3)
-            assert float(frames[0].std()) > 10
-    print("Intel VP9/AV1 WebM round-trip passed")
+            for backend, prefetch in (("intel", 0), ("intel", 4), ("cpu", 4)):
+                with mkvcodec.VideoCapture(
+                    path, codec=codec, backend=backend, prefetch=prefetch
+                ) as capture:
+                    frames = list(capture)
+                assert len(frames) == 30
+                assert frames[0].shape == (height, width, 3)
+                assert frames[-1].shape == (height, width, 3)
+                assert float(frames[0].std()) > 10
+    print("Intel VP9/AV1 WebM encode and sync/prefetch decode passed")
 
 
 if __name__ == "__main__":

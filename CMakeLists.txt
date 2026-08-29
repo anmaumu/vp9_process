@@ -9,7 +9,7 @@ option(MKVC_ENABLE_CPU_VP9 "Enable the libvpx CPU VP9 backend" ON)
 option(MKVC_ENABLE_CPU_AV1 "Enable SVT-AV1 encode and libaom decode" ON)
 option(MKVC_ENABLE_INTEL_ONEVPL "Enable Intel oneVPL backend foundation" ON)
 
-if(MKVC_ENABLE_CPU_VP9 OR MKVC_ENABLE_CPU_AV1)
+if(MKVC_ENABLE_CPU_VP9 OR MKVC_ENABLE_CPU_AV1 OR MKVC_ENABLE_INTEL_ONEVPL)
     find_package(unofficial-libwebm CONFIG REQUIRED)
     find_package(libyuv CONFIG REQUIRED)
     find_path(LIBWEBM_COMPAT_INCLUDE_DIR mkvmuxer/mkvmuxer.h
@@ -41,7 +41,9 @@ add_library(mkvcodec SHARED
     src/cpu_av1_decoder.cpp
     src/intel_vpl_probe.cpp
     src/intel_vpl_encoder.cpp
+    src/intel_vpl_decoder.cpp
     src/intel_webm_encoder.cpp
+    src/intel_webm_decoder.cpp
 )
 
 target_compile_features(mkvcodec PRIVATE cxx_std_17)
@@ -65,7 +67,9 @@ endif()
 
 if(MKVC_ENABLE_INTEL_ONEVPL)
     target_compile_definitions(mkvcodec PRIVATE MKVC_HAS_INTEL_ONEVPL=1)
-    target_link_libraries(mkvcodec PRIVATE VPL::dispatcher)
+    target_include_directories(mkvcodec PRIVATE ${LIBWEBM_COMPAT_INCLUDE_DIR})
+    target_link_libraries(mkvcodec PRIVATE
+        VPL::dispatcher unofficial::libwebm::libwebm yuv)
 endif()
 
 if(MKVC_ENABLE_CPU_AV1)
@@ -122,14 +126,15 @@ if(MKVC_BUILD_TESTS)
 
     if(MKVC_ENABLE_INTEL_ONEVPL AND MKVC_ENABLE_CPU_VP9 AND MKVC_ENABLE_CPU_AV1)
         add_executable(mkvc_intel_vpl_encode_test
-            tests/intel_vpl_encode_test.cpp src/intel_vpl_encoder.cpp)
+            tests/intel_vpl_encode_test.cpp src/intel_vpl_encoder.cpp
+            src/intel_vpl_decoder.cpp)
         target_compile_features(mkvc_intel_vpl_encode_test PRIVATE cxx_std_17)
         target_include_directories(mkvc_intel_vpl_encode_test
             PRIVATE src include)
         target_compile_definitions(mkvc_intel_vpl_encode_test
             PRIVATE MKVC_HAS_INTEL_ONEVPL=1)
         target_link_libraries(mkvc_intel_vpl_encode_test PRIVATE
-            VPL::dispatcher unofficial::libvpx::libvpx AOM::aom)
+            VPL::dispatcher unofficial::libvpx::libvpx AOM::aom yuv)
         add_test(NAME mkvc_intel_vpl_encode COMMAND mkvc_intel_vpl_encode_test)
         set_tests_properties(mkvc_intel_vpl_encode PROPERTIES SKIP_RETURN_CODE 77)
     endif()
