@@ -52,7 +52,8 @@
 ## Phase 3B: performance and observability
 
 - [x] public API end-to-end JSON benchmark and CI smoke
-- [ ] native stage timing, queue high-water and copy-path metrics ABI
+- [x] native aggregate backend/queue timing, high-water and copy-path metrics ABI
+- [ ] conversion/codec/mux/GPU-event別の詳細stage timing
 - [ ] approved 1080p/4K CPU/Intel/NVIDIA baseline and regression thresholds
 
 ## Phase 4: language bindings and distribution

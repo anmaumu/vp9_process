@@ -106,3 +106,5 @@ python benchmarks/pipeline_benchmark.py --backend intel --codec av1 \
 ```
 
 測定項目と比較条件は`docs/benchmarking.md`を参照してください。
+Writer/Captureの`metrics` propertyから、frame数、queue wait、backend時間、
+queue peak、Intel pending peak、実copy pathの累積snapshotも取得できます。

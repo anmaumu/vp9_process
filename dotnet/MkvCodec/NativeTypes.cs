@@ -42,6 +42,22 @@ public struct MkvBackendCapability
 }
 
 [StructLayout(LayoutKind.Sequential)]
+public struct MkvPipelineMetrics
+{
+    public uint StructSize;
+    public uint StructVersion;
+    public ulong AcceptedFrames;
+    public ulong CompletedFrames;
+    public ulong RejectedFrames;
+    public ulong QueueWaitNanoseconds;
+    public ulong BackendTimeNanoseconds;
+    public uint QueueCapacity;
+    public uint PeakQueueDepth;
+    public uint HardwarePendingPeak;
+    public uint CopyPath;
+}
+
+[StructLayout(LayoutKind.Sequential)]
 internal struct NativeEncoderConfig
 {
     internal uint StructSize;

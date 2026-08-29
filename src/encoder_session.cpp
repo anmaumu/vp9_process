@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <condition_variable>
 #include <cstdint>
 #include <cstring>
@@ -121,7 +122,7 @@ struct EncoderSession::Impl {
     uint32_t width = 0;
     uint32_t height = 0;
     size_t capacity = 0;
-    std::mutex mutex;
+    mutable std::mutex mutex;
     std::condition_variable has_items;
     std::condition_variable has_space;
     std::condition_variable state_changed;
@@ -136,6 +137,13 @@ struct EncoderSession::Impl {
     std::string terminal_error;
     uint64_t next_flush_token = 0;
     uint64_t completed_flush_token = 0;
+    uint64_t accepted_frames = 0;
+    uint64_t completed_frames = 0;
+    uint64_t rejected_frames = 0;
+    uint64_t queue_wait_ns = 0;
+    uint64_t backend_time_ns = 0;
+    uint32_t peak_queue_depth = 0;
+    uint32_t hardware_pending_peak = 0;
 };
 
 namespace {
@@ -159,6 +167,15 @@ mkvc_result backend_close(EncoderSession::Impl& impl, std::string& error) {
                         : impl.av1_encoder->close(error);
 }
 
+uint32_t backend_hardware_pending(const EncoderSession::Impl& impl) {
+    return impl.intel_encoder ? impl.intel_encoder->max_pending_observed() : 0;
+}
+
+uint64_t elapsed_ns(std::chrono::steady_clock::time_point started) {
+    return static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(
+        std::chrono::steady_clock::now() - started).count());
+}
+
 void encoder_worker(EncoderSession::Impl* impl) noexcept {
     try {
         while (true) {
@@ -178,14 +195,20 @@ void encoder_worker(EncoderSession::Impl* impl) noexcept {
 
             std::string error;
             mkvc_result result = MKVC_OK;
+            const auto backend_started = std::chrono::steady_clock::now();
             if (item.type == EncoderSession::Impl::ItemType::kFrame) {
                 const mkvc_frame_view view = item.frame->view();
                 result = backend_write(*impl, view, error);
             } else {
                 result = backend_flush(*impl, error);
             }
+            const uint64_t backend_elapsed = elapsed_ns(backend_started);
+            const uint32_t hardware_pending = backend_hardware_pending(*impl);
             {
                 std::lock_guard<std::mutex> lock(impl->mutex);
+                impl->backend_time_ns += backend_elapsed;
+                impl->hardware_pending_peak = std::max(
+                    impl->hardware_pending_peak, hardware_pending);
                 if (item.frame) {
                     impl->free_frames.push_back(std::move(item.frame));
                     impl->has_space.notify_all();
@@ -203,13 +226,21 @@ void encoder_worker(EncoderSession::Impl* impl) noexcept {
                 if (item.type == EncoderSession::Impl::ItemType::kFlush) {
                     impl->completed_flush_token = item.flush_token;
                     impl->state_changed.notify_all();
+                } else {
+                    ++impl->completed_frames;
                 }
             }
         }
 
         std::string error;
+        const auto close_started = std::chrono::steady_clock::now();
         const mkvc_result close_result = backend_close(*impl, error);
+        const uint64_t close_elapsed = elapsed_ns(close_started);
+        const uint32_t hardware_pending = backend_hardware_pending(*impl);
         std::lock_guard<std::mutex> lock(impl->mutex);
+        impl->backend_time_ns += close_elapsed;
+        impl->hardware_pending_peak = std::max(
+            impl->hardware_pending_peak, hardware_pending);
         if (!impl->failed && close_result != MKVC_OK) {
             impl->failed = true;
             impl->terminal_result = close_result;
@@ -284,7 +315,17 @@ EncoderSession::~EncoderSession() {
 mkvc_result EncoderSession::write(const mkvc_frame_view& frame, bool block,
                                   std::string& error) {
     if (impl_->capacity == 0) {
-        return backend_write(*impl_, frame, error);
+        const auto started = std::chrono::steady_clock::now();
+        const mkvc_result result = backend_write(*impl_, frame, error);
+        std::lock_guard<std::mutex> lock(impl_->mutex);
+        impl_->backend_time_ns += elapsed_ns(started);
+        impl_->hardware_pending_peak = std::max(
+            impl_->hardware_pending_peak, backend_hardware_pending(*impl_));
+        if (result == MKVC_OK) {
+            ++impl_->accepted_frames;
+            ++impl_->completed_frames;
+        }
+        return result;
     }
     {
         std::lock_guard<std::mutex> lock(impl_->mutex);
@@ -306,14 +347,17 @@ mkvc_result EncoderSession::write(const mkvc_frame_view& frame, bool block,
         std::unique_lock<std::mutex> lock(impl_->mutex);
         if (!block && (impl_->queue.size() >= impl_->capacity ||
                        impl_->free_frames.empty())) {
+            ++impl_->rejected_frames;
             return MKVC_WOULD_BLOCK;
         }
         if (block) {
+            const auto wait_started = std::chrono::steady_clock::now();
             impl_->has_space.wait(lock, [this] {
                 return (impl_->queue.size() < impl_->capacity &&
                         !impl_->free_frames.empty()) ||
                        !impl_->accepting || impl_->failed;
             });
+            impl_->queue_wait_ns += elapsed_ns(wait_started);
         }
         if (impl_->failed) {
             error = impl_->terminal_error;
@@ -324,6 +368,7 @@ mkvc_result EncoderSession::write(const mkvc_frame_view& frame, bool block,
             return MKVC_ERROR_INVALID_STATE;
         }
         if (impl_->queue.size() >= impl_->capacity || impl_->free_frames.empty()) {
+            ++impl_->rejected_frames;
             return MKVC_WOULD_BLOCK;
         }
         owned = std::move(impl_->free_frames.front());
@@ -338,10 +383,12 @@ mkvc_result EncoderSession::write(const mkvc_frame_view& frame, bool block,
     }
     std::unique_lock<std::mutex> lock(impl_->mutex);
     if (block) {
+        const auto wait_started = std::chrono::steady_clock::now();
         impl_->has_space.wait(lock, [this] {
             return impl_->queue.size() < impl_->capacity ||
                    !impl_->accepting || impl_->failed;
         });
+        impl_->queue_wait_ns += elapsed_ns(wait_started);
     }
     if (impl_->failed) {
         impl_->free_frames.push_back(std::move(owned));
@@ -356,18 +403,42 @@ mkvc_result EncoderSession::write(const mkvc_frame_view& frame, bool block,
     if (impl_->queue.size() >= impl_->capacity) {
         impl_->free_frames.push_back(std::move(owned));
         impl_->has_space.notify_all();
+        ++impl_->rejected_frames;
         return MKVC_WOULD_BLOCK;
     }
     Impl::Item item;
     item.frame = std::move(owned);
     impl_->queue.push_back(std::move(item));
+    ++impl_->accepted_frames;
+    impl_->peak_queue_depth = std::max<uint32_t>(
+        impl_->peak_queue_depth, static_cast<uint32_t>(impl_->queue.size()));
     impl_->has_items.notify_one();
     return MKVC_OK;
 }
 
+void EncoderSession::get_metrics(mkvc_pipeline_metrics& metrics) const {
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    metrics.accepted_frames = impl_->accepted_frames;
+    metrics.completed_frames = impl_->completed_frames;
+    metrics.rejected_frames = impl_->rejected_frames;
+    metrics.queue_wait_ns = impl_->queue_wait_ns;
+    metrics.backend_time_ns = impl_->backend_time_ns;
+    metrics.queue_capacity = static_cast<uint32_t>(impl_->capacity);
+    metrics.peak_queue_depth = impl_->peak_queue_depth;
+    metrics.hardware_pending_peak = impl_->hardware_pending_peak;
+    metrics.copy_path = impl_->completed_frames == 0
+        ? MKVC_COPY_PATH_UNKNOWN : MKVC_COPY_PATH_CPU;
+}
+
 mkvc_result EncoderSession::flush(std::string& error) {
     if (impl_->capacity == 0) {
-        return backend_flush(*impl_, error);
+        const auto started = std::chrono::steady_clock::now();
+        const mkvc_result result = backend_flush(*impl_, error);
+        std::lock_guard<std::mutex> lock(impl_->mutex);
+        impl_->backend_time_ns += elapsed_ns(started);
+        impl_->hardware_pending_peak = std::max(
+            impl_->hardware_pending_peak, backend_hardware_pending(*impl_));
+        return result;
     }
     std::unique_lock<std::mutex> lock(impl_->mutex);
     impl_->has_space.wait(lock, [this] {
@@ -400,7 +471,13 @@ mkvc_result EncoderSession::flush(std::string& error) {
 
 mkvc_result EncoderSession::close(std::string& error) {
     if (impl_->capacity == 0) {
-        return backend_close(*impl_, error);
+        const auto started = std::chrono::steady_clock::now();
+        const mkvc_result result = backend_close(*impl_, error);
+        std::lock_guard<std::mutex> lock(impl_->mutex);
+        impl_->backend_time_ns += elapsed_ns(started);
+        impl_->hardware_pending_peak = std::max(
+            impl_->hardware_pending_peak, backend_hardware_pending(*impl_));
+        return result;
     }
     {
         std::lock_guard<std::mutex> lock(impl_->mutex);

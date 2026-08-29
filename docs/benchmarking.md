@@ -7,6 +7,11 @@ latency, encoded size and process peak RSS where available. The record explicitl
 states the observed CPU-copy path; it never infers zero-copy from a requested
 backend.
 
+The `native_metrics` section is read from the C ABI after close and contains
+accepted/completed/rejected frame counts, host queue wait and backend time,
+configured/peak queue depth, hardware pending-operation peak and the copy path
+actually exercised. Timings are cumulative monotonic host-clock nanoseconds.
+
 Example:
 
 ```shell
@@ -21,6 +26,6 @@ Keep the native library, driver, CPU/GPU model, power policy and build type stab
 when comparing results. Absolute release thresholds remain unset until approved
 hardware-class baselines exist.
 
-This runner records end-to-end host timings. Fine-grained queue wait, conversion,
-codec, mux and GPU-event timings require the planned native metrics ABI and must
-not be reverse-engineered from these totals.
+This runner records end-to-end host timings plus the current native aggregate
+queue/backend timings. Conversion, codec, mux and GPU-event timers are not yet
+separated and must not be reverse-engineered from the aggregate totals.

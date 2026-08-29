@@ -6,6 +6,7 @@
 #endif
 
 #include <algorithm>
+#include <atomic>
 #include <cstring>
 #include <deque>
 #include <limits>
@@ -34,7 +35,7 @@ struct IntelVplEncoder::Impl {
     uint32_t fps_den = 0;
     int64_t next_pts = 0;
     uint32_t async_depth = 4;
-    uint32_t max_pending = 0;
+    std::atomic<uint32_t> max_pending{0};
     bool encoder_initialized = false;
     bool drained = false;
     bool closed = false;
@@ -148,8 +149,10 @@ mkvc_result submit_surface(IntelVplEncoder::Impl& impl,
     }
     if (pending->sync != nullptr) {
         impl.pending.push_back(std::move(pending));
-        impl.max_pending = std::max<uint32_t>(
-            impl.max_pending, static_cast<uint32_t>(impl.pending.size()));
+        const uint32_t observed = static_cast<uint32_t>(impl.pending.size());
+        uint32_t current = impl.max_pending.load(std::memory_order_relaxed);
+        while (current < observed && !impl.max_pending.compare_exchange_weak(
+                   current, observed, std::memory_order_relaxed)) {}
     }
     return MKVC_OK;
 }
@@ -381,7 +384,7 @@ mkvc_result IntelVplEncoder::close(std::string& error) {
 }
 
 uint32_t IntelVplEncoder::max_pending_observed() const {
-    return impl_->max_pending;
+    return impl_->max_pending.load(std::memory_order_relaxed);
 }
 
 }  // namespace mkvc

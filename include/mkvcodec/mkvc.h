@@ -85,6 +85,28 @@ typedef enum mkvc_pixel_format {
     MKVC_PIXEL_FORMAT_BGRA32 = 5  /**< Interleaved B, G, R, A bytes. */
 } mkvc_pixel_format;
 
+/** Pixel transfer path actually exercised by a pipeline. */
+typedef enum mkvc_copy_path {
+    MKVC_COPY_PATH_UNKNOWN = 0,  /**< No frame has completed yet. */
+    MKVC_COPY_PATH_CPU = 1,      /**< Pixels crossed caller-owned CPU memory. */
+    MKVC_COPY_PATH_ZERO_COPY = 2 /**< GPU surface remained device-resident. */
+} mkvc_copy_path;
+
+/** Thread-safe cumulative pipeline observations; initialize size and version. */
+typedef struct mkvc_pipeline_metrics {
+    uint32_t struct_size;           /**< Size of this struct. */
+    uint32_t struct_version;        /**< Must be 1 for this ABI. */
+    uint64_t accepted_frames;       /**< Frames accepted or produced internally. */
+    uint64_t completed_frames;      /**< Frames processed or returned to the caller. */
+    uint64_t rejected_frames;       /**< Nonblocking submissions rejected as full. */
+    uint64_t queue_wait_ns;         /**< Host nanoseconds blocked on queue availability/data. */
+    uint64_t backend_time_ns;       /**< Host nanoseconds inside codec/container backend calls. */
+    uint32_t queue_capacity;        /**< Configured application queue bound. */
+    uint32_t peak_queue_depth;      /**< Largest observed application queue occupancy. */
+    uint32_t hardware_pending_peak; /**< Largest observed outstanding GPU operations. */
+    uint32_t copy_path;             /**< One mkvc_copy_path actually exercised. */
+} mkvc_pipeline_metrics;
+
 /** Encoder creation parameters, including optional bounded asynchronous submission. */
 typedef struct mkvc_encoder_config {
     uint32_t struct_size;              /**< Size of this struct. */
@@ -181,6 +203,10 @@ MKVC_API mkvc_result mkvc_encoder_try_write_frame(
 MKVC_API mkvc_result mkvc_encoder_flush(mkvc_encoder* encoder);
 /** Drain, finalize the container, and close the encoder idempotently. */
 MKVC_API mkvc_result mkvc_encoder_close(mkvc_encoder* encoder);
+/** Snapshot cumulative encoder metrics without resetting them. */
+MKVC_API mkvc_result mkvc_encoder_get_metrics(
+    const mkvc_encoder* encoder,
+    mkvc_pipeline_metrics* out_metrics);
 /** Destroy an encoder handle; NULL is accepted. */
 MKVC_API void mkvc_encoder_destroy(mkvc_encoder* encoder);
 
@@ -197,6 +223,10 @@ MKVC_API mkvc_result mkvc_decoder_read(
     mkvc_frame** out_frame);
 /** Close the decoder and release codec/container resources idempotently. */
 MKVC_API mkvc_result mkvc_decoder_close(mkvc_decoder* decoder);
+/** Snapshot cumulative decoder metrics without resetting them. */
+MKVC_API mkvc_result mkvc_decoder_get_metrics(
+    const mkvc_decoder* decoder,
+    mkvc_pipeline_metrics* out_metrics);
 /** Destroy a decoder handle; NULL is accepted. */
 MKVC_API void mkvc_decoder_destroy(mkvc_decoder* decoder);
 

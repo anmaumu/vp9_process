@@ -20,6 +20,7 @@ class IntelWebmEncoder {
     mkvc_result write(const mkvc_frame_view& frame, std::string& error);
     mkvc_result flush(std::string& error);
     mkvc_result close(std::string& error);
+    uint32_t max_pending_observed() const;
 
  private:
     IntelWebmEncoder();

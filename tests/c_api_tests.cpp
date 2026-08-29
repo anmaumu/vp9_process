@@ -48,6 +48,17 @@ int main() {
     assert(mkvc_get_backend_capabilities(nullptr, nullptr) ==
            MKVC_ERROR_INVALID_ARGUMENT);
 
+    mkvc_pipeline_metrics metrics{};
+    metrics.struct_size = sizeof(metrics);
+    metrics.struct_version = 1;
+    assert(mkvc_encoder_get_metrics(nullptr, &metrics) ==
+           MKVC_ERROR_INVALID_ARGUMENT);
+    assert(mkvc_decoder_get_metrics(nullptr, &metrics) ==
+           MKVC_ERROR_INVALID_ARGUMENT);
+    metrics.struct_size = sizeof(metrics) - 1;
+    assert(mkvc_encoder_get_metrics(nullptr, &metrics) ==
+           MKVC_ERROR_INVALID_ARGUMENT);
+
     assert(std::strcmp(mkvc_result_string(MKVC_OK), "ok") == 0);
     assert(std::strcmp(mkvc_result_string(MKVC_WOULD_BLOCK), "would block") == 0);
     assert(std::strcmp(mkvc_result_string(static_cast<mkvc_result>(999)),

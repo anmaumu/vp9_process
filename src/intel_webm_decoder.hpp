@@ -19,6 +19,7 @@ class IntelWebmDecoder {
     IntelWebmDecoder& operator=(const IntelWebmDecoder&) = delete;
     mkvc_result read(std::unique_ptr<DecodedFrame>& frame, std::string& error);
     mkvc_result close(std::string& error);
+    uint32_t max_pending_observed() const;
 
  private:
     IntelWebmDecoder();

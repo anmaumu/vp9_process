@@ -29,6 +29,7 @@ struct IntelWebmDecoder::Impl {
     std::unique_ptr<IntelVplDecoder> decoder;
     std::deque<std::unique_ptr<DecodedFrame>> completed;
     bool demux_eos = false;
+    uint32_t hardware_pending_peak = 0;
     bool drained = false;
     bool closed = false;
 };
@@ -210,7 +211,10 @@ mkvc_result IntelWebmDecoder::close(std::string& error) {
 #if !defined(MKVC_HAS_INTEL_ONEVPL)
     (void)error;
 #else
-    if (impl_->decoder) result = impl_->decoder->close(error);
+    if (impl_->decoder) {
+        impl_->hardware_pending_peak = impl_->decoder->max_pending_observed();
+        result = impl_->decoder->close(error);
+    }
     impl_->decoder.reset();
     impl_->completed.clear();
     impl_->segment.reset();
@@ -218,6 +222,11 @@ mkvc_result IntelWebmDecoder::close(std::string& error) {
 #endif
     impl_->closed = true;
     return result;
+}
+
+uint32_t IntelWebmDecoder::max_pending_observed() const {
+    return std::max(impl_->hardware_pending_peak,
+                    impl_->decoder ? impl_->decoder->max_pending_observed() : 0);
 }
 
 }  // namespace mkvc

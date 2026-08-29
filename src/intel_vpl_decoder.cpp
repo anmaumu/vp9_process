@@ -7,6 +7,7 @@
 #endif
 
 #include <algorithm>
+#include <atomic>
 #include <cstring>
 #include <deque>
 #include <limits>
@@ -30,7 +31,7 @@ struct IntelVplDecoder::Impl {
 #endif
     uint32_t codec = 0;
     uint32_t async_depth = 4;
-    uint32_t max_pending = 0;
+    std::atomic<uint32_t> max_pending{0};
     bool decoder_initialized = false;
     bool drained = false;
     bool closed = false;
@@ -126,8 +127,10 @@ mkvc_result submit_decode(IntelVplDecoder::Impl& impl, mfxBitstream* bitstream,
     }
     if (sync != nullptr && surface != nullptr) {
         impl.pending.push_back({surface, sync});
-        impl.max_pending = std::max<uint32_t>(
-            impl.max_pending, static_cast<uint32_t>(impl.pending.size()));
+        const uint32_t observed = static_cast<uint32_t>(impl.pending.size());
+        uint32_t current = impl.max_pending.load(std::memory_order_relaxed);
+        while (current < observed && !impl.max_pending.compare_exchange_weak(
+                   current, observed, std::memory_order_relaxed)) {}
     } else if (surface != nullptr) {
         surface->FrameInterface->Release(surface);
     }
@@ -330,7 +333,7 @@ mkvc_result IntelVplDecoder::close(std::string& error) {
 }
 
 uint32_t IntelVplDecoder::max_pending_observed() const {
-    return impl_->max_pending;
+    return impl_->max_pending.load(std::memory_order_relaxed);
 }
 
 }  // namespace mkvc

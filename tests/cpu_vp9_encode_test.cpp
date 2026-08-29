@@ -54,6 +54,11 @@ int main(int argc, char** argv) {
 
     require_ok(mkvc_encoder_create(&config, &encoder));
     assert(encoder != nullptr);
+    mkvc_pipeline_metrics invalid_metrics{};
+    invalid_metrics.struct_size = sizeof(invalid_metrics) - 1;
+    invalid_metrics.struct_version = 1;
+    assert(mkvc_encoder_get_metrics(encoder, &invalid_metrics) ==
+           MKVC_ERROR_INVALID_ARGUMENT);
 
     for (uint32_t index = 0; index < frame_count; ++index) {
         for (uint32_t row = 0; row < height; ++row) {
@@ -92,6 +97,17 @@ int main(int argc, char** argv) {
     require_ok(mkvc_encoder_flush(encoder));
     require_ok(mkvc_encoder_close(encoder));
     require_ok(mkvc_encoder_close(encoder));
+    mkvc_pipeline_metrics encoder_metrics{};
+    encoder_metrics.struct_size = sizeof(encoder_metrics);
+    encoder_metrics.struct_version = 1;
+    require_ok(mkvc_encoder_get_metrics(encoder, &encoder_metrics));
+    assert(encoder_metrics.accepted_frames == frame_count);
+    assert(encoder_metrics.completed_frames == frame_count);
+    assert(encoder_metrics.queue_capacity == 2);
+    assert(encoder_metrics.peak_queue_depth > 0 &&
+           encoder_metrics.peak_queue_depth <= 2);
+    assert(encoder_metrics.backend_time_ns > 0);
+    assert(encoder_metrics.copy_path == MKVC_COPY_PATH_CPU);
 
     mkvc_frame_view closed_frame{};
     closed_frame.struct_size = sizeof(closed_frame);
@@ -114,6 +130,10 @@ int main(int argc, char** argv) {
 
     mkvc_decoder* decoder = nullptr;
     require_ok(mkvc_decoder_create(&decoder_config, &decoder));
+    invalid_metrics.struct_size = sizeof(invalid_metrics);
+    invalid_metrics.struct_version = 0;
+    assert(mkvc_decoder_get_metrics(decoder, &invalid_metrics) ==
+           MKVC_ERROR_INVALID_ARGUMENT);
     uint32_t decoded_count = 0;
     int64_t previous_pts = -1;
     double squared_error = 0.0;
@@ -158,6 +178,17 @@ int main(int argc, char** argv) {
     assert(psnr >= 28.0);
     require_ok(mkvc_decoder_close(decoder));
     require_ok(mkvc_decoder_close(decoder));
+    mkvc_pipeline_metrics decoder_metrics{};
+    decoder_metrics.struct_size = sizeof(decoder_metrics);
+    decoder_metrics.struct_version = 1;
+    require_ok(mkvc_decoder_get_metrics(decoder, &decoder_metrics));
+    assert(decoder_metrics.accepted_frames == frame_count);
+    assert(decoder_metrics.completed_frames == frame_count);
+    assert(decoder_metrics.queue_capacity == 2);
+    assert(decoder_metrics.peak_queue_depth > 0 &&
+           decoder_metrics.peak_queue_depth <= 2);
+    assert(decoder_metrics.backend_time_ns > 0);
+    assert(decoder_metrics.copy_path == MKVC_COPY_PATH_CPU);
     mkvc_decoder_destroy(decoder);
     return 0;
 }

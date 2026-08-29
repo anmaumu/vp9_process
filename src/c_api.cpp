@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <atomic>
 #include <condition_variable>
+#include <chrono>
 #include <deque>
 #include <exception>
 #include <memory>
@@ -26,7 +27,7 @@ struct mkvc_decoder {
     std::unique_ptr<mkvc::CpuVp9Decoder> implementation;
     std::unique_ptr<mkvc::CpuAv1Decoder> av1_implementation;
     std::unique_ptr<mkvc::IntelWebmDecoder> intel_implementation;
-    std::mutex mutex;
+    mutable std::mutex mutex;
     std::condition_variable not_empty;
     std::condition_variable not_full;
     std::deque<std::unique_ptr<mkvc::DecodedFrame>> queue;
@@ -36,6 +37,12 @@ struct mkvc_decoder {
     bool worker_finished = false;
     mkvc_result worker_result = MKVC_OK;
     std::string worker_error;
+    uint64_t accepted_frames = 0;
+    uint64_t completed_frames = 0;
+    uint64_t queue_wait_ns = 0;
+    uint64_t backend_time_ns = 0;
+    uint32_t peak_queue_depth = 0;
+    uint32_t hardware_pending_peak = 0;
 };
 
 struct mkvc_frame {
@@ -49,6 +56,11 @@ thread_local std::string last_error;
 mkvc_result fail(mkvc_result result, std::string message) {
     last_error = std::move(message);
     return result;
+}
+
+uint64_t elapsed_ns(std::chrono::steady_clock::time_point started) {
+    return static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(
+        std::chrono::steady_clock::now() - started).count());
 }
 
 mkvc_result decoder_read_backend(
@@ -84,14 +96,25 @@ void decoder_worker(mkvc_decoder* decoder) noexcept {
 
             std::unique_ptr<mkvc::DecodedFrame> frame;
             std::string error;
+            const auto backend_started = std::chrono::steady_clock::now();
             const mkvc_result result =
                 decoder_read_backend(decoder, frame, error);
+            const uint64_t backend_elapsed = elapsed_ns(backend_started);
+            const uint32_t hardware_pending = decoder->intel_implementation
+                ? decoder->intel_implementation->max_pending_observed() : 0;
             std::lock_guard<std::mutex> lock(decoder->mutex);
+            decoder->backend_time_ns += backend_elapsed;
+            decoder->hardware_pending_peak = std::max(
+                decoder->hardware_pending_peak, hardware_pending);
             if (decoder->stop_requested) {
                 return;
             }
             if (result == MKVC_OK) {
                 decoder->queue.push_back(std::move(frame));
+                ++decoder->accepted_frames;
+                decoder->peak_queue_depth = std::max<uint32_t>(
+                    decoder->peak_queue_depth,
+                    static_cast<uint32_t>(decoder->queue.size()));
                 decoder->not_empty.notify_one();
                 continue;
             }
@@ -295,6 +318,29 @@ mkvc_result mkvc_encoder_close(mkvc_encoder* encoder) {
     }
 }
 
+mkvc_result mkvc_encoder_get_metrics(
+    const mkvc_encoder* encoder, mkvc_pipeline_metrics* out_metrics) {
+    last_error.clear();
+    if (encoder == nullptr || out_metrics == nullptr ||
+        out_metrics->struct_size < sizeof(mkvc_pipeline_metrics) ||
+        out_metrics->struct_version != 1) {
+        return fail(MKVC_ERROR_INVALID_ARGUMENT,
+                    "invalid encoder metrics output");
+    }
+    try {
+        mkvc_pipeline_metrics metrics{};
+        metrics.struct_size = sizeof(metrics);
+        metrics.struct_version = 1;
+        encoder->implementation->get_metrics(metrics);
+        *out_metrics = metrics;
+        return MKVC_OK;
+    } catch (const std::exception& exception) {
+        return fail(MKVC_ERROR_INTERNAL, exception.what());
+    } catch (...) {
+        return fail(MKVC_ERROR_INTERNAL, "unknown encoder metrics failure");
+    }
+}
+
 void mkvc_encoder_destroy(mkvc_encoder* encoder) {
     try {
         delete encoder;
@@ -369,16 +415,19 @@ mkvc_result mkvc_decoder_read(mkvc_decoder* decoder, mkvc_frame** out_frame) {
             std::string error;
             {
                 std::unique_lock<std::mutex> lock(decoder->mutex);
+                const auto wait_started = std::chrono::steady_clock::now();
                 decoder->not_empty.wait(lock, [decoder] {
                     return decoder->stop_requested || !decoder->queue.empty() ||
                            decoder->worker_finished;
                 });
+                decoder->queue_wait_ns += elapsed_ns(wait_started);
                 if (decoder->stop_requested) {
                     return fail(MKVC_ERROR_INVALID_STATE, "decoder is closing");
                 }
                 if (!decoder->queue.empty()) {
                     decoded = std::move(decoder->queue.front());
                     decoder->queue.pop_front();
+                    ++decoder->completed_frames;
                     decoder->not_full.notify_one();
                 } else {
                     result = decoder->worker_result;
@@ -397,7 +446,21 @@ mkvc_result mkvc_decoder_read(mkvc_decoder* decoder, mkvc_frame** out_frame) {
         }
         std::string error;
         std::unique_ptr<mkvc::DecodedFrame> decoded;
+        const auto backend_started = std::chrono::steady_clock::now();
         const mkvc_result result = decoder_read_backend(decoder, decoded, error);
+        const uint64_t backend_elapsed = elapsed_ns(backend_started);
+        const uint32_t hardware_pending = decoder->intel_implementation
+            ? decoder->intel_implementation->max_pending_observed() : 0;
+        {
+            std::lock_guard<std::mutex> lock(decoder->mutex);
+            decoder->backend_time_ns += backend_elapsed;
+            decoder->hardware_pending_peak = std::max(
+                decoder->hardware_pending_peak, hardware_pending);
+            if (result == MKVC_OK) {
+                ++decoder->accepted_frames;
+                ++decoder->completed_frames;
+            }
+        }
         if (result == MKVC_END_OF_STREAM) {
             return result;
         }
@@ -429,6 +492,38 @@ mkvc_result mkvc_decoder_close(mkvc_decoder* decoder) {
         return fail(MKVC_ERROR_INTERNAL, exception.what());
     } catch (...) {
         return fail(MKVC_ERROR_INTERNAL, "unknown decoder close failure");
+    }
+}
+
+mkvc_result mkvc_decoder_get_metrics(
+    const mkvc_decoder* decoder, mkvc_pipeline_metrics* out_metrics) {
+    last_error.clear();
+    if (decoder == nullptr || out_metrics == nullptr ||
+        out_metrics->struct_size < sizeof(mkvc_pipeline_metrics) ||
+        out_metrics->struct_version != 1) {
+        return fail(MKVC_ERROR_INVALID_ARGUMENT,
+                    "invalid decoder metrics output");
+    }
+    try {
+        mkvc_pipeline_metrics metrics{};
+        metrics.struct_size = sizeof(metrics);
+        metrics.struct_version = 1;
+        std::lock_guard<std::mutex> lock(decoder->mutex);
+        metrics.accepted_frames = decoder->accepted_frames;
+        metrics.completed_frames = decoder->completed_frames;
+        metrics.queue_wait_ns = decoder->queue_wait_ns;
+        metrics.backend_time_ns = decoder->backend_time_ns;
+        metrics.queue_capacity = static_cast<uint32_t>(decoder->capacity);
+        metrics.peak_queue_depth = decoder->peak_queue_depth;
+        metrics.hardware_pending_peak = decoder->hardware_pending_peak;
+        metrics.copy_path = decoder->completed_frames == 0
+            ? MKVC_COPY_PATH_UNKNOWN : MKVC_COPY_PATH_CPU;
+        *out_metrics = metrics;
+        return MKVC_OK;
+    } catch (const std::exception& exception) {
+        return fail(MKVC_ERROR_INTERNAL, exception.what());
+    } catch (...) {
+        return fail(MKVC_ERROR_INTERNAL, "unknown decoder metrics failure");
     }
 }
 

@@ -29,6 +29,18 @@ def main() -> None:
         assert loaded["measurements"]["decode_fps"] > 0
         assert loaded["measurements"]["encoded_bytes"] > 0
         assert loaded["observed_path"]["zero_copy"] is False
+        encoder = loaded["native_metrics"]["encoder"]
+        decoder = loaded["native_metrics"]["decoder"]
+        assert encoder["accepted_frames"] == 12
+        assert encoder["completed_frames"] == 12
+        assert encoder["queue_capacity"] == 2
+        assert 0 < encoder["peak_queue_depth"] <= 2
+        assert encoder["backend_time_ns"] > 0
+        assert encoder["copy_path"] == "cpu"
+        assert decoder["accepted_frames"] == 12
+        assert decoder["completed_frames"] == 12
+        assert decoder["queue_capacity"] == 2
+        assert 0 < decoder["peak_queue_depth"] <= 2
 
 
 if __name__ == "__main__":

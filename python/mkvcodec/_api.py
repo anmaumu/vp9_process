@@ -22,6 +22,38 @@ class CpuFrame:
     pts_ns: int
 
 
+@dataclass(frozen=True)
+class PipelineMetrics:
+    accepted_frames: int
+    completed_frames: int
+    rejected_frames: int
+    queue_wait_ns: int
+    backend_time_ns: int
+    queue_capacity: int
+    peak_queue_depth: int
+    hardware_pending_peak: int
+    copy_path: str
+
+
+def _read_metrics(handle: ct.c_void_p, function: object) -> PipelineMetrics:
+    metrics = native.PipelineMetrics()
+    metrics.struct_size = ct.sizeof(metrics)
+    metrics.struct_version = 1
+    native.check(function(handle, ct.byref(metrics)))
+    paths = {0: "unknown", 1: "cpu", 2: "zero_copy"}
+    return PipelineMetrics(
+        accepted_frames=metrics.accepted_frames,
+        completed_frames=metrics.completed_frames,
+        rejected_frames=metrics.rejected_frames,
+        queue_wait_ns=metrics.queue_wait_ns,
+        backend_time_ns=metrics.backend_time_ns,
+        queue_capacity=metrics.queue_capacity,
+        peak_queue_depth=metrics.peak_queue_depth,
+        hardware_pending_peak=metrics.hardware_pending_peak,
+        copy_path=paths.get(metrics.copy_path, f"unknown_{metrics.copy_path}"),
+    )
+
+
 def _fps_fraction(fps: float | int | tuple[int, int]) -> Fraction:
     if isinstance(fps, tuple):
         value = Fraction(*fps)
@@ -78,6 +110,15 @@ class VideoWriter:
         self._width = width
         self._height = height
         self._closed = False
+        self._last_metrics: PipelineMetrics | None = None
+
+    @property
+    def metrics(self) -> PipelineMetrics:
+        if self._closed:
+            if self._last_metrics is None:
+                raise RuntimeError("writer metrics are unavailable")
+            return self._last_metrics
+        return _read_metrics(self._handle, native.lib.mkvc_encoder_get_metrics)
 
     def _submit(self, frame: native.FrameView, *, block: bool) -> bool:
         function = (native.lib.mkvc_encoder_write_frame if block else
@@ -206,12 +247,16 @@ class VideoWriter:
     def close(self) -> None:
         if self._closed:
             return
+        result = native.lib.mkvc_encoder_close(self._handle)
         try:
-            native.check(native.lib.mkvc_encoder_close(self._handle))
+            self._last_metrics = _read_metrics(
+                self._handle, native.lib.mkvc_encoder_get_metrics
+            )
         finally:
             native.lib.mkvc_encoder_destroy(self._handle)
             self._handle = native.EncoderHandle()
             self._closed = True
+        native.check(result)
 
     release = close
 
@@ -257,7 +302,16 @@ class VideoCapture(Iterator[U8Plane]):
         self._handle = native.DecoderHandle()
         native.check(native.lib.mkvc_decoder_create(ct.byref(config), ct.byref(self._handle)))
         self._closed = False
+        self._last_metrics: PipelineMetrics | None = None
         self.last_pts_ns: int | None = None
+
+    @property
+    def metrics(self) -> PipelineMetrics:
+        if self._closed:
+            if self._last_metrics is None:
+                raise RuntimeError("capture metrics are unavailable")
+            return self._last_metrics
+        return _read_metrics(self._handle, native.lib.mkvc_decoder_get_metrics)
 
     def _read_handle(self) -> native.FrameHandle | None:
         if self._closed:
@@ -360,12 +414,16 @@ class VideoCapture(Iterator[U8Plane]):
     def close(self) -> None:
         if self._closed:
             return
+        result = native.lib.mkvc_decoder_close(self._handle)
         try:
-            native.check(native.lib.mkvc_decoder_close(self._handle))
+            self._last_metrics = _read_metrics(
+                self._handle, native.lib.mkvc_decoder_get_metrics
+            )
         finally:
             native.lib.mkvc_decoder_destroy(self._handle)
             self._handle = native.DecoderHandle()
             self._closed = True
+        native.check(result)
 
     release = close
 

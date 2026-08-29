@@ -56,12 +56,22 @@ def main() -> None:
                         writer.write_nv12(i420_y, nv12_uv)
                     if index == 14:
                         writer.flush()
+            assert writer.metrics.accepted_frames == 30
+            assert writer.metrics.completed_frames == 30
+            assert writer.metrics.hardware_pending_peak == 4
+            assert writer.metrics.copy_path == "cpu"
 
             for backend, prefetch in (("intel", 0), ("intel", 4), ("cpu", 4)):
                 with mkvcodec.VideoCapture(
                     path, codec=codec, backend=backend, prefetch=prefetch
                 ) as capture:
                     frames = list(capture)
+                assert capture.metrics.accepted_frames == 30
+                assert capture.metrics.completed_frames == 30
+                assert capture.metrics.hardware_pending_peak == (
+                    4 if backend == "intel" else 0
+                )
+                assert capture.metrics.copy_path == "cpu"
                 assert len(frames) == 30
                 assert frames[0].shape == (height, width, 3)
                 assert frames[-1].shape == (height, width, 3)

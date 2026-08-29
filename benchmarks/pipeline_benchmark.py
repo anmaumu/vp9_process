@@ -15,6 +15,7 @@ import sys
 import tempfile
 import time
 from datetime import datetime, timezone
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
@@ -91,16 +92,18 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     finally:
         writer.close()
     encode_seconds = time.perf_counter() - encode_started
+    writer_metrics = writer.metrics
 
     decoded = 0
     first_frame_seconds: float | None = None
     decode_started = time.perf_counter()
-    with mkvcodec.VideoCapture(
+    capture = mkvcodec.VideoCapture(
         media_path,
         codec=args.codec,
         backend=args.backend,
         prefetch=args.prefetch,
-    ) as capture:
+    )
+    with capture:
         for decoded_frame in capture:
             if first_frame_seconds is None:
                 first_frame_seconds = time.perf_counter() - decode_started
@@ -108,6 +111,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 raise RuntimeError("decoded frame dimensions changed")
             decoded += 1
     decode_seconds = time.perf_counter() - decode_started
+    capture_metrics = capture.metrics
     if decoded != args.frames:
         raise RuntimeError(f"decoded {decoded} frames, expected {args.frames}")
 
@@ -152,6 +156,10 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             "encode_input_copy": "python_numpy_to_native_owned_cpu",
             "decode_output_copy": "native_owned_i420_to_python_bgr",
             "zero_copy": False,
+        },
+        "native_metrics": {
+            "encoder": asdict(writer_metrics),
+            "decoder": asdict(capture_metrics),
         },
     }
     if temporary is not None:

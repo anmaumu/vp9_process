@@ -33,6 +33,7 @@ struct IntelWebmEncoder::Impl {
     uint32_t keyframe_interval_frames = 0;
     int64_t next_pts = 0;
     uint64_t frames_in_sequence = 0;
+    uint32_t hardware_pending_peak = 0;
     bool closed = false;
     std::vector<uint8_t> i420;
     std::vector<uint8_t> nv12;
@@ -288,6 +289,8 @@ mkvc_result IntelWebmEncoder::flush(std::string& error) {
     mkvc_result result = impl.encoder->drain(packets, error);
     if (result == MKVC_OK) result = mux_packets(impl, packets, error);
     std::string close_error;
+    impl.hardware_pending_peak = std::max(
+        impl.hardware_pending_peak, impl.encoder->max_pending_observed());
     impl.encoder->close(close_error);
     impl.encoder.reset();
     impl.frames_in_sequence = 0;
@@ -310,6 +313,8 @@ mkvc_result IntelWebmEncoder::close(std::string& error) {
         if (result == MKVC_OK) result = mux_packets(impl, packets, error);
     }
     if (impl.encoder) {
+        impl.hardware_pending_peak = std::max(
+            impl.hardware_pending_peak, impl.encoder->max_pending_observed());
         std::string close_error;
         impl.encoder->close(close_error);
         impl.encoder.reset();
@@ -324,6 +329,11 @@ mkvc_result IntelWebmEncoder::close(std::string& error) {
 #endif
     impl_->closed = true;
     return result;
+}
+
+uint32_t IntelWebmEncoder::max_pending_observed() const {
+    return std::max(impl_->hardware_pending_peak,
+                    impl_->encoder ? impl_->encoder->max_pending_observed() : 0);
 }
 
 }  // namespace mkvc

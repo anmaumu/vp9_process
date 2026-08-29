@@ -76,6 +76,22 @@ class MutableFrameView(ct.Structure):
     ]
 
 
+class PipelineMetrics(ct.Structure):
+    _fields_ = [
+        ("struct_size", ct.c_uint32),
+        ("struct_version", ct.c_uint32),
+        ("accepted_frames", ct.c_uint64),
+        ("completed_frames", ct.c_uint64),
+        ("rejected_frames", ct.c_uint64),
+        ("queue_wait_ns", ct.c_uint64),
+        ("backend_time_ns", ct.c_uint64),
+        ("queue_capacity", ct.c_uint32),
+        ("peak_queue_depth", ct.c_uint32),
+        ("hardware_pending_peak", ct.c_uint32),
+        ("copy_path", ct.c_uint32),
+    ]
+
+
 def _candidate_paths() -> list[str]:
     explicit = os.environ.get("MKVC_LIBRARY_PATH")
     candidates = [explicit] if explicit else []
@@ -116,6 +132,8 @@ lib.mkvc_encoder_flush.argtypes = [EncoderHandle]
 lib.mkvc_encoder_flush.restype = ct.c_int
 lib.mkvc_encoder_close.argtypes = [EncoderHandle]
 lib.mkvc_encoder_close.restype = ct.c_int
+lib.mkvc_encoder_get_metrics.argtypes = [EncoderHandle, ct.POINTER(PipelineMetrics)]
+lib.mkvc_encoder_get_metrics.restype = ct.c_int
 lib.mkvc_encoder_destroy.argtypes = [EncoderHandle]
 
 lib.mkvc_decoder_create.argtypes = [ct.POINTER(DecoderConfig), ct.POINTER(DecoderHandle)]
@@ -124,6 +142,8 @@ lib.mkvc_decoder_read.argtypes = [DecoderHandle, ct.POINTER(FrameHandle)]
 lib.mkvc_decoder_read.restype = ct.c_int
 lib.mkvc_decoder_close.argtypes = [DecoderHandle]
 lib.mkvc_decoder_close.restype = ct.c_int
+lib.mkvc_decoder_get_metrics.argtypes = [DecoderHandle, ct.POINTER(PipelineMetrics)]
+lib.mkvc_decoder_get_metrics.restype = ct.c_int
 lib.mkvc_decoder_destroy.argtypes = [DecoderHandle]
 
 lib.mkvc_frame_get_view.argtypes = [FrameHandle, ct.POINTER(FrameView)]

@@ -32,6 +32,8 @@ class EncoderSession {
     mkvc_result flush(std::string& error);
     /** Drain queued frames, finalize output, and join the worker. */
     mkvc_result close(std::string& error);
+    /** Snapshot cumulative queue/backend observations. */
+    void get_metrics(mkvc_pipeline_metrics& metrics) const;
 
  private:
     explicit EncoderSession(std::unique_ptr<Impl> impl);
