@@ -99,10 +99,69 @@ class VideoWriter:
         frame.pts = pts
         native.check(native.lib.mkvc_encoder_write_frame(self._handle, ct.byref(frame)))
 
-    def write(self, frame: tuple[U8Plane, U8Plane, U8Plane], *, pts: int = -1) -> None:
-        if not isinstance(frame, tuple) or len(frame) != 3:
-            raise ValueError("current write() expects an (Y, U, V) I420 tuple")
-        self.write_i420(*frame, pts=pts)
+    def write_nv12(self, y: U8Plane, uv: U8Plane, *, pts: int = -1) -> None:
+        if self._closed:
+            raise RuntimeError("writer is closed")
+        planes = (np.asarray(y), np.asarray(uv))
+        expected = ((self._height, self._width),
+                    (self._height // 2, self._width))
+        for plane, shape in zip(planes, expected):
+            if plane.dtype != np.uint8 or plane.ndim != 2 or plane.shape != shape:
+                raise ValueError(f"NV12 plane must be uint8 with shape {shape}")
+            if plane.strides[0] <= 0 or plane.strides[1] != 1:
+                raise ValueError("NV12 planes require positive row stride and packed columns")
+        frame = native.FrameView()
+        frame.struct_size = ct.sizeof(frame)
+        frame.struct_version = 1
+        frame.pixel_format = native.MKVC_PIXEL_FORMAT_NV12
+        frame.width = self._width
+        frame.height = self._height
+        for index, plane in enumerate(planes):
+            frame.planes[index] = _plane_pointer(plane)
+            frame.strides[index] = plane.strides[0]
+        frame.pts = pts
+        native.check(native.lib.mkvc_encoder_write_frame(self._handle, ct.byref(frame)))
+
+    def _write_packed(
+        self, array: U8Plane, channels: int, pixel_format: int, *, pts: int
+    ) -> None:
+        if self._closed:
+            raise RuntimeError("writer is closed")
+        packed = np.asarray(array)
+        expected = (self._height, self._width, channels)
+        if packed.dtype != np.uint8 or packed.ndim != 3 or packed.shape != expected:
+            raise ValueError(f"packed frame must be uint8 with shape {expected}")
+        if packed.strides[0] <= 0 or packed.strides[1] != channels or packed.strides[2] != 1:
+            raise ValueError("packed frame requires interleaved channels and positive row stride")
+        frame = native.FrameView()
+        frame.struct_size = ct.sizeof(frame)
+        frame.struct_version = 1
+        frame.pixel_format = pixel_format
+        frame.width = self._width
+        frame.height = self._height
+        frame.planes[0] = _plane_pointer(packed)
+        frame.strides[0] = packed.strides[0]
+        frame.pts = pts
+        native.check(native.lib.mkvc_encoder_write_frame(self._handle, ct.byref(frame)))
+
+    def write_bgr(self, frame: U8Plane, *, pts: int = -1) -> None:
+        self._write_packed(frame, 3, native.MKVC_PIXEL_FORMAT_BGR24, pts=pts)
+
+    def write_rgb(self, frame: U8Plane, *, pts: int = -1) -> None:
+        self._write_packed(frame, 3, native.MKVC_PIXEL_FORMAT_RGB24, pts=pts)
+
+    def write_bgra(self, frame: U8Plane, *, pts: int = -1) -> None:
+        self._write_packed(frame, 4, native.MKVC_PIXEL_FORMAT_BGRA32, pts=pts)
+
+    def write(
+        self, frame: U8Plane | tuple[U8Plane, U8Plane, U8Plane], *, pts: int = -1
+    ) -> None:
+        if isinstance(frame, tuple):
+            if len(frame) != 3:
+                raise ValueError("I420 tuple must contain (Y, U, V)")
+            self.write_i420(*frame, pts=pts)
+            return
+        self.write_bgr(frame, pts=pts)
 
     def flush(self) -> None:
         if not self._closed:

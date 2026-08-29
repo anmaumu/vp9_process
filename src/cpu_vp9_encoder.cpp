@@ -3,6 +3,7 @@
 #if defined(MKVC_HAS_CPU_VP9)
 #include <vpx/vp8cx.h>
 #include <vpx/vpx_encoder.h>
+#include <libyuv/convert.h>
 #include <webm/mkvmuxer/mkvmuxer.h>
 #include <webm/mkvmuxer/mkvwriter.h>
 #endif
@@ -198,14 +199,8 @@ mkvc_result CpuVp9Encoder::write(const mkvc_frame_view& frame,
         error = "encoder is closed";
         return MKVC_ERROR_INVALID_STATE;
     }
-    if (frame.pixel_format != MKVC_PIXEL_FORMAT_I420 ||
-        frame.width != impl.width || frame.height != impl.height ||
-        frame.planes[0] == nullptr || frame.planes[1] == nullptr ||
-        frame.planes[2] == nullptr ||
-        frame.strides[0] < static_cast<int32_t>(impl.width) ||
-        frame.strides[1] < static_cast<int32_t>(impl.width / 2) ||
-        frame.strides[2] < static_cast<int32_t>(impl.width / 2)) {
-        error = "frame must be matching, positive-stride I420";
+    if (frame.width != impl.width || frame.height != impl.height) {
+        error = "frame dimensions do not match encoder configuration";
         return MKVC_ERROR_INVALID_ARGUMENT;
     }
 
@@ -214,12 +209,80 @@ mkvc_result CpuVp9Encoder::write(const mkvc_frame_view& frame,
     uint8_t* y = impl.image.data();
     uint8_t* u = y + y_size;
     uint8_t* v = u + uv_size;
-    copy_plane(y, static_cast<int>(impl.width), frame.planes[0], frame.strides[0],
-               impl.width, impl.height);
-    copy_plane(u, static_cast<int>(impl.width / 2), frame.planes[1], frame.strides[1],
-               impl.width / 2, impl.height / 2);
-    copy_plane(v, static_cast<int>(impl.width / 2), frame.planes[2], frame.strides[2],
-               impl.width / 2, impl.height / 2);
+    int conversion_result = 0;
+    switch (frame.pixel_format) {
+        case MKVC_PIXEL_FORMAT_I420:
+            if (frame.planes[0] == nullptr || frame.planes[1] == nullptr ||
+                frame.planes[2] == nullptr ||
+                frame.strides[0] < static_cast<int32_t>(impl.width) ||
+                frame.strides[1] < static_cast<int32_t>(impl.width / 2) ||
+                frame.strides[2] < static_cast<int32_t>(impl.width / 2)) {
+                error = "I420 requires three positive-stride planes";
+                return MKVC_ERROR_INVALID_ARGUMENT;
+            }
+            copy_plane(y, static_cast<int>(impl.width), frame.planes[0],
+                       frame.strides[0], impl.width, impl.height);
+            copy_plane(u, static_cast<int>(impl.width / 2), frame.planes[1],
+                       frame.strides[1], impl.width / 2, impl.height / 2);
+            copy_plane(v, static_cast<int>(impl.width / 2), frame.planes[2],
+                       frame.strides[2], impl.width / 2, impl.height / 2);
+            break;
+        case MKVC_PIXEL_FORMAT_NV12:
+            if (frame.planes[0] == nullptr || frame.planes[1] == nullptr ||
+                frame.strides[0] < static_cast<int32_t>(impl.width) ||
+                frame.strides[1] < static_cast<int32_t>(impl.width)) {
+                error = "NV12 requires Y and interleaved UV positive-stride planes";
+                return MKVC_ERROR_INVALID_ARGUMENT;
+            }
+            conversion_result = libyuv::NV12ToI420(
+                frame.planes[0], frame.strides[0], frame.planes[1], frame.strides[1],
+                y, static_cast<int>(impl.width), u, static_cast<int>(impl.width / 2),
+                v, static_cast<int>(impl.width / 2), static_cast<int>(impl.width),
+                static_cast<int>(impl.height));
+            break;
+        case MKVC_PIXEL_FORMAT_BGR24:
+        case MKVC_PIXEL_FORMAT_RGB24:
+        case MKVC_PIXEL_FORMAT_BGRA32: {
+            const uint32_t bytes_per_pixel =
+                frame.pixel_format == MKVC_PIXEL_FORMAT_BGRA32 ? 4u : 3u;
+            if (frame.planes[0] == nullptr ||
+                frame.strides[0] <
+                    static_cast<int32_t>(impl.width * bytes_per_pixel)) {
+                error = "packed RGB input has an invalid pointer or stride";
+                return MKVC_ERROR_INVALID_ARGUMENT;
+            }
+            if (frame.pixel_format == MKVC_PIXEL_FORMAT_BGR24) {
+                conversion_result = libyuv::RGB24ToI420(
+                    frame.planes[0], frame.strides[0], y,
+                    static_cast<int>(impl.width), u,
+                    static_cast<int>(impl.width / 2), v,
+                    static_cast<int>(impl.width / 2), static_cast<int>(impl.width),
+                    static_cast<int>(impl.height));
+            } else if (frame.pixel_format == MKVC_PIXEL_FORMAT_RGB24) {
+                conversion_result = libyuv::RAWToI420(
+                    frame.planes[0], frame.strides[0], y,
+                    static_cast<int>(impl.width), u,
+                    static_cast<int>(impl.width / 2), v,
+                    static_cast<int>(impl.width / 2), static_cast<int>(impl.width),
+                    static_cast<int>(impl.height));
+            } else {
+                conversion_result = libyuv::ARGBToI420(
+                    frame.planes[0], frame.strides[0], y,
+                    static_cast<int>(impl.width), u,
+                    static_cast<int>(impl.width / 2), v,
+                    static_cast<int>(impl.width / 2), static_cast<int>(impl.width),
+                    static_cast<int>(impl.height));
+            }
+            break;
+        }
+        default:
+            error = "unsupported input pixel format";
+            return MKVC_ERROR_NOT_SUPPORTED;
+    }
+    if (conversion_result != 0) {
+        error = "libyuv failed to convert the input frame";
+        return MKVC_ERROR_INTERNAL;
+    }
 
     vpx_image_t image{};
     if (vpx_img_wrap(&image, VPX_IMG_FMT_I420, impl.width, impl.height, 1,

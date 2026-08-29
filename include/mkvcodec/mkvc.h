@@ -62,7 +62,11 @@ typedef struct mkvc_backend_capability {
 } mkvc_backend_capability;
 
 typedef enum mkvc_pixel_format {
-    MKVC_PIXEL_FORMAT_I420 = 1
+    MKVC_PIXEL_FORMAT_I420 = 1,
+    MKVC_PIXEL_FORMAT_NV12 = 2,
+    MKVC_PIXEL_FORMAT_BGR24 = 3,
+    MKVC_PIXEL_FORMAT_RGB24 = 4,
+    MKVC_PIXEL_FORMAT_BGRA32 = 5
 } mkvc_pixel_format;
 
 typedef struct mkvc_encoder_config {

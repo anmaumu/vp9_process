@@ -9,6 +9,7 @@ option(MKVC_ENABLE_CPU_VP9 "Enable the libvpx CPU VP9 backend" ON)
 if(MKVC_ENABLE_CPU_VP9)
     find_package(unofficial-libvpx CONFIG REQUIRED)
     find_package(unofficial-libwebm CONFIG REQUIRED)
+    find_package(libyuv CONFIG REQUIRED)
     find_path(LIBWEBM_COMPAT_INCLUDE_DIR mkvmuxer/mkvmuxer.h
         PATH_SUFFIXES webm REQUIRED)
 endif()
@@ -35,6 +36,7 @@ if(MKVC_ENABLE_CPU_VP9)
     target_link_libraries(mkvcodec PRIVATE
         unofficial::libvpx::libvpx
         unofficial::libwebm::libwebm
+        yuv
     )
 endif()
 

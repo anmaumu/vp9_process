@@ -11,6 +11,10 @@ MKVC_END_OF_STREAM = 8
 MKVC_BACKEND_CPU = 1
 MKVC_CODEC_VP9 = 1
 MKVC_PIXEL_FORMAT_I420 = 1
+MKVC_PIXEL_FORMAT_NV12 = 2
+MKVC_PIXEL_FORMAT_BGR24 = 3
+MKVC_PIXEL_FORMAT_RGB24 = 4
+MKVC_PIXEL_FORMAT_BGRA32 = 5
 
 
 class EncoderConfig(ct.Structure):
@@ -116,4 +120,3 @@ def check(result: int) -> None:
     if result == MKVC_ERROR_INVALID_STATE:
         raise RuntimeError(message)
     raise ValueError(message)
-

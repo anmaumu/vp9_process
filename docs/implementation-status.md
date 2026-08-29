@@ -11,13 +11,15 @@ Status: `PARTIAL`
 | `EXT-CODEC-001` / `AC-CODEC-001` | libvpx VP9 CPU encode/decode | `mkvc_cpu_vp9_encode` | synchronous I420 round-trip passing with PSNR >= 28 dB |
 | `EXT-CONT-001..003` / `AC-CONT-001` | libwebm WebM mux/finalize/demux | `mkvc_cpu_vp9_external_decode`, `mkvc_cpu_vp9_metadata` | WebM VP9 path complete; MKV distinction pending |
 | `EXT-ENC-001` | create/write/flush/idempotent close/destroy | `mkvc_cpu_vp9_encode` | synchronous I420 path complete |
-| `EXT-ENC-002` | I420 CPU input | `mkvc_cpu_vp9_encode` | I420 complete; BGR/RGB/BGRA/NV12 pending |
+| `EXT-ENC-002` | BGR/RGB/BGRA/I420/NV12 CPU input | `mkvc_cpu_vp9_encode`, `mkvc_python_roundtrip` | complete for synchronous CPU writer |
 | `EXT-ENC-005` | input copied into library-owned buffer | `mkvc_cpu_vp9_encode` | complete for I420 |
 | `EXT-ENC-007` | CQ quality 0..63, default contract 32 | integration config uses 32 | backend mapping complete; binding default pending |
 | `EXT-ENC-009` | four-second keyframe default, auto threads | code review/build | complete for libvpx writer |
 | `EXT-DEC-001/005` | create/read/EOS/idempotent close/destroy | `mkvc_cpu_vp9_encode` | synchronous C ABI subset complete |
 | `EXT-DEC-001/005` Python | context manager, iterator, `None`/StopIteration EOS | `mkvc_python_roundtrip` | I420 synchronous subset complete |
-| `EXT-ENC-001/002/005` Python | context manager and safe-copy I420 tuple write | `mkvc_python_roundtrip` | I420 synchronous subset complete |
+| `EXT-ENC-001/002/005` Python | context manager; BGR default; RGB/BGRA/I420/NV12 safe write | `mkvc_python_roundtrip` | synchronous CPU input formats complete |
+| `INT-CPU-002` | libyuv BGR/RGB/BGRA/NV12 conversion | known-color and padded-stride round-trip | complete for 8-bit formats |
+| `TEST-ENC-001` | dtype/shape/positive and negative stride validation | `mkvc_python_roundtrip` | supported CPU input formats passing |
 | `EXT-FRAME-001` | owned I420 planes, stride, dimensions and PTS | round-trip frame assertions | I420 frame complete |
 | `EXT-ABI-002..005` | `mkvc_`, opaque encoder handle, versioned structs, stable result | `mkvc_c_api_tests` | encoder subset complete |
 | `EXT-ERR-002..003` | exception containment and thread-local detail | C ABI tests/integration | encoder subset complete |
@@ -37,4 +39,5 @@ limited to 256 MiB and aggregate encoded packet storage to 1 GiB.
 - vcpkg registry baseline `114d9fe62faf35856b45cf55cb93b57028a45d63`
 - libvpx `1.16.0#3`
 - libwebm `1.0.0.32`
+- libyuv `1916`
 - Linux test host: `linux-machine`, GCC 13.3, CMake 3.28, Ninja

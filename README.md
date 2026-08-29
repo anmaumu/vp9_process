@@ -38,7 +38,8 @@ with mkvcodec.VideoWriter(
     frame_size=(1920, 1080),
     quality=32,
 ) as writer:
-    writer.write((y_plane, u_plane, v_plane))
+    writer.write(bgr_ndarray)                 # OpenCV-style BGR
+    writer.write((y_plane, u_plane, v_plane)) # I420
 
 with mkvcodec.VideoCapture("output.webm") as capture:
     frame = capture.read_i420()
@@ -46,3 +47,6 @@ with mkvcodec.VideoCapture("output.webm") as capture:
 
 開発時はnative libraryの場所を`MKVC_LIBRARY_PATH`で指定できます。wheelへのnative
 library同梱はdistribution phaseで追加します。
+
+CPU WriterはBGR、RGB、BGRA、I420、NV12を受け付け、libyuvでI420へ変換します。
+RGB系やNV12を明示するときは`write_rgb`、`write_bgra`、`write_nv12`を使用します。
