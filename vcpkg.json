@@ -8,6 +8,8 @@
     "libvpx",
     "libwebm",
     "libyuv",
+    "aom",
+    "svt-av1",
     "pkgconf"
   ]
 }

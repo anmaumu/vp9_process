@@ -18,6 +18,7 @@ Status: `PARTIAL`
 | Specification | Implementation | Verification | Status |
 |---|---|---|---|
 | `EXT-CODEC-001` / `AC-CODEC-001` | libvpx VP9 CPU encode/decode | `mkvc_cpu_vp9_encode` | synchronous I420 round-trip passing with PSNR >= 28 dB |
+| `EXT-CODEC-002` / `AC-CODEC-002` | SVT-AV1 CPU encode | `mkvc_python_av1_encode` | I420 8-bit encode and independent FFmpeg decode passing; libaom internal decode/PSNR pending |
 | `EXT-CONT-001..003` / `AC-CONT-001` | libwebm WebM mux/finalize/demux | `mkvc_cpu_vp9_external_decode`, `mkvc_cpu_vp9_metadata` | WebM VP9 path complete; MKV distinction pending |
 | `EXT-ENC-001` | create/write/flush/idempotent close/destroy | `mkvc_cpu_vp9_encode` | synchronous and bounded asynchronous CPU paths complete |
 | `EXT-ENC-002` | BGR/RGB/BGRA/I420/NV12 CPU input | `mkvc_cpu_vp9_encode`, `mkvc_python_roundtrip` | complete for CPU writer |
@@ -54,4 +55,6 @@ drains accepted work before finalizing the container.
 - libvpx `1.16.0#3`
 - libwebm `1.0.0.32`
 - libyuv `1916`
+- SVT-AV1 `4.1.0`
+- libaom `3.15.0`
 - Linux test host: `linux-machine`, GCC 13.3, CMake 3.28, Ninja

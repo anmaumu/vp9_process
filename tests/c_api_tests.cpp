@@ -18,17 +18,23 @@ int main() {
 
     size_t count = 123;
     assert(mkvc_get_backend_capabilities(nullptr, &count) == MKVC_OK);
-    assert(count <= 1);
-    if (count == 1) {
-        mkvc_backend_capability capability{};
-        size_t capacity = 1;
-        assert(mkvc_get_backend_capabilities(&capability, &capacity) == MKVC_OK);
-        assert(capacity == 1);
-        assert(capability.struct_size == sizeof(capability));
-        assert(capability.backend == MKVC_BACKEND_CPU);
-        assert(capability.codec == MKVC_CODEC_VP9);
-        assert(capability.can_decode == 1 && capability.can_encode == 1);
-        assert(capability.is_hardware == 0);
+    assert(count <= 2);
+    if (count > 0) {
+        mkvc_backend_capability capabilities[2]{};
+        size_t capacity = 2;
+        assert(mkvc_get_backend_capabilities(capabilities, &capacity) == MKVC_OK);
+        assert(capacity == count);
+        for (size_t index = 0; index < count; ++index) {
+            assert(capabilities[index].struct_size == sizeof(capabilities[index]));
+            assert(capabilities[index].backend == MKVC_BACKEND_CPU);
+            assert(capabilities[index].is_hardware == 0);
+        }
+        assert(capabilities[0].codec == MKVC_CODEC_VP9);
+        assert(capabilities[0].can_decode == 1 && capabilities[0].can_encode == 1);
+        if (count == 2) {
+            assert(capabilities[1].codec == MKVC_CODEC_AV1);
+            assert(capabilities[1].can_decode == 0 && capabilities[1].can_encode == 1);
+        }
     }
     assert(mkvc_get_backend_capabilities(nullptr, nullptr) ==
            MKVC_ERROR_INVALID_ARGUMENT);

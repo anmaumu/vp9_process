@@ -15,8 +15,9 @@ H.264とHEVCは対象外です。
 
 ## 現在地
 
-CPU VP9のWebM encode/decode、C ABI、NumPy用Python API、bounded非同期Writer、
-bounded decode prefetchまで実装済みです。GPU backendとAV1は未実装です。
+CPU VP9のWebM encode/decode、CPU AV1のSVT-AV1 encode、C ABI、NumPy用Python API、
+bounded非同期Writer、bounded decode prefetchまで実装済みです。GPU backendと
+AV1のlibaom decodeは未実装です。
 利用可能と報告される機能は、実装済みbackendだけに限定します。
 
 ## Build
@@ -57,6 +58,7 @@ Captureの既定`read()`とiteratorはBGR ndarrayを返します。`read_i420`�
 `prefetch=0`は同期decode、正数はnative側の固定容量先読みqueueを使用します。
 Writerの`queue_size=0`は同期encode、正数（Python既定8）は入力をdeep copyして
 native workerへ渡します。通常の`write`はqueue空きを待ち、`try_write`は待機しません。
+CPU AV1 writerは現在I420入力を受け付け、`codec="av1"`で選択します。
 
 ## Documentation generation
 

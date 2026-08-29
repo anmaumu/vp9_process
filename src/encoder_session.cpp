@@ -1,4 +1,5 @@
 #include "encoder_session.hpp"
+#include "cpu_av1_encoder.hpp"
 
 #include <algorithm>
 #include <array>
@@ -114,6 +115,7 @@ struct EncoderSession::Impl {
     };
 
     std::unique_ptr<CpuVp9Encoder> encoder;
+    std::unique_ptr<CpuAv1Encoder> av1_encoder;
     uint32_t width = 0;
     uint32_t height = 0;
     size_t capacity = 0;
@@ -136,6 +138,22 @@ struct EncoderSession::Impl {
 
 namespace {
 
+mkvc_result backend_write(EncoderSession::Impl& impl,
+                          const mkvc_frame_view& frame, std::string& error) {
+    return impl.encoder ? impl.encoder->write(frame, error)
+                        : impl.av1_encoder->write(frame, error);
+}
+
+mkvc_result backend_flush(EncoderSession::Impl& impl, std::string& error) {
+    return impl.encoder ? impl.encoder->flush(error)
+                        : impl.av1_encoder->flush(error);
+}
+
+mkvc_result backend_close(EncoderSession::Impl& impl, std::string& error) {
+    return impl.encoder ? impl.encoder->close(error)
+                        : impl.av1_encoder->close(error);
+}
+
 void encoder_worker(EncoderSession::Impl* impl) noexcept {
     try {
         while (true) {
@@ -157,9 +175,9 @@ void encoder_worker(EncoderSession::Impl* impl) noexcept {
             mkvc_result result = MKVC_OK;
             if (item.type == EncoderSession::Impl::ItemType::kFrame) {
                 const mkvc_frame_view view = item.frame->view();
-                result = impl->encoder->write(view, error);
+                result = backend_write(*impl, view, error);
             } else {
-                result = impl->encoder->flush(error);
+                result = backend_flush(*impl, error);
             }
             {
                 std::lock_guard<std::mutex> lock(impl->mutex);
@@ -185,7 +203,7 @@ void encoder_worker(EncoderSession::Impl* impl) noexcept {
         }
 
         std::string error;
-        const mkvc_result close_result = impl->encoder->close(error);
+        const mkvc_result close_result = backend_close(*impl, error);
         std::lock_guard<std::mutex> lock(impl->mutex);
         if (!impl->failed && close_result != MKVC_OK) {
             impl->failed = true;
@@ -224,12 +242,17 @@ EncoderSession::EncoderSession(std::unique_ptr<Impl> impl)
 
 std::unique_ptr<EncoderSession> EncoderSession::create(
     const mkvc_encoder_config& config, std::string& error) {
-    auto encoder = CpuVp9Encoder::create(config, error);
-    if (!encoder) {
+    auto impl = std::make_unique<Impl>();
+    if (config.codec == MKVC_CODEC_VP9) {
+        impl->encoder = CpuVp9Encoder::create(config, error);
+        if (!impl->encoder) return nullptr;
+    } else if (config.codec == MKVC_CODEC_AV1) {
+        impl->av1_encoder = CpuAv1Encoder::create(config, error);
+        if (!impl->av1_encoder) return nullptr;
+    } else {
+        error = "unsupported CPU encoder codec";
         return nullptr;
     }
-    auto impl = std::make_unique<Impl>();
-    impl->encoder = std::move(encoder);
     impl->width = config.width;
     impl->height = config.height;
     impl->capacity = config.queue_size;
@@ -253,7 +276,7 @@ EncoderSession::~EncoderSession() {
 mkvc_result EncoderSession::write(const mkvc_frame_view& frame, bool block,
                                   std::string& error) {
     if (impl_->capacity == 0) {
-        return impl_->encoder->write(frame, error);
+        return backend_write(*impl_, frame, error);
     }
     {
         std::lock_guard<std::mutex> lock(impl_->mutex);
@@ -336,7 +359,7 @@ mkvc_result EncoderSession::write(const mkvc_frame_view& frame, bool block,
 
 mkvc_result EncoderSession::flush(std::string& error) {
     if (impl_->capacity == 0) {
-        return impl_->encoder->flush(error);
+        return backend_flush(*impl_, error);
     }
     std::unique_lock<std::mutex> lock(impl_->mutex);
     impl_->has_space.wait(lock, [this] {
@@ -369,7 +392,7 @@ mkvc_result EncoderSession::flush(std::string& error) {
 
 mkvc_result EncoderSession::close(std::string& error) {
     if (impl_->capacity == 0) {
-        return impl_->encoder->close(error);
+        return backend_close(*impl_, error);
     }
     {
         std::lock_guard<std::mutex> lock(impl_->mutex);

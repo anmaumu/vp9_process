@@ -175,7 +175,8 @@ mkvc_result mkvc_encoder_create(const mkvc_encoder_config* config,
     if (config == nullptr || out_encoder == nullptr ||
         config->struct_size < sizeof(mkvc_encoder_config) ||
         config->struct_version != 1 || config->output_path_utf8 == nullptr ||
-        config->output_path_utf8[0] == '\0' || config->codec != MKVC_CODEC_VP9 ||
+        config->output_path_utf8[0] == '\0' ||
+        (config->codec != MKVC_CODEC_VP9 && config->codec != MKVC_CODEC_AV1) ||
         config->backend != MKVC_BACKEND_CPU || config->width == 0 ||
         config->height == 0 || (config->width & 1u) != 0 ||
         (config->height & 1u) != 0 || config->fps_num == 0 ||
