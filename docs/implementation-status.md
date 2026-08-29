@@ -28,6 +28,14 @@ ownership, synchronization, DLPack, device-loss, hidden-copy, and pool-exhaustio
 risks are tracked in `gpu-risk-register.md`; these entries describe planned work,
 not current implementation.
 
+The first GPU ownership foundation is implemented under `src/gpu/`: opaque
+`mkvc_gpu_frame`, immutable descriptor, retain/release lease, generation,
+producer completion query/wait/timeout/failure, internal consumer completion,
+and recycle gating across producer + consumers + external lease count. The
+deterministic `mkvc_gpu_frame` test covers the core of `TEST-GPU-001/002/012`;
+backend surface factories, real GPU completion adapters and hardware traces are
+still pending.
+
 | Specification | Implementation | Verification | Status |
 |---|---|---|---|
 | `EXT-CODEC-001` / `AC-CODEC-001` | libvpx VP9 CPU encode/decode | `mkvc_cpu_vp9_encode` | synchronous I420 round-trip passing with PSNR >= 28 dB |

@@ -50,6 +50,7 @@ add_library(mkvcodec SHARED
     src/cpu_vp9_decoder.cpp
     src/frame_conversion.cpp
     src/frame_processor.cpp
+    src/gpu/gpu_frame.cpp
     src/encoder_session.cpp
     src/cpu_av1_encoder.cpp
     src/cpu_av1_decoder.cpp
@@ -150,6 +151,12 @@ if(MKVC_BUILD_TESTS)
     target_compile_features(mkvc_c_api_tests PRIVATE cxx_std_17)
     target_link_libraries(mkvc_c_api_tests PRIVATE mkvcodec)
     add_test(NAME mkvc_c_api_tests COMMAND mkvc_c_api_tests)
+
+    add_executable(mkvc_gpu_frame_test
+        tests/gpu_frame_test.cpp src/gpu/gpu_frame.cpp)
+    target_compile_features(mkvc_gpu_frame_test PRIVATE cxx_std_17)
+    target_include_directories(mkvc_gpu_frame_test PRIVATE src/gpu include)
+    add_test(NAME mkvc_gpu_frame COMMAND mkvc_gpu_frame_test)
 
     if(MKVC_ENABLE_CPU_VP9 OR MKVC_ENABLE_CPU_AV1 OR
        MKVC_ENABLE_INTEL_ONEVPL OR MKVC_ENABLE_NVIDIA)

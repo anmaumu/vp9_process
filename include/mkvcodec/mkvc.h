@@ -40,7 +40,8 @@ typedef enum mkvc_result {
     MKVC_ERROR_IO = 6,                /**< Container or filesystem I/O failed. */
     MKVC_ERROR_CODEC = 7,             /**< Codec initialization or processing failed. */
     MKVC_END_OF_STREAM = 8,           /**< Decoder reached a clean end of stream. */
-    MKVC_WOULD_BLOCK = 9              /**< Nonblocking submission found a full queue. */
+    MKVC_WOULD_BLOCK = 9,             /**< Nonblocking operation cannot complete yet. */
+    MKVC_ERROR_TIMEOUT = 10           /**< A bounded wait expired. */
 } mkvc_result;
 
 /** Backend families addressable through the common API. */
@@ -126,6 +127,43 @@ typedef struct mkvc_frame_process_config {
     uint32_t background_rgba; /**< 0xRRGGBBAA; used by contain mode. */
 } mkvc_frame_process_config;
 
+/** Device-memory representation owned behind mkvc_gpu_frame. */
+typedef enum mkvc_gpu_memory_type {
+    MKVC_GPU_MEMORY_D3D11_TEXTURE = 1,
+    MKVC_GPU_MEMORY_VA_SURFACE = 2,
+    MKVC_GPU_MEMORY_CUDA_POINTER = 3,
+    MKVC_GPU_MEMORY_CUDA_ARRAY = 4,
+    MKVC_GPU_MEMORY_USM = 5
+} mkvc_gpu_memory_type;
+
+/** Producer completion state for a GPU frame. */
+typedef enum mkvc_gpu_completion_status {
+    MKVC_GPU_COMPLETION_PENDING = 0,
+    MKVC_GPU_COMPLETION_COMPLETE = 1,
+    MKVC_GPU_COMPLETION_FAILED = 2
+} mkvc_gpu_completion_status;
+
+/** Backend-neutral immutable GPU frame metadata. */
+typedef struct mkvc_gpu_frame_desc {
+    uint32_t struct_size;
+    uint32_t struct_version; /**< Must be 1. */
+    uint32_t backend;        /**< One mkvc_backend. */
+    uint32_t memory_type;    /**< One mkvc_gpu_memory_type. */
+    uint64_t device_id;      /**< Stable only for the creating process. */
+    uint64_t generation;     /**< Changes whenever the pool slot is recycled. */
+    uint32_t pixel_format;
+    uint32_t width;
+    uint32_t height;
+    uint32_t plane_count;
+    uint64_t plane_offsets[4];
+    uint64_t pitches[4];
+    int64_t pts;
+    uint32_t color_primaries;
+    uint32_t color_transfer;
+    uint32_t color_matrix;
+    uint32_t color_range;
+} mkvc_gpu_frame_desc;
+
 /** Thread-safe cumulative pipeline observations; initialize size and version. */
 typedef struct mkvc_pipeline_metrics {
     uint32_t struct_size;           /**< Size of this struct. */
@@ -198,6 +236,8 @@ typedef struct mkvc_encoder mkvc_encoder;
 typedef struct mkvc_decoder mkvc_decoder;
 /** Reference-counted decoded frame handle. */
 typedef struct mkvc_frame mkvc_frame;
+/** Reference-counted lease over one backend-owned GPU frame resource. */
+typedef struct mkvc_gpu_frame mkvc_gpu_frame;
 
 /** Synchronous decoder creation parameters. */
 typedef struct mkvc_decoder_config {
@@ -281,6 +321,20 @@ MKVC_API mkvc_result mkvc_frame_process(
     const mkvc_frame* frame,
     const mkvc_frame_process_config* config,
     mkvc_frame** out_frame);
+
+/** Retain an existing GPU frame lease. */
+MKVC_API mkvc_result mkvc_gpu_frame_retain(mkvc_gpu_frame* frame);
+/** Release a GPU frame lease; NULL is accepted. */
+MKVC_API void mkvc_gpu_frame_release(mkvc_gpu_frame* frame);
+/** Copy immutable backend-neutral metadata from a live GPU frame lease. */
+MKVC_API mkvc_result mkvc_gpu_frame_get_desc(
+    const mkvc_gpu_frame* frame, mkvc_gpu_frame_desc* out_desc);
+/** Query producer completion without blocking. */
+MKVC_API mkvc_result mkvc_gpu_frame_query_completion(
+    const mkvc_gpu_frame* frame, uint32_t* out_status);
+/** Wait for producer completion; UINT32_MAX means an unbounded wait. */
+MKVC_API mkvc_result mkvc_gpu_frame_wait(
+    const mkvc_gpu_frame* frame, uint32_t timeout_ms);
 
 #ifdef __cplusplus
 }

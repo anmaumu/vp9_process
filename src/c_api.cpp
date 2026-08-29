@@ -53,8 +53,10 @@ struct mkvc_frame {
     std::unique_ptr<mkvc::DecodedFrame> implementation;
 };
 
+thread_local std::string mkvc_last_error;
+
 namespace {
-thread_local std::string last_error;
+#define last_error mkvc_last_error
 
 mkvc_result fail(mkvc_result result, std::string message) {
     last_error = std::move(message);
@@ -215,6 +217,7 @@ const char* mkvc_result_string(mkvc_result result) {
         case MKVC_ERROR_CODEC: return "codec error";
         case MKVC_END_OF_STREAM: return "end of stream";
         case MKVC_WOULD_BLOCK: return "would block";
+        case MKVC_ERROR_TIMEOUT: return "timeout";
         default: return "unknown result";
     }
 }

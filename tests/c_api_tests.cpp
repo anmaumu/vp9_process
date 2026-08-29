@@ -82,6 +82,7 @@ int main() {
 
   assert(std::strcmp(mkvc_result_string(MKVC_OK), "ok") == 0);
   assert(std::strcmp(mkvc_result_string(MKVC_WOULD_BLOCK), "would block") == 0);
+  assert(std::strcmp(mkvc_result_string(MKVC_ERROR_TIMEOUT), "timeout") == 0);
   assert(std::strcmp(mkvc_result_string(static_cast<mkvc_result>(999)),
                      "unknown result") == 0);
   return 0;

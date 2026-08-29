@@ -284,6 +284,10 @@ GPU処理が同一surfaceを共有できる場合は`zero_copy/shared_surface`�
 
 ### 9.6 GPU Frame、Lease、Interop（実装予定）
 
+Source layoutは共通所有権・同期を`src/gpu/`、将来のvendor実装を
+`src/gpu/intel/`と`src/gpu/nvidia/`、Python/DLPack adapterをbinding側へ分離する。
+既存backendは段階的に移行し、同時の全面renameでreview範囲を広げない。
+
 - `INT-GPU-001`: `mkvc_gpu_frame`は`GpuFrameCore`へのopaque C handleとし、backend固有objectをABI structへ直接埋め込まない。
 - `INT-GPU-002`: `GpuFrameCore`はsurface resource、immutable metadata、device identity、producer completion、atomic external lease count、pool generationを保持する。
 - `INT-GPU-003`: pool再利用条件を`producer complete && consumer completion complete && external lease count == 0`とし、generation不一致handleを拒否する。

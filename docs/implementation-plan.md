@@ -68,7 +68,8 @@
 
 - [x] CPU immutable process-plan C ABI and Python Capture convenience API
 - [x] CPU resize/crop/basic 8-bit conversion/rotate/flip/contain/cover subset
-- [ ] common `mkvc_gpu_frame`, external lease, generation and completion C ABI
+- [x] common `mkvc_gpu_frame` metadata, retain/release lease, generation and producer query/wait C ABI foundation
+- [ ] backend frame factories, consumer dependency registration and bounded GPU surface pool integration
 - [ ] Intel SyncPoint/D3D11 fence/VA completion adapters
 - [ ] NVIDIA CUDA event completion adapter
 - [ ] Intel decode→VPP→encode shared-surface pipeline
