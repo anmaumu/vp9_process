@@ -44,7 +44,8 @@
 - [ ] Windows D3D11 Intel hardware verification
 - [x] Intel encoder multi-SyncPoint overlap and AsyncDepth 1/2/4/8 ordering tests
 - [x] Intel decoder multi-SyncPoint overlap and AsyncDepth 1/2/4/8 ordering tests
-- [ ] Intel zero-copy surfaces and device-loss recovery
+- [ ] Intel zero-copy surfaces
+- [x] injected Intel pending-operation failure cleanup and session recovery
 - NVIDIA NVDEC VP9/AV1
 - NVIDIA NVENC AV1（対応GPUが必要）
 - CPU fallbackと明示backend選択
@@ -55,6 +56,12 @@
 - [x] native aggregate backend/queue timing, high-water and copy-path metrics ABI
 - [ ] conversion/codec/mux/GPU-event別の詳細stage timing
 - [ ] approved 1080p/4K CPU/Intel/NVIDIA baseline and regression thresholds
+
+## Phase 3C: failure recovery
+
+- [x] bounded encoder queue failure propagation and waiter wakeup
+- [x] Intel encode/decode pending SyncPoint cleanup and session recreation
+- [ ] real driver reset/device removal qualification on Windows and Linux
 
 ## Phase 4: language bindings and distribution
 

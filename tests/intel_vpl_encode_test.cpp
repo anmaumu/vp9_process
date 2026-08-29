@@ -128,6 +128,54 @@ bool decode_intel(uint32_t codec,
     return count == kFrames;
 }
 
+bool inject_encoder_device_loss(uint32_t codec, std::string& error) {
+    auto encoder = mkvc::IntelVplEncoder::create(
+        codec, kWidth, kHeight, 30, 1, 32, 0, error, 4);
+    if (!encoder) return false;
+    encoder->set_test_device_loss_after(0);
+    std::vector<uint8_t> y(kWidth * kHeight, 96);
+    std::vector<uint8_t> uv(kWidth * kHeight / 2, 128);
+    bool failed_as_expected = false;
+    for (uint32_t index = 0; index < 8; ++index) {
+        std::vector<mkvc::IntelEncodedPacket> completed;
+        const mkvc_result result = encoder->write_nv12(
+            y.data(), kWidth, uv.data(), kWidth, index, completed, error);
+        if (result == MKVC_ERROR_IO) {
+            failed_as_expected = error == "injected Intel encoder device loss";
+            break;
+        }
+        if (result != MKVC_OK) return false;
+    }
+    std::string close_error;
+    return failed_as_expected && encoder->max_pending_observed() == 4 &&
+           encoder->close(close_error) == MKVC_OK &&
+           encoder->close(close_error) == MKVC_OK;
+}
+
+bool inject_decoder_device_loss(
+    uint32_t codec, const std::vector<mkvc::IntelEncodedPacket>& packets,
+    std::string& error) {
+    auto decoder = mkvc::IntelVplDecoder::create(codec, error, 4);
+    if (!decoder) return false;
+    decoder->set_test_device_loss_after(0);
+    bool failed_as_expected = false;
+    for (const auto& packet : packets) {
+        std::vector<std::unique_ptr<mkvc::DecodedFrame>> completed;
+        const mkvc_result result = decoder->decode(
+            packet.data.data(), packet.data.size(), packet.pts,
+            completed, error);
+        if (result == MKVC_ERROR_IO) {
+            failed_as_expected = error == "injected Intel decoder device loss";
+            break;
+        }
+        if (result != MKVC_OK) return false;
+    }
+    std::string close_error;
+    return failed_as_expected && decoder->max_pending_observed() == 4 &&
+           decoder->close(close_error) == MKVC_OK &&
+           decoder->close(close_error) == MKVC_OK;
+}
+
 }  // namespace
 
 int main() {
@@ -202,7 +250,24 @@ int main() {
                   << '\n';
         return 1;
     }
+    for (uint32_t iteration = 0; iteration < 3; ++iteration) {
+        if (!inject_encoder_device_loss(MKVC_CODEC_VP9, error) ||
+            !inject_encoder_device_loss(MKVC_CODEC_AV1, error) ||
+            !inject_decoder_device_loss(MKVC_CODEC_VP9, vp9, error) ||
+            !inject_decoder_device_loss(MKVC_CODEC_AV1, av1, error)) {
+            std::cerr << "Intel device-loss cleanup failed: " << error << '\n';
+            return 1;
+        }
+    }
+    std::vector<mkvc::IntelEncodedPacket> recovered;
+    if (!encode(MKVC_CODEC_VP9, recovered, error) ||
+        decode_vp9(recovered) != kFrames ||
+        !decode_intel(MKVC_CODEC_VP9, recovered, error)) {
+        std::cerr << "Intel session recovery after device loss failed: "
+                  << error << '\n';
+        return 1;
+    }
     std::cout << "Intel oneVPL VP9/AV1 encoded and decoded " << kFrames
-              << " frames each; software decoders independently verified output\n";
+              << " frames each; device-loss cleanup and recovery passed\n";
     return 0;
 }

@@ -7,8 +7,10 @@
 #include <chrono>
 #include <condition_variable>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <deque>
+#include <limits>
 #include <mutex>
 #include <thread>
 #include <utility>
@@ -144,6 +146,9 @@ struct EncoderSession::Impl {
     uint64_t backend_time_ns = 0;
     uint32_t peak_queue_depth = 0;
     uint32_t hardware_pending_peak = 0;
+#if defined(MKVC_ENABLE_TEST_HOOKS)
+    uint64_t test_fail_after = std::numeric_limits<uint64_t>::max();
+#endif
 };
 
 namespace {
@@ -180,6 +185,7 @@ void encoder_worker(EncoderSession::Impl* impl) noexcept {
     try {
         while (true) {
             EncoderSession::Impl::Item item;
+            bool inject_failure = false;
             {
                 std::unique_lock<std::mutex> lock(impl->mutex);
                 impl->has_items.wait(lock, [impl] {
@@ -190,6 +196,10 @@ void encoder_worker(EncoderSession::Impl* impl) noexcept {
                 }
                 item = std::move(impl->queue.front());
                 impl->queue.pop_front();
+#if defined(MKVC_ENABLE_TEST_HOOKS)
+                inject_failure = item.type == EncoderSession::Impl::ItemType::kFrame &&
+                    impl->completed_frames >= impl->test_fail_after;
+#endif
                 impl->has_space.notify_all();
             }
 
@@ -197,8 +207,13 @@ void encoder_worker(EncoderSession::Impl* impl) noexcept {
             mkvc_result result = MKVC_OK;
             const auto backend_started = std::chrono::steady_clock::now();
             if (item.type == EncoderSession::Impl::ItemType::kFrame) {
-                const mkvc_frame_view view = item.frame->view();
-                result = backend_write(*impl, view, error);
+                if (inject_failure) {
+                    result = MKVC_ERROR_IO;
+                    error = "injected asynchronous backend device loss";
+                } else {
+                    const mkvc_frame_view view = item.frame->view();
+                    result = backend_write(*impl, view, error);
+                }
             } else {
                 result = backend_flush(*impl, error);
             }
@@ -295,6 +310,13 @@ std::unique_ptr<EncoderSession> EncoderSession::create(
     impl->width = config.width;
     impl->height = config.height;
     impl->capacity = config.queue_size;
+#if defined(MKVC_ENABLE_TEST_HOOKS)
+    if (const char* value = std::getenv("MKVC_TEST_ENCODER_FAIL_AFTER")) {
+        char* end = nullptr;
+        const unsigned long long parsed = std::strtoull(value, &end, 10);
+        if (end != value && *end == '\0') impl->test_fail_after = parsed;
+    }
+#endif
     for (size_t index = 0; index < impl->capacity; ++index) {
         impl->free_frames.push_back(std::make_unique<OwnedFrame>());
     }

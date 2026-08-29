@@ -34,6 +34,10 @@ class IntelVplDecoder {
     mkvc_result close(std::string& error);
     /** Largest number of simultaneously outstanding decode SyncPoints. */
     uint32_t max_pending_observed() const;
+#if defined(MKVC_ENABLE_TEST_HOOKS)
+    /** Test-only hook: fail collection after N successful SyncPoints. */
+    void set_test_device_loss_after(uint32_t completed_syncpoints);
+#endif
 
  private:
     IntelVplDecoder();

@@ -107,10 +107,19 @@ endif()
 
 if(MKVC_BUILD_TESTS)
     enable_testing()
+    target_compile_definitions(mkvcodec PRIVATE MKVC_ENABLE_TEST_HOOKS=1)
     add_executable(mkvc_c_api_tests tests/c_api_tests.cpp)
     target_compile_features(mkvc_c_api_tests PRIVATE cxx_std_17)
     target_link_libraries(mkvc_c_api_tests PRIVATE mkvcodec)
     add_test(NAME mkvc_c_api_tests COMMAND mkvc_c_api_tests)
+
+    if(MKVC_ENABLE_CPU_VP9)
+        add_executable(mkvc_async_failure_test tests/async_failure_test.cpp)
+        target_compile_features(mkvc_async_failure_test PRIVATE cxx_std_17)
+        target_link_libraries(mkvc_async_failure_test PRIVATE mkvcodec)
+        add_test(NAME mkvc_async_failure COMMAND mkvc_async_failure_test)
+        set_tests_properties(mkvc_async_failure PROPERTIES TIMEOUT 15)
+    endif()
 
     if(MKVC_ENABLE_INTEL_ONEVPL)
         add_executable(mkvc_intel_vpl_probe_test
@@ -132,7 +141,7 @@ if(MKVC_BUILD_TESTS)
         target_include_directories(mkvc_intel_vpl_encode_test
             PRIVATE src include)
         target_compile_definitions(mkvc_intel_vpl_encode_test
-            PRIVATE MKVC_HAS_INTEL_ONEVPL=1)
+            PRIVATE MKVC_HAS_INTEL_ONEVPL=1 MKVC_ENABLE_TEST_HOOKS=1)
         target_link_libraries(mkvc_intel_vpl_encode_test PRIVATE
             VPL::dispatcher unofficial::libvpx::libvpx AOM::aom yuv)
         add_test(NAME mkvc_intel_vpl_encode COMMAND mkvc_intel_vpl_encode_test)

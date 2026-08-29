@@ -32,6 +32,10 @@ struct IntelVplDecoder::Impl {
     uint32_t codec = 0;
     uint32_t async_depth = 4;
     std::atomic<uint32_t> max_pending{0};
+#if defined(MKVC_ENABLE_TEST_HOOKS)
+    uint32_t test_device_loss_after = std::numeric_limits<uint32_t>::max();
+    uint32_t collected_syncpoints = 0;
+#endif
     bool decoder_initialized = false;
     bool drained = false;
     bool closed = false;
@@ -143,6 +147,18 @@ mkvc_result collect_oldest(
     if (impl.pending.empty()) return MKVC_OK;
     const auto pending = impl.pending.front();
     impl.pending.pop_front();
+#if defined(MKVC_ENABLE_TEST_HOOKS)
+    if (impl.collected_syncpoints >= impl.test_device_loss_after) {
+        mfxStatus status;
+        do {
+            status = MFXVideoCORE_SyncOperation(
+                impl.session, pending.sync, kSyncWaitMs);
+        } while (status == MFX_WRN_IN_EXECUTION);
+        pending.surface->FrameInterface->Release(pending.surface);
+        error = "injected Intel decoder device loss";
+        return MKVC_ERROR_IO;
+    }
+#endif
     mfxStatus status;
     do {
         status = MFXVideoCORE_SyncOperation(
@@ -158,6 +174,9 @@ mkvc_result collect_oldest(
     const mkvc_result result = copy_surface(pending.surface, frame, error);
     pending.surface->FrameInterface->Release(pending.surface);
     if (result == MKVC_OK) frames.push_back(std::move(frame));
+#if defined(MKVC_ENABLE_TEST_HOOKS)
+    if (result == MKVC_OK) ++impl.collected_syncpoints;
+#endif
     return result;
 }
 
@@ -315,6 +334,13 @@ mkvc_result IntelVplDecoder::close(std::string& error) {
     if (impl_->closed) return MKVC_OK;
 #if defined(MKVC_HAS_INTEL_ONEVPL)
     for (const auto& pending : impl_->pending) {
+        if (pending.sync != nullptr) {
+            mfxStatus status;
+            do {
+                status = MFXVideoCORE_SyncOperation(
+                    impl_->session, pending.sync, kSyncWaitMs);
+            } while (status == MFX_WRN_IN_EXECUTION);
+        }
         if (pending.surface != nullptr)
             pending.surface->FrameInterface->Release(pending.surface);
     }
@@ -335,5 +361,12 @@ mkvc_result IntelVplDecoder::close(std::string& error) {
 uint32_t IntelVplDecoder::max_pending_observed() const {
     return impl_->max_pending.load(std::memory_order_relaxed);
 }
+
+#if defined(MKVC_ENABLE_TEST_HOOKS)
+void IntelVplDecoder::set_test_device_loss_after(
+    uint32_t completed_syncpoints) {
+    impl_->test_device_loss_after = completed_syncpoints;
+}
+#endif
 
 }  // namespace mkvc

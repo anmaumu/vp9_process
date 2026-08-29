@@ -36,6 +36,10 @@ struct IntelVplEncoder::Impl {
     int64_t next_pts = 0;
     uint32_t async_depth = 4;
     std::atomic<uint32_t> max_pending{0};
+#if defined(MKVC_ENABLE_TEST_HOOKS)
+    uint32_t test_device_loss_after = std::numeric_limits<uint32_t>::max();
+    uint32_t collected_syncpoints = 0;
+#endif
     bool encoder_initialized = false;
     bool drained = false;
     bool closed = false;
@@ -121,7 +125,22 @@ mkvc_result collect_oldest(IntelVplEncoder::Impl& impl,
     if (impl.pending.empty()) return MKVC_OK;
     auto pending = std::move(impl.pending.front());
     impl.pending.pop_front();
-    return collect_output(impl, *pending, packets, error);
+#if defined(MKVC_ENABLE_TEST_HOOKS)
+    if (impl.collected_syncpoints >= impl.test_device_loss_after) {
+        mfxStatus status;
+        do {
+            status = MFXVideoCORE_SyncOperation(
+                impl.session, pending->sync, kSyncWaitMs);
+        } while (status == MFX_WRN_IN_EXECUTION);
+        error = "injected Intel encoder device loss";
+        return MKVC_ERROR_IO;
+    }
+#endif
+    const mkvc_result result = collect_output(impl, *pending, packets, error);
+#if defined(MKVC_ENABLE_TEST_HOOKS)
+    if (result == MKVC_OK) ++impl.collected_syncpoints;
+#endif
+    return result;
 }
 
 mkvc_result submit_surface(IntelVplEncoder::Impl& impl,
@@ -369,6 +388,16 @@ mkvc_result IntelVplEncoder::close(std::string& error) {
     (void)error;
     if (impl_->closed) return MKVC_OK;
 #if defined(MKVC_HAS_INTEL_ONEVPL)
+    for (const auto& pending : impl_->pending) {
+        if (pending->sync != nullptr) {
+            mfxStatus status;
+            do {
+                status = MFXVideoCORE_SyncOperation(
+                    impl_->session, pending->sync, kSyncWaitMs);
+            } while (status == MFX_WRN_IN_EXECUTION);
+        }
+    }
+    impl_->pending.clear();
     if (impl_->encoder_initialized) {
         MFXVideoENCODE_Close(impl_->session);
         impl_->encoder_initialized = false;
@@ -377,7 +406,6 @@ mkvc_result IntelVplEncoder::close(std::string& error) {
     if (impl_->loader != nullptr) MFXUnload(impl_->loader);
     impl_->session = nullptr;
     impl_->loader = nullptr;
-    impl_->pending.clear();
 #endif
     impl_->closed = true;
     return MKVC_OK;
@@ -386,5 +414,12 @@ mkvc_result IntelVplEncoder::close(std::string& error) {
 uint32_t IntelVplEncoder::max_pending_observed() const {
     return impl_->max_pending.load(std::memory_order_relaxed);
 }
+
+#if defined(MKVC_ENABLE_TEST_HOOKS)
+void IntelVplEncoder::set_test_device_loss_after(
+    uint32_t completed_syncpoints) {
+    impl_->test_device_loss_after = completed_syncpoints;
+}
+#endif
 
 }  // namespace mkvc
