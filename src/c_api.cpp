@@ -2,14 +2,25 @@
 
 #include "backend_registry.hpp"
 #include "cpu_vp9_encoder.hpp"
+#include "cpu_vp9_decoder.hpp"
 
 #include <algorithm>
+#include <atomic>
 #include <exception>
 #include <memory>
 #include <string>
 
 struct mkvc_encoder {
     std::unique_ptr<mkvc::CpuVp9Encoder> implementation;
+};
+
+struct mkvc_decoder {
+    std::unique_ptr<mkvc::CpuVp9Decoder> implementation;
+};
+
+struct mkvc_frame {
+    std::atomic<uint32_t> references{1};
+    std::unique_ptr<mkvc::DecodedFrame> implementation;
 };
 
 namespace {
@@ -68,6 +79,7 @@ const char* mkvc_result_string(mkvc_result result) {
         case MKVC_ERROR_INVALID_STATE: return "invalid state";
         case MKVC_ERROR_IO: return "I/O error";
         case MKVC_ERROR_CODEC: return "codec error";
+        case MKVC_END_OF_STREAM: return "end of stream";
         default: return "unknown result";
     }
 }
@@ -164,6 +176,123 @@ void mkvc_encoder_destroy(mkvc_encoder* encoder) {
 
 const char* mkvc_get_last_error(void) {
     return last_error.c_str();
+}
+
+mkvc_result mkvc_decoder_create(const mkvc_decoder_config* config,
+                                mkvc_decoder** out_decoder) {
+    last_error.clear();
+    if (out_decoder != nullptr) {
+        *out_decoder = nullptr;
+    }
+    if (config == nullptr || out_decoder == nullptr ||
+        config->struct_size < sizeof(mkvc_decoder_config) ||
+        config->struct_version != 1 || config->input_path_utf8 == nullptr ||
+        config->input_path_utf8[0] == '\0' || config->codec != MKVC_CODEC_VP9 ||
+        config->backend != MKVC_BACKEND_CPU) {
+        return fail(MKVC_ERROR_INVALID_ARGUMENT, "invalid CPU VP9 decoder config");
+    }
+    try {
+        std::string error;
+        auto implementation = mkvc::CpuVp9Decoder::create(*config, error);
+        if (!implementation) {
+            return fail(MKVC_ERROR_CODEC, std::move(error));
+        }
+        auto handle = std::make_unique<mkvc_decoder>();
+        handle->implementation = std::move(implementation);
+        *out_decoder = handle.release();
+        return MKVC_OK;
+    } catch (const std::exception& exception) {
+        return fail(MKVC_ERROR_INTERNAL, exception.what());
+    } catch (...) {
+        return fail(MKVC_ERROR_INTERNAL, "unknown decoder creation failure");
+    }
+}
+
+mkvc_result mkvc_decoder_read(mkvc_decoder* decoder, mkvc_frame** out_frame) {
+    last_error.clear();
+    if (out_frame != nullptr) {
+        *out_frame = nullptr;
+    }
+    if (decoder == nullptr || out_frame == nullptr) {
+        return fail(MKVC_ERROR_INVALID_ARGUMENT, "invalid decoder or frame output");
+    }
+    try {
+        std::string error;
+        std::unique_ptr<mkvc::DecodedFrame> decoded;
+        const mkvc_result result = decoder->implementation->read(decoded, error);
+        if (result == MKVC_END_OF_STREAM) {
+            return result;
+        }
+        if (result != MKVC_OK) {
+            return fail(result, std::move(error));
+        }
+        auto frame = std::make_unique<mkvc_frame>();
+        frame->implementation = std::move(decoded);
+        *out_frame = frame.release();
+        return MKVC_OK;
+    } catch (const std::exception& exception) {
+        return fail(MKVC_ERROR_INTERNAL, exception.what());
+    } catch (...) {
+        return fail(MKVC_ERROR_INTERNAL, "unknown decoder read failure");
+    }
+}
+
+mkvc_result mkvc_decoder_close(mkvc_decoder* decoder) {
+    last_error.clear();
+    if (decoder == nullptr) {
+        return fail(MKVC_ERROR_INVALID_ARGUMENT, "decoder is null");
+    }
+    try {
+        std::string error;
+        const mkvc_result result = decoder->implementation->close(error);
+        return result == MKVC_OK ? result : fail(result, std::move(error));
+    } catch (const std::exception& exception) {
+        return fail(MKVC_ERROR_INTERNAL, exception.what());
+    } catch (...) {
+        return fail(MKVC_ERROR_INTERNAL, "unknown decoder close failure");
+    }
+}
+
+void mkvc_decoder_destroy(mkvc_decoder* decoder) {
+    try {
+        delete decoder;
+    } catch (...) {
+    }
+}
+
+void mkvc_frame_retain(mkvc_frame* frame) {
+    if (frame != nullptr) {
+        frame->references.fetch_add(1, std::memory_order_relaxed);
+    }
+}
+
+void mkvc_frame_release(mkvc_frame* frame) {
+    if (frame != nullptr &&
+        frame->references.fetch_sub(1, std::memory_order_acq_rel) == 1) {
+        delete frame;
+    }
+}
+
+mkvc_result mkvc_frame_get_view(const mkvc_frame* frame,
+                                mkvc_frame_view* out_view) {
+    last_error.clear();
+    if (frame == nullptr || out_view == nullptr ||
+        out_view->struct_size < sizeof(mkvc_frame_view) ||
+        out_view->struct_version != 1) {
+        return fail(MKVC_ERROR_INVALID_ARGUMENT, "invalid frame or output view");
+    }
+    const auto& source = *frame->implementation;
+    out_view->pixel_format = MKVC_PIXEL_FORMAT_I420;
+    out_view->width = source.width;
+    out_view->height = source.height;
+    for (size_t plane = 0; plane < 3; ++plane) {
+        out_view->planes[plane] = source.pixels.data() + source.offsets[plane];
+        out_view->strides[plane] = source.strides[plane];
+    }
+    out_view->planes[3] = nullptr;
+    out_view->strides[3] = 0;
+    out_view->pts = source.pts_ns;
+    return MKVC_OK;
 }
 
 }  // extern "C"

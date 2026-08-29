@@ -27,7 +27,7 @@ int main() {
         assert(capability.struct_size == sizeof(capability));
         assert(capability.backend == MKVC_BACKEND_CPU);
         assert(capability.codec == MKVC_CODEC_VP9);
-        assert(capability.can_decode == 0 && capability.can_encode == 1);
+        assert(capability.can_decode == 1 && capability.can_encode == 1);
         assert(capability.is_hardware == 0);
     }
     assert(mkvc_get_backend_capabilities(nullptr, nullptr) ==

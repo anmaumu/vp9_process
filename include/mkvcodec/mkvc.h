@@ -28,7 +28,8 @@ typedef enum mkvc_result {
     MKVC_ERROR_INTERNAL = 4,
     MKVC_ERROR_INVALID_STATE = 5,
     MKVC_ERROR_IO = 6,
-    MKVC_ERROR_CODEC = 7
+    MKVC_ERROR_CODEC = 7,
+    MKVC_END_OF_STREAM = 8
 } mkvc_result;
 
 typedef enum mkvc_backend {
@@ -91,6 +92,17 @@ typedef struct mkvc_frame_view {
 } mkvc_frame_view;
 
 typedef struct mkvc_encoder mkvc_encoder;
+typedef struct mkvc_decoder mkvc_decoder;
+typedef struct mkvc_frame mkvc_frame;
+
+typedef struct mkvc_decoder_config {
+    uint32_t struct_size;
+    uint32_t struct_version;
+    const char* input_path_utf8;
+    uint32_t codec;
+    uint32_t backend;
+    uint32_t threads;
+} mkvc_decoder_config;
 
 MKVC_API mkvc_result mkvc_get_version(mkvc_version* out_version);
 
@@ -113,6 +125,21 @@ MKVC_API void mkvc_encoder_destroy(mkvc_encoder* encoder);
 
 /* The returned pointer remains valid until the next API call on this thread. */
 MKVC_API const char* mkvc_get_last_error(void);
+
+MKVC_API mkvc_result mkvc_decoder_create(
+    const mkvc_decoder_config* config,
+    mkvc_decoder** out_decoder);
+MKVC_API mkvc_result mkvc_decoder_read(
+    mkvc_decoder* decoder,
+    mkvc_frame** out_frame);
+MKVC_API mkvc_result mkvc_decoder_close(mkvc_decoder* decoder);
+MKVC_API void mkvc_decoder_destroy(mkvc_decoder* decoder);
+
+MKVC_API void mkvc_frame_retain(mkvc_frame* frame);
+MKVC_API void mkvc_frame_release(mkvc_frame* frame);
+MKVC_API mkvc_result mkvc_frame_get_view(
+    const mkvc_frame* frame,
+    mkvc_frame_view* out_view);
 
 #ifdef __cplusplus
 }
