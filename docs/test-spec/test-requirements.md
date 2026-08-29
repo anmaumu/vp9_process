@@ -56,7 +56,17 @@ profile: test-spec@1.0
 | `TEST-NV-004` | CUarray NVDEC→NVENC direct path | hardware/perf | supported NVIDIA |
 | `TEST-NV-005` | NVENC VP9拒否、非対応世代のerror、driver reset cleanup | hardware | NVIDIA |
 
-### 1.4 ABI / Language / Error
+### 1.4 Frame Processing（将来対応）
+
+| ID | Test requirement | Level | Environment |
+|---|---|---|---|
+| `TEST-PROC-001` | resize/crop/rotate/flip/letterbox/pillarboxの寸法、ROI、配置、背景をgolden imageと照合 | unit/integration | CPU/Intel/NVIDIA |
+| `TEST-PROC-002` | NV12/P010/I420/RGB系変換とBT.601/709/2020、limited/full range、metadata伝播を検証 | integration | CPU/Intel/NVIDIA |
+| `TEST-PROC-003` | 個別methodと融合`process`の結果が許容誤差内で一致し、中間surface数がbounded | integration/performance | CPU/Intel/NVIDIA |
+| `TEST-PROC-004` | GPU-resident指定時にCPU readbackがなく、実経路がzero_copy/shared_surface/gpu_copyとしてtraceされる | hardware/trace | Intel/NVIDIA |
+| `TEST-PROC-005` | unsupported補間・format・memory組合せとstrict copy制約を明示errorにし、黙ってfallbackしない | unit/hardware | all |
+
+### 1.5 ABI / Language / Error
 
 | ID | Test requirement | Level | Environment |
 |---|---|---|---|
@@ -68,7 +78,7 @@ profile: test-spec@1.0
 | `TEST-ERR-001` | disk full、I/O error、cancel、timeout、device lost cleanup | fault injection | backend CI |
 | `TEST-ERR-002` | close/release/destroyを反復・複数回実行 | stress | all CI |
 
-### 1.5 Performance / Stability / Security
+### 1.6 Performance / Stability / Security
 
 | ID | Test requirement | Level | Environment |
 |---|---|---|---|
@@ -80,7 +90,7 @@ profile: test-spec@1.0
 | `TEST-SEC-001` | malformed container/packet/size overflow fuzz | fuzz | sanitizer CI |
 | `TEST-SEC-002` | dynamic library searchが許可名/安全pathに限定 | unit/integration | Windows/Linux |
 
-### 1.6 Packaging / Compliance
+### 1.7 Packaging / Compliance
 
 | ID | Test requirement | Level | Environment |
 |---|---|---|---|
@@ -111,5 +121,4 @@ profile: test-spec@1.0
 3. crash、hang、data race、use-after-free、leakがない。
 4. performanceは承認baselineから理由のない重大回帰がない。
 5. release artifact compliance testがすべてPASSする。
-
 

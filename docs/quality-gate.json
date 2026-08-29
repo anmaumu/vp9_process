@@ -3,11 +3,11 @@
   "version": "0.2",
   "result": "CONDITIONAL_PASS",
   "metrics": {
-    "external_requirement_domains": 14,
-    "external_requirements": 63,
-    "acceptance_criteria": 15,
-    "internal_design_rules": 78,
-    "test_requirements": 51,
+    "external_requirement_domains": 15,
+    "external_requirements": 71,
+    "acceptance_criteria": 16,
+    "internal_design_rules": 86,
+    "test_requirements": 56,
     "legacy_sections_mapped": 26,
     "conflicting_fields": 0,
     "blocking_questions_for_mvp": 0,
@@ -33,4 +33,3 @@
   ],
   "failures": []
 }
-

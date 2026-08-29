@@ -260,6 +260,28 @@ Status: `PROPOSED`
 - `INT-NV-006`: 対応時NVDEC application-provided block-linear CUarrayをNVENCへ直接登録する。
 - `INT-NV-007`: libwebmへ渡す圧縮packetのみhostへ回収する。
 
+### 9.5 Common Frame Processing（将来対応）
+
+- `INT-PROC-001`: resize、crop、色変換、rotate/flip、letterbox/pillarboxをbackend非依存の`FrameProcessPlan`へ正規化する。
+- `INT-PROC-002`: CPUはlibyuv等、NVIDIAはNPP/CUDA、IntelはoneVPL VPPまたは共有D3D11/VA-API処理へmappingする。
+- `INT-PROC-003`: 入力frameをin-place変更せず、出力surfaceはbounded poolからleaseし、producer/consumer completion後だけ再利用する。
+- `INT-PROC-004`: pixel format、chroma subsampling、color primaries、transfer、matrix、range、PTSを処理前後で検証・伝播する。
+- `INT-PROC-005`: crop alignment、fit、letterbox/pillarbox配置、background、rotate後寸法を決定論的な共通幾何規則で計算する。
+- `INT-PROC-006`: capability queryで処理、format、補間方式、memory typeを事前確認し、strict copy指定時は非対応として失敗する。
+- `INT-PROC-007`: 連続処理は可能な範囲で単一VPP/kernelへ融合し、不要な中間surfaceとGPU同期を避ける。
+- `INT-PROC-008`: C ABIはopaque frame/process handleを使用し、Python/C++/C# bindingが同じ処理planと実行結果を共有する。
+
+目標mapping:
+
+| Operation | CPU | NVIDIA | Intel |
+|---|---|---|---|
+| resize/crop | libyuv等 | NPP/CUDA | oneVPL VPP |
+| basic color conversion | libyuv | NPP/CUDA | oneVPL VPP |
+| rotate/flip | libyuv等 | NPP/CUDA | oneVPL VPPまたはGPU shader |
+| letterbox/pillarbox | CPU compositor | CUDA kernel | oneVPL VPPまたはGPU shader |
+
+GPU処理が同一surfaceを共有できる場合は`zero_copy/shared_surface`、GPU内の別surfaceを必要とする場合は`gpu_copy`と記録する。いずれもCPU round-tripを行わない。CPU fallbackが許可されていない場合、未対応処理をCPUへ降格しない。
+
 ## 10. Performance / Observability
 
 Status: `PROPOSED`
@@ -334,5 +356,4 @@ Status: `PROPOSED`
 ## 17. Traceability
 
 `docs/traceability.md`と`docs/design-model.json`を正とする。
-
 

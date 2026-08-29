@@ -64,6 +64,19 @@
 - [x] Intel encode/decode pending SyncPoint cleanup and session recreation
 - [ ] real driver reset/device removal qualification on Windows and Linux
 
+## Phase 3D: common GPU-resident frame processing
+
+- [ ] common immutable Frame/GPU Surface lease and process-plan C ABI
+- [ ] resize and crop
+- [ ] basic pixel/color-space/range conversion
+- [ ] rotate and horizontal/vertical flip
+- [ ] letterbox and pillarbox
+- [ ] NVIDIA NPP/CUDA mapping
+- [ ] Intel oneVPL VPP/D3D11/VA-API mapping
+- [ ] CPU mapping and cross-backend golden tests
+- [ ] fused processing, strict GPU-resident policy and copy-path trace
+- [ ] Python/C++/.NET common operation surface
+
 ## Phase 4: language bindings and distribution
 
 - Python wheel

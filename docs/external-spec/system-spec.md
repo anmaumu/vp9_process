@@ -132,7 +132,40 @@ AV1 decode: supported GPU backend -> libaom -> error
 - `EXT-FRAME-004`: 実際に選択した`cpu/cpu_upload/gpu_copy/zero_copy`を統計で公開する。
 - `EXT-FRAME-005`: released Surfaceへのaccessは判定可能なerrorとする。
 
-### 5.6 Mode / Rate control
+### 5.6 Frame Processing（将来対応）
+
+- `EXT-PROC-001`: CPU frameとGPU Surfaceへ同じ`process/resize/crop/convert/rotate/flip`操作感を提供し、OS/vendor差を通常APIから隠蔽する。
+- `EXT-PROC-002`: `resize(width, height, fit, interpolation)`を提供し、`stretch/contain/cover`とbackendが対応する補間方式を選択できる。
+- `EXT-PROC-003`: `crop(x, y, width, height)`を提供し、chroma subsampling、境界、偶数alignmentを検証する。
+- `EXT-PROC-004`: NV12/P010/I420/BGR/RGB/BGRA間の基本色変換と、BT.601/BT.709/BT.2020、limited/full rangeのmetadata保持・変換を提供する。
+- `EXT-PROC-005`: 90/180/270度rotateとhorizontal/vertical flipを提供する。
+- `EXT-PROC-006`: letterbox/pillarboxを提供し、出力寸法、縦横比、配置、背景色を明示指定できる。
+- `EXT-PROC-007`: GPU入力では対応時GPU-resident処理を選択し、`require_gpu_resident=True`または`allow_cpu_copy=False`の場合はCPU fallbackへ黙って降格しない。
+- `EXT-PROC-008`: 処理結果は新しい論理frameとして返し、実行した`cpu/cpu_upload/gpu_copy/zero_copy/shared_surface`経路と未対応理由を公開する。
+
+Python API予定形:
+
+```python
+processed = frame.process(
+    crop=(0, 0, 1920, 1080),
+    resize=(1280, 720),
+    fit="contain",
+    format="nv12",
+    color_space="bt709",
+    color_range="limited",
+    rotate=0,
+    flip=None,
+    background=(0, 0, 0),
+    require_gpu_resident=True,
+    allow_gpu_copy=True,
+    allow_cpu_copy=False,
+)
+writer.write(processed)
+```
+
+個別の`resize/crop/convert/rotate/flip`は同じ処理planを生成する便宜APIとし、連鎖時は可能な範囲で一つのbackend処理へ融合する。
+
+### 5.7 Mode / Rate control
 
 - `EXT-PERF-001`: `low_latency`、`balanced`、`throughput` modeを提供する。
 - `EXT-ENC-007`: 既定rate controlは`quality`、既定`quality=32`（0最高、63最低）とする。
@@ -262,6 +295,7 @@ Status: `PROPOSED`
 | `AC-BACK-001` | device/capability/auto selectionが実機能力と一致する | EXT-BACK-001..006 |
 | `AC-FRAME-001` | Surface lease中の再利用がなく、release後accessを拒否する | EXT-FRAME-001..005 |
 | `AC-ZC-001` | zero-copy対応経路をtraceで証明し、require時に降格しない | EXT-FRAME-003..004 |
+| `AC-PROC-001` | 5種のframe処理がCPU/GPU共通契約、幾何・色metadata、copy制約どおり動作する | EXT-PROC-001..008 |
 | `AC-ABI-001` | C/C#/Pythonから同じCoreのcreate/read-write/destroyが成立する | EXT-ABI-001..005, EXT-CS-001..004 |
 | `AC-ERR-001` | 全失敗でexception leak、double free、resource leakがない | EXT-ERR-001..006 |
 | `AC-PERF-001` | bounded resource、pipeline並行性、GIL解放、baseline回帰gateを満たす | EXT-PERF-001..006 |
@@ -282,5 +316,3 @@ Status: `PROPOSED`
 ## 12. Traceability
 
 完全なtraceabilityは`../traceability.md`と`../design-model.json`を正とする。
-
-

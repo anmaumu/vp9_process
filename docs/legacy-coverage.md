@@ -20,7 +20,7 @@
 | 8.5 Intel backend | internal 9.3 | Complete |
 | 8.6 NVIDIA backend | internal 9.4 | Complete |
 | 8.7 Async pipeline | internal 5/6/8 | Complete |
-| 8.8 Mode defaults | external 5.6、internal 8 | Complete |
+| 8.8 Mode defaults | external 5.7、internal 8 | Complete |
 | 8.9 Memory ownership | external 5.5、internal 4/8 | Complete |
 | 8.10 Statistics | external 8、internal 10 | Complete |
 | 9. Build/distribution | external 9、internal 2/9/12、LICENSE_POLICY | Complete |
@@ -31,7 +31,7 @@
 | 14. Existing implementation | この表下のExisting assets | Complete |
 | 15.1 Names | external 9、LICENSE_POLICY 3.4/9 | Complete |
 | 15.2 CPU AV1 | external 5.4、internal 9.2 | Complete |
-| 15.3 Rate control | external 5.6 | Complete |
+| 15.3 Rate control | external 5.7 | Complete |
 | 15.4 WebM/MKV difference | external 5.1、internal 9.1 | Complete |
 | 15.5 NumPy ownership | external 5.3/5.5、internal 8 | Complete |
 | 15.6 Drop policy | external 5.3、internal 8 | Complete |
@@ -90,5 +90,4 @@
 | 7: user-facing attribution | EXT-PKG-005..006、TEST-PKG-005 | Complete |
 | 8-9: release Go/No-Go | EXT-PKG-006、AC-PKG-001 | Complete |
 | 10: next actions | external Open Questions、internal Open Questions | Complete |
-
 

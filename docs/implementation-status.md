@@ -15,6 +15,11 @@
 
 Status: `PARTIAL`
 
+Future scope decision: `EXT-PROC-001..008` / `INT-PROC-001..008` reserve a
+common immutable frame-processing API for resize, crop, basic color conversion,
+rotate/flip, and letterbox/pillarbox. These operations are specified but not yet
+implemented; GPU inputs must remain GPU-resident when strict copy policy is set.
+
 | Specification | Implementation | Verification | Status |
 |---|---|---|---|
 | `EXT-CODEC-001` / `AC-CODEC-001` | libvpx VP9 CPU encode/decode | `mkvc_cpu_vp9_encode` | synchronous I420 round-trip passing with PSNR >= 28 dB |
