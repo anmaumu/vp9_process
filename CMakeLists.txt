@@ -4,6 +4,7 @@ project(vp9_process VERSION 0.1.0 LANGUAGES C CXX)
 
 option(MKVC_BUILD_TESTS "Build native tests" ON)
 option(MKVC_BUILD_PYTHON_TESTS "Build Python binding tests (requires NumPy)" OFF)
+option(MKVC_BUILD_DOTNET_TESTS "Build and run the .NET P/Invoke smoke test" OFF)
 option(MKVC_ENABLE_CPU_VP9 "Enable the libvpx CPU VP9 backend" ON)
 option(MKVC_ENABLE_CPU_AV1 "Enable SVT-AV1 encode and libaom decode" ON)
 option(MKVC_ENABLE_INTEL_ONEVPL "Enable Intel oneVPL backend foundation" ON)
@@ -192,5 +193,21 @@ if(MKVC_BUILD_TESTS)
             set_tests_properties(mkvc_python_intel_roundtrip
                 PROPERTIES SKIP_RETURN_CODE 77)
         endif()
+    endif()
+
+    if(MKVC_BUILD_DOTNET_TESTS)
+        find_program(DOTNET_EXECUTABLE dotnet REQUIRED)
+        add_test(NAME mkvc_dotnet_build
+            COMMAND "${DOTNET_EXECUTABLE}" build
+                "${CMAKE_CURRENT_SOURCE_DIR}/dotnet/MkvCodec.Smoke/MkvCodec.Smoke.csproj"
+                --configuration Release)
+        add_test(NAME mkvc_dotnet_smoke
+            COMMAND ${CMAKE_COMMAND} -E env
+                "MKVC_LIBRARY_PATH=$<TARGET_FILE:mkvcodec>"
+                "${DOTNET_EXECUTABLE}" run
+                --project "${CMAKE_CURRENT_SOURCE_DIR}/dotnet/MkvCodec.Smoke/MkvCodec.Smoke.csproj"
+                --configuration Release --no-build)
+        set_tests_properties(mkvc_dotnet_smoke PROPERTIES
+            DEPENDS mkvc_dotnet_build)
     endif()
 endif()

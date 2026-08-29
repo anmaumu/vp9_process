@@ -49,5 +49,6 @@
 ## Phase 4: language bindings and distribution
 
 - Python wheel
-- .NET P/Invoke / NuGet
+- [x] .NET 8 P/Invoke ABI layout/load smoke and SafeHandle foundation
+- [ ] .NET high-level reader/writer/frame API and NuGet
 - SBOM、THIRD_PARTY_NOTICES、license gate

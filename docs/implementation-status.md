@@ -45,6 +45,7 @@ Status: `PARTIAL`
 | `TEST-CODEC-002` | SVT-AV1 to libaom/FFmpeg round-trip | 30-frame PTS/order/count, Y-PSNR >= 28 dB, all 8-bit inputs | SSIM pending |
 | `INT-INTEL-001/002` | oneVPL 2.x hardware session, internal NV12 surfaces, VP9/AV1 encode and libwebm mux | `mkvc_intel_vpl_probe`, `mkvc_intel_vpl_encode`, `mkvc_python_intel_roundtrip` in required-hardware mode | Linux VA-API public Writer passing for both codecs and all five 8-bit inputs; decode, multi-SyncPoint overlap, zero-copy and Windows hardware run pending |
 | `EXT-BACK-001` Intel | runtime capability exposes implemented VP9/AV1 encode only | C ABI capability assertions with real hardware and oneVPL-disabled builds | no false decode advertisement; unavailable build omits Intel rows |
+| `EXT-CS-001/002`, `INT-CS-001` | .NET 8 P/Invoke types, typed exception and encoder/decoder/frame SafeHandle ownership | `mkvc_dotnet_build`, `mkvc_dotnet_smoke` | Linux ABI layout, native load, version and capability query passing; high-level IDisposable reader/writer and NuGet pending |
 
 The decoder keeps a libwebm cluster/block/frame cursor and reads compressed packets
 incrementally. One compressed packet is limited to 256 MiB. No CPU pipeline uses

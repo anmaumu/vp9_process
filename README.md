@@ -20,6 +20,8 @@ NumPy用Python API、bounded非同期Writer、bounded decode prefetchまで実�
 Intel oneVPLによるVP9/AV1 WebM encodeはC ABIとPython Writerから選択でき、
 Linux Intel GPU実機で検証済みです。Intel decode、NVIDIA backend、
 10-bit public frame APIは未実装です。
+薄い.NET 8 P/Invoke bindingではABI version/capability query、型付きerror、
+encoder/decoder/frame用SafeHandleとLinux native load smokeを実装済みです。
 利用可能と報告される機能は、実装済みbackendだけに限定します。
 Intel capabilityはruntime Queryに成功したcodecのencodeだけを公開し、未実装のdecodeは
 Query結果にかかわらず公開しません。Windows向けコードは含みますが実GPU検証は未完です。
@@ -66,6 +68,17 @@ CPU AV1 writer/captureは`codec="av1"`で選択します。Writer入力とCaptur
 VP9と同じBGR/RGB/BGRA/I420/NV12を使用できます。
 Intel Writerは`backend="intel"`で選択でき、VP9/AV1と同じ5種類の8-bit入力を
 内部でNV12へ変換します。Captureは現在`backend="cpu"`のみです。
+
+## .NET ABI smoke
+
+```shell
+cmake -S . -B build -DMKVC_BUILD_DOTNET_TESTS=ON
+cmake --build build
+ctest --test-dir build -R mkvc_dotnet --output-on-failure
+```
+
+`MKVC_LIBRARY_PATH`はCTestがbuild済みnative libraryへ設定します。高水準の
+reader/writer APIとNuGet packagingは後続段階です。
 
 ## Documentation generation
 
