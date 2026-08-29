@@ -92,8 +92,9 @@ uint32_t decode_av1(const std::vector<mkvc::IntelEncodedPacket>& packets) {
 
 bool decode_intel(uint32_t codec,
                   const std::vector<mkvc::IntelEncodedPacket>& packets,
-                  std::string& error) {
-    auto decoder = mkvc::IntelVplDecoder::create(codec, error);
+                  std::string& error, uint32_t async_depth = 4,
+                  uint32_t* max_pending = nullptr) {
+    auto decoder = mkvc::IntelVplDecoder::create(codec, error, async_depth);
     if (!decoder) return false;
     uint32_t count = 0;
     int64_t expected_pts = 0;
@@ -122,6 +123,7 @@ bool decode_intel(uint32_t codec,
         ++expected_pts;
         ++count;
     }
+    if (max_pending != nullptr) *max_pending = decoder->max_pending_observed();
     decoder->close(error);
     return count == kFrames;
 }
@@ -168,6 +170,21 @@ int main() {
     if (!decode_intel(MKVC_CODEC_AV1, av1, error)) {
         std::cerr << "Intel AV1 decode failed: " << error << '\n';
         return 1;
+    }
+    for (uint32_t depth : {1u, 2u, 4u, 8u}) {
+        for (const auto* packets : {&vp9, &av1}) {
+            const uint32_t codec = packets == &vp9 ? MKVC_CODEC_VP9
+                                                    : MKVC_CODEC_AV1;
+            uint32_t max_pending = 0;
+            if (!decode_intel(codec, *packets, error, depth, &max_pending) ||
+                max_pending != depth) {
+                std::cerr << "Intel decode AsyncDepth validation failed: codec="
+                          << codec << " depth=" << depth
+                          << " pending=" << max_pending
+                          << " error=" << error << '\n';
+                return 1;
+            }
+        }
     }
     bool timestamps_ok = vp9.size() == kFrames && av1.size() == kFrames;
     for (uint32_t index = 0; timestamps_ok && index < kFrames; ++index) {

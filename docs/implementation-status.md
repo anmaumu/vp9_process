@@ -43,8 +43,8 @@ Status: `PARTIAL`
 | `TEST-CONT-001` | independent decode and metadata verification | FFmpeg + ffprobe | VP9 WebM encode case passing |
 | `TEST-CODEC-001` | VP9 encode/decode round-trip with quality metrics | internal decode and Y-PSNR >= 28 dB | SSIM pending |
 | `TEST-CODEC-002` | SVT-AV1 to libaom/FFmpeg round-trip | 30-frame PTS/order/count, Y-PSNR >= 28 dB, all 8-bit inputs | SSIM pending |
-| `INT-INTEL-001/002` | oneVPL 2.x hardware session, internal NV12 surfaces, VP9/AV1 encode/decode and libwebm mux/demux | `mkvc_intel_vpl_probe`, `mkvc_intel_vpl_encode`, `mkvc_python_intel_roundtrip` in required-hardware mode | Linux VA-API public Writer/Capture passing for both codecs; encoder holds ordered multi-SyncPoint slots; decoder overlap, zero-copy and Windows hardware run pending |
-| `INT-PIPE-003`, `TEST-INTEL-002` encoder | one bitstream allocation per pending SyncPoint; oldest-first collection at configurable AsyncDepth | VP9/AV1 at AsyncDepth 1/2/4/8 | exact requested pending high-water mark, 30 ordered PTS, keyframe and drain count passing; device-loss injection pending |
+| `INT-INTEL-001/002` | oneVPL 2.x hardware session, internal NV12 surfaces, VP9/AV1 encode/decode and libwebm mux/demux | `mkvc_intel_vpl_probe`, `mkvc_intel_vpl_encode`, `mkvc_python_intel_roundtrip` in required-hardware mode | Linux VA-API public Writer/Capture passing for both codecs with ordered multi-SyncPoint encode/decode; zero-copy and Windows hardware run pending |
+| `INT-PIPE-003`, `TEST-INTEL-002` | per-operation bitstream/surface ownership and oldest-first SyncPoint collection | VP9/AV1 encode and decode at AsyncDepth 1/2/4/8 | exact requested pending high-water mark, 30 ordered PTS, keyframe and drain count passing; device-loss injection pending |
 | `EXT-BACK-001` Intel | runtime capability exposes each Query-supported encode/decode direction | C ABI capability assertions with real hardware and oneVPL-disabled builds | no false direction advertisement; unavailable build omits Intel rows |
 | `EXT-CS-001/002`, `INT-CS-001` | .NET 8 P/Invoke types, typed exception and encoder/decoder/frame SafeHandle ownership | `mkvc_dotnet_build`, `mkvc_dotnet_smoke` | Linux ABI layout, native load, version and capability query passing; high-level IDisposable reader/writer and NuGet pending |
 
@@ -61,9 +61,9 @@ recreating its oneVPL codec adapter while retaining monotonically increasing PTS
 The Intel decoder incrementally demuxes WebM packets, maps oneVPL NV12 output,
 copies it into the common owned I420 frame, and participates in the same bounded
 native prefetch queue as CPU decode.
-The oneVPL encoder uses `AsyncDepth=4` publicly and retains four independent
-bitstream/SyncPoint slots before waiting on the oldest operation. Raw hardware tests
-also cover depths 1, 2, and 8. Decoder SyncPoints are still synchronized immediately.
+The oneVPL encoder and decoder use `AsyncDepth=4` publicly and retain four
+independently owned SyncPoint slots before waiting on the oldest operation. Raw
+hardware tests also cover depths 1, 2, and 8 for both directions.
 
 ## Verified dependency baseline
 

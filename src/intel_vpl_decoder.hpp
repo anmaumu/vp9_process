@@ -17,7 +17,7 @@ class IntelVplDecoder {
 
     /** Create a hardware session filtered to the requested VP9 or AV1 decoder. */
     static std::unique_ptr<IntelVplDecoder> create(
-        uint32_t codec, std::string& error);
+        uint32_t codec, std::string& error, uint32_t async_depth = 4);
     ~IntelVplDecoder();
 
     IntelVplDecoder(const IntelVplDecoder&) = delete;
@@ -32,6 +32,8 @@ class IntelVplDecoder {
                       std::string& error);
     /** Release decoder, session, and dispatcher resources idempotently. */
     mkvc_result close(std::string& error);
+    /** Largest number of simultaneously outstanding decode SyncPoints. */
+    uint32_t max_pending_observed() const;
 
  private:
     IntelVplDecoder();
