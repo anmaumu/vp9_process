@@ -1,0 +1,25 @@
+site_name: MKVCodec
+site_description: Generated MKVCodec specification and API documentation
+docs_dir: build/docgen-src
+site_dir: build/docsite
+strict: true
+theme:
+  name: material
+  language: ja
+nav:
+  - Home: index.md
+  - Implementation status: implementation-status.md
+  - Docgen: docgen.md
+  - Specification:
+      - Overview: specification/index.md
+      - External: specification/external.md
+      - Internal: specification/internal.md
+      - Test requirements: specification/tests.md
+      - Canonical traceability: specification/traceability.md
+  - Generated:
+      - Traceability matrix: generated/traceability-matrix.md
+      - Quality report: generated/quality-report.md
+  - API:
+      - C ABI: api/c-abi.md
+      - Python: api/python.md
+  - License policy: license-policy.md

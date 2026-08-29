@@ -50,3 +50,15 @@ library同梱はdistribution phaseで追加します。
 
 CPU WriterはBGR、RGB、BGRA、I420、NV12を受け付け、libyuvでI420へ変換します。
 RGB系やNV12を明示するときは`write_rgb`、`write_bgra`、`write_nv12`を使用します。
+
+## Documentation generation
+
+```shell
+python tools/docgen.py check
+python tools/docgen.py generate
+python -m pip install -r requirements-docs.txt
+python tools/docgen.py build
+```
+
+Markdown中間生成物は`build/docgen-src`、HTMLは`build/docsite`へ出力されます。
+GitHub Actionsはpushとpull requestごとに検証・HTML生成を実行し、artifactを30日保存します。

@@ -12,6 +12,7 @@
 | `internal-spec/system-design.md` | 外部仕様を実現するArchitecture、処理、制約 |
 | `test-spec/test-requirements.md` | TEST ID単位の検証条件と実行環境 |
 | `traceability.md` | `EXT → AC → INT → TEST` の追跡表 |
+| `docgen.md` | 自動文書生成の入力、出力、検証、CI規則 |
 | `design-model.json` | 同じ追跡情報の機械可読な正規化表現 |
 | `quality-gate.json` | 仕様品質ゲートの結果 |
 | `legacy-coverage.md` | 旧仕様の全節がどこへ移行したかの監査表 |
@@ -71,4 +72,3 @@ Domain code:
 8. H.264/HEVCが公開codecまたは暗黙fallbackに含まれない。
 9. GPUなし環境でもCPU Coreをloadできる仕様になっている。
 10. license/compliance gateが配布仕様とtraceされている。
-

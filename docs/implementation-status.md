@@ -2,6 +2,13 @@
 
 この文書は仕様の正本を変更せず、実装・検証の到達状況を記録する。
 
+## Documentation tooling
+
+- `docgen check/generate/build` validates specification IDs and generates Markdown/HTML.
+- C ABI and Python API references are extracted from source declarations.
+- GitHub Actions builds strict MkDocs HTML and stores `mkvcodec-documentation` for 30 days.
+- GitHub Pages publication remains disabled until an explicit public-release decision.
+
 ## 2026-08-29: CPU VP9 synchronous writer slice
 
 Status: `PARTIAL`

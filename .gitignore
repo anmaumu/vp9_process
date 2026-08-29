@@ -1,4 +1,5 @@
 /build/
+/site/
 /out/
 /.vs/
 /.vscode/
@@ -13,4 +14,3 @@ __pycache__/
 *.obj
 *.o
 *.user
-
