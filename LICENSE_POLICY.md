@@ -156,6 +156,7 @@ Not distributed:
 
 - SDK sampleをcopy/pasteしない。必要なwrapperはclean implementationとする。
 - `nv-codec-headers`の対象versionをlockし、各headerのlicense noticeを保持する。
+- 初期lockは `n13.1.15.0`（archive SHA-256 `2255bc74d038b95aa4be30f5f66322c2176acbdb90ada1851db6993536fbeaf7`）とする。
 - NVIDIA runtime libraryがない環境でもMKVCodecをload可能にする。
 - NVIDIA backendの利用規約を製品licenseへ誤って再許諾しない。
 - NVIDIA EULAが要求する追加条件が発生するartifactを作らない。
@@ -335,5 +336,4 @@ names and marks are the property of their respective owners.
 5. NVIDIA adapterは `nv-codec-headers` のみでclean implementationする。
 6. release artifact inspection testをCIへ追加する。
 7. 商用公開前にAOM/VP9 patent条項と対象国について専門家レビューを受ける。
-
 

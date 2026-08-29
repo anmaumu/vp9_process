@@ -50,6 +50,7 @@ Status: `PARTIAL`
 | `EXT-CS-001/002`, `INT-CS-001` | .NET 8 P/Invoke types, typed exception and encoder/decoder/frame SafeHandle ownership | `mkvc_dotnet_build`, `mkvc_dotnet_smoke` | Linux ABI layout, native load, version and capability query passing; high-level IDisposable reader/writer and NuGet pending |
 | `INT-PERF-001`, `TEST-PERF-001/002` foundation | versioned public-API JSON benchmark parameterized by backend/codec/resolution/fps/queue/prefetch | `mkvc_python_benchmark_smoke` | end-to-end fps, submit latency distribution, first-frame latency, bytes, RSS and explicit copy path recorded; approved baselines/regression thresholds pending |
 | `EXT-OBS-001`, `INT-OBS-001/003/004` aggregate subset | versioned C ABI/Python metrics snapshots for frame counts, queue wait, backend time, capacity/peak, GPU pending peak and actual copy path | CPU native round-trip, Python benchmark smoke and Intel public round-trip | bounded queue/high-water and four pending Intel operations observed; per-stage conversion/codec/mux and GPU-event timing pending |
+| `INT-NV-001/002`, `TEST-BACK-001` foundation | pinned `nv-codec-headers` plus runtime-only CUDA/NVDEC/NVENC dynamic loading and device-zero capability query | `mkvc_nvidia_probe` standalone Windows/Linux hardware-optional test | Windows RTX 2060 reports VP9 decode supported and AV1 decode/encode unsupported; NVIDIA-free Linux returns CTest skip 77; public NVIDIA Capture/Writer remain pending and are not advertised |
 
 The decoder keeps a libwebm cluster/block/frame cursor and reads compressed packets
 incrementally. One compressed packet is limited to 256 MiB. No CPU pipeline uses
@@ -80,4 +81,6 @@ operation before releasing its bitstream/surface and closing the oneVPL session.
 - SVT-AV1 `4.1.0`
 - libaom `3.15.0`
 - oneVPL dispatcher `2.17.0`; Intel GPU runtime API `2.15`
+- nv-codec-headers `n13.1.15.0`, source archive SHA-256 `2255bc74d038b95aa4be30f5f66322c2176acbdb90ada1851db6993536fbeaf7`
+- Windows NVIDIA probe host: GeForce RTX 2060, compute capability 7.5, CUDA driver API 13.3, NVENC API 13.1
 - Linux test host: `linux-machine`, GCC 13.3, CMake 3.28, Ninja

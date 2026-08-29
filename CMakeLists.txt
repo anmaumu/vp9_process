@@ -8,6 +8,16 @@ option(MKVC_BUILD_DOTNET_TESTS "Build and run the .NET P/Invoke smoke test" OFF)
 option(MKVC_ENABLE_CPU_VP9 "Enable the libvpx CPU VP9 backend" ON)
 option(MKVC_ENABLE_CPU_AV1 "Enable SVT-AV1 encode and libaom decode" ON)
 option(MKVC_ENABLE_INTEL_ONEVPL "Enable Intel oneVPL backend foundation" ON)
+option(MKVC_ENABLE_NVIDIA "Enable NVIDIA NVDEC/NVENC backend foundation" OFF)
+
+if(MKVC_ENABLE_NVIDIA)
+    include(FetchContent)
+    FetchContent_Declare(nv_codec_headers
+        URL https://github.com/FFmpeg/nv-codec-headers/archive/refs/tags/n13.1.15.0.tar.gz
+        URL_HASH SHA256=2255bc74d038b95aa4be30f5f66322c2176acbdb90ada1851db6993536fbeaf7
+        DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+    FetchContent_MakeAvailable(nv_codec_headers)
+endif()
 
 if(MKVC_ENABLE_CPU_VP9 OR MKVC_ENABLE_CPU_AV1 OR MKVC_ENABLE_INTEL_ONEVPL)
     find_package(unofficial-libwebm CONFIG REQUIRED)
@@ -44,6 +54,7 @@ add_library(mkvcodec SHARED
     src/intel_vpl_decoder.cpp
     src/intel_webm_encoder.cpp
     src/intel_webm_decoder.cpp
+    src/nvidia_probe.cpp
 )
 
 target_compile_features(mkvcodec PRIVATE cxx_std_17)
@@ -53,6 +64,13 @@ target_include_directories(mkvcodec
         $<INSTALL_INTERFACE:include>
 )
 target_compile_definitions(mkvcodec PRIVATE MKVC_BUILDING_LIBRARY)
+
+if(MKVC_ENABLE_NVIDIA)
+    target_compile_definitions(mkvcodec PRIVATE MKVC_HAS_NVIDIA=1)
+    target_include_directories(mkvcodec PRIVATE
+        ${nv_codec_headers_SOURCE_DIR}/include)
+    target_link_libraries(mkvcodec PRIVATE ${CMAKE_DL_LIBS})
+endif()
 
 if(MKVC_ENABLE_CPU_VP9)
     target_compile_definitions(mkvcodec PRIVATE MKVC_HAS_CPU_VP9=1)
@@ -131,6 +149,25 @@ if(MKVC_BUILD_TESTS)
         target_link_libraries(mkvc_intel_vpl_probe_test PRIVATE VPL::dispatcher)
         add_test(NAME mkvc_intel_vpl_probe COMMAND mkvc_intel_vpl_probe_test)
         set_tests_properties(mkvc_intel_vpl_probe PROPERTIES SKIP_RETURN_CODE 77)
+    endif()
+
+    if(MKVC_ENABLE_NVIDIA)
+        add_executable(mkvc_nvidia_probe_test
+            tests/nvidia_probe_test.cpp src/nvidia_probe.cpp)
+        target_compile_features(mkvc_nvidia_probe_test PRIVATE cxx_std_17)
+        target_include_directories(mkvc_nvidia_probe_test PRIVATE
+            src ${nv_codec_headers_SOURCE_DIR}/include)
+        target_compile_definitions(mkvc_nvidia_probe_test
+            PRIVATE MKVC_HAS_NVIDIA=1)
+        target_link_libraries(mkvc_nvidia_probe_test PRIVATE ${CMAKE_DL_LIBS})
+        if(MSVC)
+            target_compile_options(mkvc_nvidia_probe_test PRIVATE /W4 /permissive- /EHsc)
+        else()
+            target_compile_options(mkvc_nvidia_probe_test PRIVATE
+                -Wall -Wextra -Wpedantic -Werror)
+        endif()
+        add_test(NAME mkvc_nvidia_probe COMMAND mkvc_nvidia_probe_test)
+        set_tests_properties(mkvc_nvidia_probe PROPERTIES SKIP_RETURN_CODE 77)
     endif()
 
     if(MKVC_ENABLE_INTEL_ONEVPL AND MKVC_ENABLE_CPU_VP9 AND MKVC_ENABLE_CPU_AV1)
