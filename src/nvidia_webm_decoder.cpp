@@ -471,11 +471,11 @@ mkvc_result NvidiaWebmDecoder::read(std::unique_ptr<DecodedFrame>& frame,
 
 mkvc_result NvidiaWebmDecoder::close(std::string& error) {
     if (impl_->closed) return MKVC_OK;
+    bool cleanup_failed = false;
 #if !defined(MKVC_HAS_NVIDIA)
     (void)error;
 #else
     auto& state = *impl_;
-    bool cleanup_failed = false;
     bool pushed = false;
     if (state.context != nullptr && !state.context_is_current) {
         pushed = state.context_push != nullptr &&

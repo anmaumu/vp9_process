@@ -43,6 +43,32 @@ def main() -> None:
             frame.pts_ns for frame in frames
         )
 
+        with mkvcodec.VideoCapture(path, prefetch=0) as capture:
+            processed = capture.read_processed(
+                crop=(8, 4, 48, 40),
+                size=(80, 80),
+                fit="contain",
+                rotate=90,
+                flip_horizontal=True,
+                background=(0, 0, 0),
+                format="bgr",
+            )
+            assert processed is not None
+            assert processed.shape == (80, 80, 3)
+            assert capture.last_pts_ns == 0
+        with mkvcodec.VideoCapture(path, prefetch=0) as capture:
+            covered = capture.read_processed(size=(32, 32), fit="cover", format="i420")
+            assert covered is not None
+            assert covered.y.shape == (32, 32)
+            assert covered.u.shape == (16, 16)
+        with mkvcodec.VideoCapture(path, prefetch=0) as capture:
+            processed_nv12 = capture.read_processed(
+                size=(32, 24), flip_vertical=True, format="nv12"
+            )
+            assert processed_nv12 is not None
+            assert processed_nv12[0].shape == (24, 32)
+            assert processed_nv12[1].shape == (12, 32)
+
         nonblocking_path = os.path.join(directory, "nonblocking.webm")
         image = np.zeros((height, width, 3), np.uint8)
         accepted = 0

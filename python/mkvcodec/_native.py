@@ -19,6 +19,9 @@ MKVC_PIXEL_FORMAT_NV12 = 2
 MKVC_PIXEL_FORMAT_BGR24 = 3
 MKVC_PIXEL_FORMAT_RGB24 = 4
 MKVC_PIXEL_FORMAT_BGRA32 = 5
+MKVC_FRAME_FIT_STRETCH = 0
+MKVC_FRAME_FIT_CONTAIN = 1
+MKVC_FRAME_FIT_COVER = 2
 
 
 class EncoderConfig(ct.Structure):
@@ -93,6 +96,26 @@ class PipelineMetrics(ct.Structure):
     ]
 
 
+class FrameProcessConfig(ct.Structure):
+    _fields_ = [
+        ("struct_size", ct.c_uint32),
+        ("struct_version", ct.c_uint32),
+        ("backend", ct.c_uint32),
+        ("crop_x", ct.c_uint32),
+        ("crop_y", ct.c_uint32),
+        ("crop_width", ct.c_uint32),
+        ("crop_height", ct.c_uint32),
+        ("output_width", ct.c_uint32),
+        ("output_height", ct.c_uint32),
+        ("fit", ct.c_uint32),
+        ("rotation", ct.c_uint32),
+        ("flip_horizontal", ct.c_uint8),
+        ("flip_vertical", ct.c_uint8),
+        ("reserved", ct.c_uint8 * 2),
+        ("background_rgba", ct.c_uint32),
+    ]
+
+
 def _candidate_paths() -> list[str]:
     explicit = os.environ.get("MKVC_LIBRARY_PATH")
     candidates = [explicit] if explicit else []
@@ -151,6 +174,10 @@ lib.mkvc_frame_get_view.argtypes = [FrameHandle, ct.POINTER(FrameView)]
 lib.mkvc_frame_get_view.restype = ct.c_int
 lib.mkvc_frame_copy_to.argtypes = [FrameHandle, ct.POINTER(MutableFrameView)]
 lib.mkvc_frame_copy_to.restype = ct.c_int
+lib.mkvc_frame_process.argtypes = [
+    FrameHandle, ct.POINTER(FrameProcessConfig), ct.POINTER(FrameHandle)
+]
+lib.mkvc_frame_process.restype = ct.c_int
 lib.mkvc_frame_release.argtypes = [FrameHandle]
 lib.mkvc_get_last_error.restype = ct.c_char_p
 

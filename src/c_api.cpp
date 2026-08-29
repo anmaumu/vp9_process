@@ -5,6 +5,7 @@
 #include "cpu_av1_decoder.hpp"
 #include "encoder_session.hpp"
 #include "frame_conversion.hpp"
+#include "frame_processor.hpp"
 #include "intel_webm_decoder.hpp"
 #include "nvidia_webm_decoder.hpp"
 
@@ -632,6 +633,34 @@ mkvc_result mkvc_frame_copy_to(const mkvc_frame* frame,
         return fail(MKVC_ERROR_INTERNAL, exception.what());
     } catch (...) {
         return fail(MKVC_ERROR_INTERNAL, "unknown frame conversion failure");
+    }
+}
+
+mkvc_result mkvc_frame_process(const mkvc_frame* frame,
+                               const mkvc_frame_process_config* config,
+                               mkvc_frame** out_frame) {
+    last_error.clear();
+    if (out_frame != nullptr) *out_frame = nullptr;
+    if (frame == nullptr || frame->implementation == nullptr || config == nullptr ||
+        out_frame == nullptr ||
+        config->struct_size < sizeof(mkvc_frame_process_config) ||
+        config->struct_version != 1) {
+        return fail(MKVC_ERROR_INVALID_ARGUMENT, "invalid frame process arguments");
+    }
+    try {
+        std::unique_ptr<mkvc::DecodedFrame> processed;
+        std::string error;
+        const mkvc_result result = mkvc::process_frame_cpu(
+            *frame->implementation, *config, processed, error);
+        if (result != MKVC_OK) return fail(result, std::move(error));
+        auto handle = std::make_unique<mkvc_frame>();
+        handle->implementation = std::move(processed);
+        *out_frame = handle.release();
+        return MKVC_OK;
+    } catch (const std::exception& exception) {
+        return fail(MKVC_ERROR_INTERNAL, exception.what());
+    } catch (...) {
+        return fail(MKVC_ERROR_INTERNAL, "unknown frame processing failure");
     }
 }
 

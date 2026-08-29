@@ -15,10 +15,12 @@
 
 Status: `PARTIAL`
 
-Future scope decision: `EXT-PROC-001..008` / `INT-PROC-001..008` reserve a
-common immutable frame-processing API for resize, crop, basic color conversion,
-rotate/flip, and letterbox/pillarbox. These operations are specified but not yet
-implemented; GPU inputs must remain GPU-resident when strict copy policy is set.
+Frame processing status: the common immutable C ABI and CPU/libyuv implementation
+now cover resize, crop, 8-bit I420-to-basic-format conversion, rotate/flip, and
+letterbox/pillarbox (`contain`/`cover`). Python exposes the same native plan through
+`VideoCapture.read_processed`. NVIDIA NPP/CUDA, Intel oneVPL VPP/shared-surface,
+color-metadata conversion, surface pooling/fusion, and C# bindings remain future
+work; GPU requests are rejected instead of silently falling back to CPU.
 
 | Specification | Implementation | Verification | Status |
 |---|---|---|---|
@@ -37,6 +39,7 @@ implemented; GPU inputs must remain GPU-resident when strict copy policy is set.
 | `EXT-DEC-004` | `prefetch=0` synchronous and positive bounded native read-ahead | VP9/AV1 round-trips and early close | CPU decoders complete |
 | `EXT-ENC-001/002/005/006` Python | context manager; BGR default; safe input; queue_size; try_write | `mkvc_python_roundtrip` | CPU input and bounded async complete |
 | `INT-CPU-002` | libyuv BGR/RGB/BGRA/NV12 conversion | known-color and padded-stride round-trip | complete for 8-bit formats |
+| `EXT-PROC-002..006` / `INT-PROC-001,005` | immutable CPU process plan: crop, bilinear resize, rotate/flip, contain/cover composition and basic output conversion | `mkvc_frame_processor`, `mkvc_python_roundtrip` | CPU 8-bit subset complete; GPU and color metadata pending |
 | `TEST-ENC-001` | dtype/shape/positive and negative stride validation | `mkvc_python_roundtrip` | supported CPU input formats passing |
 | `EXT-FRAME-001` | owned I420 planes, stride, dimensions and PTS | round-trip frame assertions | I420 frame complete |
 | `EXT-ABI-002..005` | `mkvc_`, opaque encoder handle, versioned structs, stable result | `mkvc_c_api_tests` | encoder subset complete |

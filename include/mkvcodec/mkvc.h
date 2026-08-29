@@ -92,6 +92,40 @@ typedef enum mkvc_copy_path {
     MKVC_COPY_PATH_ZERO_COPY = 2 /**< GPU surface remained device-resident. */
 } mkvc_copy_path;
 
+/** Geometry policy used by CPU/GPU frame processing backends. */
+typedef enum mkvc_frame_fit {
+    MKVC_FRAME_FIT_STRETCH = 0, /**< Scale directly to the requested output. */
+    MKVC_FRAME_FIT_CONTAIN = 1, /**< Preserve aspect ratio and add bars. */
+    MKVC_FRAME_FIT_COVER = 2    /**< Preserve aspect ratio and center-crop. */
+} mkvc_frame_fit;
+
+/** Rotation applied clockwise after crop and before resize. */
+typedef enum mkvc_frame_rotation {
+    MKVC_FRAME_ROTATE_0 = 0,
+    MKVC_FRAME_ROTATE_90 = 90,
+    MKVC_FRAME_ROTATE_180 = 180,
+    MKVC_FRAME_ROTATE_270 = 270
+} mkvc_frame_rotation;
+
+/** Immutable frame-processing plan. Zero crop size selects the full input. */
+typedef struct mkvc_frame_process_config {
+    uint32_t struct_size;
+    uint32_t struct_version; /**< Must be 1. */
+    uint32_t backend;        /**< Requested mkvc_backend; currently CPU only. */
+    uint32_t crop_x;
+    uint32_t crop_y;
+    uint32_t crop_width;
+    uint32_t crop_height;
+    uint32_t output_width;   /**< Zero preserves the post-rotation width. */
+    uint32_t output_height;  /**< Zero preserves the post-rotation height. */
+    uint32_t fit;            /**< One mkvc_frame_fit value. */
+    uint32_t rotation;       /**< One mkvc_frame_rotation value. */
+    uint8_t flip_horizontal;
+    uint8_t flip_vertical;
+    uint8_t reserved[2];
+    uint32_t background_rgba; /**< 0xRRGGBBAA; used by contain mode. */
+} mkvc_frame_process_config;
+
 /** Thread-safe cumulative pipeline observations; initialize size and version. */
 typedef struct mkvc_pipeline_metrics {
     uint32_t struct_size;           /**< Size of this struct. */
@@ -242,6 +276,11 @@ MKVC_API mkvc_result mkvc_frame_get_view(
 MKVC_API mkvc_result mkvc_frame_copy_to(
     const mkvc_frame* frame,
     mkvc_mutable_frame_view* destination);
+/** Apply an immutable processing plan and return a new retained frame. */
+MKVC_API mkvc_result mkvc_frame_process(
+    const mkvc_frame* frame,
+    const mkvc_frame_process_config* config,
+    mkvc_frame** out_frame);
 
 #ifdef __cplusplus
 }

@@ -377,6 +377,101 @@ class VideoCapture(Iterator[U8Plane]):
         finally:
             native.lib.mkvc_frame_release(handle)
 
+    def read_processed(
+        self,
+        *,
+        size: tuple[int, int] | None = None,
+        crop: tuple[int, int, int, int] | None = None,
+        fit: str = "stretch",
+        rotate: int = 0,
+        flip_horizontal: bool = False,
+        flip_vertical: bool = False,
+        background: tuple[int, int, int] = (0, 0, 0),
+        format: str = "bgr",
+    ) -> U8Plane | CpuFrame | tuple[U8Plane, U8Plane] | None:
+        """Read and process one decoded frame through the common native plan.
+
+        This initial implementation is CPU-resident. GPU captures return an
+        explicit not-supported error instead of silently copying to the CPU.
+        """
+        if fit not in ("stretch", "contain", "cover"):
+            raise ValueError("fit must be stretch, contain, or cover")
+        if rotate not in (0, 90, 180, 270):
+            raise ValueError("rotate must be 0, 90, 180, or 270")
+        if format not in ("bgr", "rgb", "bgra", "i420", "nv12"):
+            raise ValueError("unsupported output format")
+        if any(value < 0 or value > 255 for value in background):
+            raise ValueError("background components must be in [0, 255]")
+        source_handle = self._read_handle()
+        if source_handle is None:
+            return None
+        processed_handle = native.FrameHandle()
+        try:
+            config = native.FrameProcessConfig()
+            config.struct_size = ct.sizeof(config)
+            config.struct_version = 1
+            config.backend = native.MKVC_BACKEND_CPU
+            if crop is not None:
+                config.crop_x, config.crop_y, config.crop_width, config.crop_height = crop
+            if size is not None:
+                config.output_width, config.output_height = size
+            config.fit = {
+                "stretch": native.MKVC_FRAME_FIT_STRETCH,
+                "contain": native.MKVC_FRAME_FIT_CONTAIN,
+                "cover": native.MKVC_FRAME_FIT_COVER,
+            }[fit]
+            config.rotation = rotate
+            config.flip_horizontal = flip_horizontal
+            config.flip_vertical = flip_vertical
+            r, g, b = background
+            config.background_rgba = (r << 24) | (g << 16) | (b << 8) | 255
+            native.check(native.lib.mkvc_frame_process(
+                source_handle, ct.byref(config), ct.byref(processed_handle)
+            ))
+            view = self._get_view(processed_handle)
+            self.last_pts_ns = view.pts
+            if format == "i420":
+                arrays: list[U8Plane] = []
+                for index in range(3):
+                    width = view.width if index == 0 else view.width // 2
+                    height = view.height if index == 0 else view.height // 2
+                    raw = np.ctypeslib.as_array(
+                        view.planes[index], shape=(view.strides[index] * height,)
+                    )
+                    arrays.append(raw.reshape(height, view.strides[index])[:, :width].copy())
+                return CpuFrame(arrays[0], arrays[1], arrays[2], view.pts)
+            if format == "nv12":
+                y = np.empty((view.height, view.width), dtype=np.uint8)
+                uv = np.empty((view.height // 2, view.width), dtype=np.uint8)
+                destination = native.MutableFrameView()
+                destination.struct_size = ct.sizeof(destination)
+                destination.struct_version = 1
+                destination.pixel_format = native.MKVC_PIXEL_FORMAT_NV12
+                destination.width, destination.height = view.width, view.height
+                destination.planes[0], destination.planes[1] = _plane_pointer(y), _plane_pointer(uv)
+                destination.strides[0], destination.strides[1] = y.strides[0], uv.strides[0]
+                native.check(native.lib.mkvc_frame_copy_to(processed_handle, ct.byref(destination)))
+                return y, uv
+            channels, pixel_format = {
+                "bgr": (3, native.MKVC_PIXEL_FORMAT_BGR24),
+                "rgb": (3, native.MKVC_PIXEL_FORMAT_RGB24),
+                "bgra": (4, native.MKVC_PIXEL_FORMAT_BGRA32),
+            }[format]
+            output = np.empty((view.height, view.width, channels), dtype=np.uint8)
+            destination = native.MutableFrameView()
+            destination.struct_size = ct.sizeof(destination)
+            destination.struct_version = 1
+            destination.pixel_format = pixel_format
+            destination.width, destination.height = view.width, view.height
+            destination.planes[0] = _plane_pointer(output)
+            destination.strides[0] = output.strides[0]
+            native.check(native.lib.mkvc_frame_copy_to(processed_handle, ct.byref(destination)))
+            return output
+        finally:
+            if processed_handle:
+                native.lib.mkvc_frame_release(processed_handle)
+            native.lib.mkvc_frame_release(source_handle)
+
     def read_bgr(self) -> U8Plane | None:
         return self._read_packed(3, native.MKVC_PIXEL_FORMAT_BGR24)
 
