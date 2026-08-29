@@ -58,6 +58,19 @@ class FrameView(ct.Structure):
     ]
 
 
+class MutableFrameView(ct.Structure):
+    _fields_ = [
+        ("struct_size", ct.c_uint32),
+        ("struct_version", ct.c_uint32),
+        ("pixel_format", ct.c_uint32),
+        ("width", ct.c_uint32),
+        ("height", ct.c_uint32),
+        ("planes", ct.POINTER(ct.c_uint8) * 4),
+        ("strides", ct.c_int32 * 4),
+        ("pts", ct.c_int64),
+    ]
+
+
 def _candidate_paths() -> list[str]:
     explicit = os.environ.get("MKVC_LIBRARY_PATH")
     candidates = [explicit] if explicit else []
@@ -108,6 +121,8 @@ lib.mkvc_decoder_destroy.argtypes = [DecoderHandle]
 
 lib.mkvc_frame_get_view.argtypes = [FrameHandle, ct.POINTER(FrameView)]
 lib.mkvc_frame_get_view.restype = ct.c_int
+lib.mkvc_frame_copy_to.argtypes = [FrameHandle, ct.POINTER(MutableFrameView)]
+lib.mkvc_frame_copy_to.restype = ct.c_int
 lib.mkvc_frame_release.argtypes = [FrameHandle]
 lib.mkvc_get_last_error.restype = ct.c_char_p
 

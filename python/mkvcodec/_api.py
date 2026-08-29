@@ -193,7 +193,7 @@ class VideoWriter:
                 pass
 
 
-class VideoCapture(Iterator[CpuFrame]):
+class VideoCapture(Iterator[U8Plane]):
     def __init__(
         self,
         path: str | Path,
@@ -215,8 +215,9 @@ class VideoCapture(Iterator[CpuFrame]):
         self._handle = native.DecoderHandle()
         native.check(native.lib.mkvc_decoder_create(ct.byref(config), ct.byref(self._handle)))
         self._closed = False
+        self.last_pts_ns: int | None = None
 
-    def read_i420(self) -> CpuFrame | None:
+    def _read_handle(self) -> native.FrameHandle | None:
         if self._closed:
             raise RuntimeError("capture is closed")
         handle = native.FrameHandle()
@@ -224,11 +225,22 @@ class VideoCapture(Iterator[CpuFrame]):
         if result == native.MKVC_END_OF_STREAM:
             return None
         native.check(result)
+        return handle
+
+    @staticmethod
+    def _get_view(handle: native.FrameHandle) -> native.FrameView:
+        view = native.FrameView()
+        view.struct_size = ct.sizeof(view)
+        view.struct_version = 1
+        native.check(native.lib.mkvc_frame_get_view(handle, ct.byref(view)))
+        return view
+
+    def read_i420(self) -> CpuFrame | None:
+        handle = self._read_handle()
+        if handle is None:
+            return None
         try:
-            view = native.FrameView()
-            view.struct_size = ct.sizeof(view)
-            view.struct_version = 1
-            native.check(native.lib.mkvc_frame_get_view(handle, ct.byref(view)))
+            view = self._get_view(handle)
             if view.pixel_format != native.MKVC_PIXEL_FORMAT_I420:
                 raise RuntimeError("native decoder returned a non-I420 frame")
             arrays: list[U8Plane] = []
@@ -240,11 +252,68 @@ class VideoCapture(Iterator[CpuFrame]):
                 arrays.append(
                     raw.reshape(height, view.strides[index])[:, :width].copy()
                 )
+            self.last_pts_ns = view.pts
             return CpuFrame(arrays[0], arrays[1], arrays[2], view.pts)
         finally:
             native.lib.mkvc_frame_release(handle)
 
-    read = read_i420
+    def _read_packed(self, channels: int, pixel_format: int) -> U8Plane | None:
+        handle = self._read_handle()
+        if handle is None:
+            return None
+        try:
+            source = self._get_view(handle)
+            destination_array = np.empty(
+                (source.height, source.width, channels), dtype=np.uint8
+            )
+            destination = native.MutableFrameView()
+            destination.struct_size = ct.sizeof(destination)
+            destination.struct_version = 1
+            destination.pixel_format = pixel_format
+            destination.width = source.width
+            destination.height = source.height
+            destination.planes[0] = _plane_pointer(destination_array)
+            destination.strides[0] = destination_array.strides[0]
+            native.check(native.lib.mkvc_frame_copy_to(handle, ct.byref(destination)))
+            self.last_pts_ns = destination.pts
+            return destination_array
+        finally:
+            native.lib.mkvc_frame_release(handle)
+
+    def read_bgr(self) -> U8Plane | None:
+        return self._read_packed(3, native.MKVC_PIXEL_FORMAT_BGR24)
+
+    def read_rgb(self) -> U8Plane | None:
+        return self._read_packed(3, native.MKVC_PIXEL_FORMAT_RGB24)
+
+    def read_bgra(self) -> U8Plane | None:
+        return self._read_packed(4, native.MKVC_PIXEL_FORMAT_BGRA32)
+
+    def read_nv12(self) -> tuple[U8Plane, U8Plane] | None:
+        handle = self._read_handle()
+        if handle is None:
+            return None
+        try:
+            source = self._get_view(handle)
+            y = np.empty((source.height, source.width), dtype=np.uint8)
+            uv = np.empty((source.height // 2, source.width), dtype=np.uint8)
+            destination = native.MutableFrameView()
+            destination.struct_size = ct.sizeof(destination)
+            destination.struct_version = 1
+            destination.pixel_format = native.MKVC_PIXEL_FORMAT_NV12
+            destination.width = source.width
+            destination.height = source.height
+            destination.planes[0] = _plane_pointer(y)
+            destination.planes[1] = _plane_pointer(uv)
+            destination.strides[0] = y.strides[0]
+            destination.strides[1] = uv.strides[0]
+            native.check(native.lib.mkvc_frame_copy_to(handle, ct.byref(destination)))
+            self.last_pts_ns = destination.pts
+            return y, uv
+        finally:
+            native.lib.mkvc_frame_release(handle)
+
+    read = read_bgr
 
     def close(self) -> None:
         if self._closed:
@@ -261,8 +330,8 @@ class VideoCapture(Iterator[CpuFrame]):
     def __iter__(self) -> "VideoCapture":
         return self
 
-    def __next__(self) -> CpuFrame:
-        frame = self.read_i420()
+    def __next__(self) -> U8Plane:
+        frame = self.read_bgr()
         if frame is None:
             raise StopIteration
         return frame

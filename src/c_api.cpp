@@ -3,6 +3,7 @@
 #include "backend_registry.hpp"
 #include "cpu_vp9_encoder.hpp"
 #include "cpu_vp9_decoder.hpp"
+#include "frame_conversion.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -296,6 +297,27 @@ mkvc_result mkvc_frame_get_view(const mkvc_frame* frame,
     out_view->strides[3] = 0;
     out_view->pts = source.pts_ns;
     return MKVC_OK;
+}
+
+mkvc_result mkvc_frame_copy_to(const mkvc_frame* frame,
+                               mkvc_mutable_frame_view* destination) {
+    last_error.clear();
+    if (frame == nullptr || destination == nullptr ||
+        destination->struct_size < sizeof(mkvc_mutable_frame_view) ||
+        destination->struct_version != 1) {
+        return fail(MKVC_ERROR_INVALID_ARGUMENT,
+                    "invalid frame or mutable destination view");
+    }
+    try {
+        std::string error;
+        const mkvc_result result = mkvc::copy_frame_to(
+            *frame->implementation, *destination, error);
+        return result == MKVC_OK ? result : fail(result, std::move(error));
+    } catch (const std::exception& exception) {
+        return fail(MKVC_ERROR_INTERNAL, exception.what());
+    } catch (...) {
+        return fail(MKVC_ERROR_INTERNAL, "unknown frame conversion failure");
+    }
 }
 
 }  // extern "C"

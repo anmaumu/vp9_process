@@ -117,6 +117,23 @@ typedef struct mkvc_frame_view {
     int64_t pts;                /**< Input timebase units or decoded nanoseconds. */
 } mkvc_frame_view;
 
+/**
+ * @brief Caller-owned writable CPU frame view used for format conversion.
+ *
+ * The caller allocates every required plane. width and height must match the
+ * decoded source frame. Pointers are never retained after mkvc_frame_copy_to().
+ */
+typedef struct mkvc_mutable_frame_view {
+    uint32_t struct_size;     /**< Size of this struct. */
+    uint32_t struct_version;  /**< Must be 1 for this ABI. */
+    uint32_t pixel_format;    /**< Requested mkvc_pixel_format. */
+    uint32_t width;           /**< Destination width in pixels. */
+    uint32_t height;          /**< Destination height in pixels. */
+    uint8_t* planes[4];       /**< Caller-owned destination planes. */
+    int32_t strides[4];       /**< Destination row strides in bytes. */
+    int64_t pts;              /**< Receives decoded PTS in nanoseconds. */
+} mkvc_mutable_frame_view;
+
 /** Opaque encoder handle. */
 typedef struct mkvc_encoder mkvc_encoder;
 /** Opaque decoder handle. */
@@ -184,6 +201,10 @@ MKVC_API void mkvc_frame_release(mkvc_frame* frame);
 MKVC_API mkvc_result mkvc_frame_get_view(
     const mkvc_frame* frame,
     mkvc_frame_view* out_view);
+/** Copy or convert a decoded I420 frame into caller-owned CPU memory. */
+MKVC_API mkvc_result mkvc_frame_copy_to(
+    const mkvc_frame* frame,
+    mkvc_mutable_frame_view* destination);
 
 #ifdef __cplusplus
 }

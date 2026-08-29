@@ -25,7 +25,8 @@ Status: `PARTIAL`
 | `EXT-ENC-007` | CQ quality 0..63, default contract 32 | integration config uses 32 | backend mapping complete; binding default pending |
 | `EXT-ENC-009` | four-second keyframe default, auto threads | code review/build | complete for libvpx writer |
 | `EXT-DEC-001/005` | create/read/EOS/idempotent close/destroy | `mkvc_cpu_vp9_encode` | synchronous C ABI subset complete |
-| `EXT-DEC-001/005` Python | context manager, iterator, `None`/StopIteration EOS | `mkvc_python_roundtrip` | I420 synchronous subset complete |
+| `EXT-DEC-001/005` Python | context manager, BGR iterator, `None`/StopIteration EOS | `mkvc_python_roundtrip` | synchronous CPU subset complete |
+| `EXT-DEC-002` | `read_bgr`, `read_i420`, `read_nv12` plus RGB/BGRA | `mkvc_python_roundtrip` | synchronous CPU outputs complete |
 | `EXT-ENC-001/002/005` Python | context manager; BGR default; RGB/BGRA/I420/NV12 safe write | `mkvc_python_roundtrip` | synchronous CPU input formats complete |
 | `INT-CPU-002` | libyuv BGR/RGB/BGRA/NV12 conversion | known-color and padded-stride round-trip | complete for 8-bit formats |
 | `TEST-ENC-001` | dtype/shape/positive and negative stride validation | `mkvc_python_roundtrip` | supported CPU input formats passing |

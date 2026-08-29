@@ -19,6 +19,7 @@ add_library(mkvcodec SHARED
     src/backend_registry.cpp
     src/cpu_vp9_encoder.cpp
     src/cpu_vp9_decoder.cpp
+    src/frame_conversion.cpp
 )
 
 target_compile_features(mkvcodec PRIVATE cxx_std_17)

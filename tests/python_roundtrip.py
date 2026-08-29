@@ -29,7 +29,12 @@ def main() -> None:
                 writer.write((y, u, v))
 
         with mkvcodec.VideoCapture(path) as capture:
-            frames = list(capture)
+            frames = []
+            while True:
+                frame = capture.read_i420()
+                if frame is None:
+                    break
+                frames.append(frame)
         assert len(frames) == 30
         assert frames[0].y.shape == (height, width)
         assert frames[0].u.shape == (height // 2, width // 2)
@@ -67,6 +72,30 @@ def main() -> None:
                 assert decoded is not None
                 assert capture.read_i420() is None
             assert abs(float(decoded.y.mean()) - expected_blue_y) <= 5
+
+            if name == "bgr":
+                with mkvcodec.VideoCapture(packed_path) as capture:
+                    bgr = capture.read_bgr()
+                    assert bgr is not None
+                    assert bgr.shape == (height, width, 3)
+                    assert float(bgr[..., 0].mean()) > 240
+                    assert float(bgr[..., 2].mean()) < 15
+                    assert capture.last_pts_ns == 0
+                with mkvcodec.VideoCapture(packed_path) as capture:
+                    rgb = capture.read_rgb()
+                    assert rgb is not None
+                    assert float(rgb[..., 2].mean()) > 240
+                    assert float(rgb[..., 0].mean()) < 15
+                with mkvcodec.VideoCapture(packed_path) as capture:
+                    bgra = capture.read_bgra()
+                    assert bgra is not None
+                    assert bgra.shape == (height, width, 4)
+                    assert np.all(bgra[..., 3] == 255)
+                with mkvcodec.VideoCapture(packed_path) as capture:
+                    nv12 = capture.read_nv12()
+                    assert nv12 is not None
+                    assert nv12[0].shape == (height, width)
+                    assert nv12[1].shape == (height // 2, width)
 
         nv12_path = os.path.join(directory, "nv12.webm")
         nv12_y = np.full((height, width), expected_blue_y, np.uint8)
