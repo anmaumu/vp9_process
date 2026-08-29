@@ -37,9 +37,11 @@ const std::vector<mkvc_backend_capability>& backend_capabilities() {
             result.push_back({sizeof(mkvc_backend_capability),
                               MKVC_BACKEND_NVIDIA, MKVC_CODEC_VP9, 1, 0, 1, 0});
         }
-        if (nvidia.runtime_available && nvidia.av1_decode) {
+        if (nvidia.runtime_available && (nvidia.av1_decode || nvidia.av1_encode)) {
             result.push_back({sizeof(mkvc_backend_capability),
-                              MKVC_BACKEND_NVIDIA, MKVC_CODEC_AV1, 1, 0, 1, 0});
+                              MKVC_BACKEND_NVIDIA, MKVC_CODEC_AV1,
+                              static_cast<uint8_t>(nvidia.av1_decode),
+                              static_cast<uint8_t>(nvidia.av1_encode), 1, 0});
         }
 #endif
         return result;

@@ -1,6 +1,7 @@
 #include "encoder_session.hpp"
 #include "cpu_av1_encoder.hpp"
 #include "intel_webm_encoder.hpp"
+#include "nvidia_webm_encoder.hpp"
 
 #include <algorithm>
 #include <array>
@@ -121,6 +122,7 @@ struct EncoderSession::Impl {
     std::unique_ptr<CpuVp9Encoder> encoder;
     std::unique_ptr<CpuAv1Encoder> av1_encoder;
     std::unique_ptr<IntelWebmEncoder> intel_encoder;
+    std::unique_ptr<NvidiaWebmEncoder> nvidia_encoder;
     uint32_t width = 0;
     uint32_t height = 0;
     size_t capacity = 0;
@@ -156,24 +158,28 @@ namespace {
 mkvc_result backend_write(EncoderSession::Impl& impl,
                           const mkvc_frame_view& frame, std::string& error) {
     if (impl.intel_encoder) return impl.intel_encoder->write(frame, error);
+    if (impl.nvidia_encoder) return impl.nvidia_encoder->write(frame, error);
     return impl.encoder ? impl.encoder->write(frame, error)
                         : impl.av1_encoder->write(frame, error);
 }
 
 mkvc_result backend_flush(EncoderSession::Impl& impl, std::string& error) {
     if (impl.intel_encoder) return impl.intel_encoder->flush(error);
+    if (impl.nvidia_encoder) return impl.nvidia_encoder->flush(error);
     return impl.encoder ? impl.encoder->flush(error)
                         : impl.av1_encoder->flush(error);
 }
 
 mkvc_result backend_close(EncoderSession::Impl& impl, std::string& error) {
     if (impl.intel_encoder) return impl.intel_encoder->close(error);
+    if (impl.nvidia_encoder) return impl.nvidia_encoder->close(error);
     return impl.encoder ? impl.encoder->close(error)
                         : impl.av1_encoder->close(error);
 }
 
 uint32_t backend_hardware_pending(const EncoderSession::Impl& impl) {
-    return impl.intel_encoder ? impl.intel_encoder->max_pending_observed() : 0;
+    if (impl.intel_encoder) return impl.intel_encoder->max_pending_observed();
+    return impl.nvidia_encoder ? impl.nvidia_encoder->max_pending_observed() : 0;
 }
 
 uint64_t elapsed_ns(std::chrono::steady_clock::time_point started) {
@@ -297,6 +303,9 @@ std::unique_ptr<EncoderSession> EncoderSession::create(
     if (config.backend == MKVC_BACKEND_INTEL) {
         impl->intel_encoder = IntelWebmEncoder::create(config, error);
         if (!impl->intel_encoder) return nullptr;
+    } else if (config.backend == MKVC_BACKEND_NVIDIA) {
+        impl->nvidia_encoder = NvidiaWebmEncoder::create(config, error);
+        if (!impl->nvidia_encoder) return nullptr;
     } else if (config.codec == MKVC_CODEC_VP9) {
         impl->encoder = CpuVp9Encoder::create(config, error);
         if (!impl->encoder) return nullptr;

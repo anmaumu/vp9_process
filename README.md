@@ -1,7 +1,7 @@
 # vp9_process / mkvcodec
 
 VP9/AV1専用のWebM/Matroska encode・decodeライブラリです。C ABIを中核にし、
-PythonからOpenCVに近い感覚で利用できるAPIと、将来の.NET bindingを提供します。
+PythonからOpenCVに近い感覚で利用できるAPIと.NET bindingを提供します。
 
 ## 対象
 
@@ -20,7 +20,10 @@ NumPy用Python API、bounded非同期Writer、bounded decode prefetchまで実�
 Intel oneVPLによるVP9/AV1 WebM encode/decodeはC ABIとPython Writer/Captureから
 選択でき、Linux Intel GPU実機で検証済みです。NVIDIA NVDEC Captureは
 C ABI/Pythonから選択でき、Windows RTX 2060でVP9を検証済みです。
-NVIDIA AV1 decodeの対応GPU検証、NVENC Writer、10-bit public frame APIは未完です。
+NVENC AV1 WriterはC ABI/Python共通経路へ実装済みで、runtime queryが対応を示すGPU
+だけに公開します。RTX 2060での非対応拒否とGPUなしLinuxでの退行は検証済みですが、
+AV1 NVENC対応GPUでのpositive encode検証は未完です。NVIDIA AV1 decodeの対応GPU検証、
+GPU surface zero-copy、10-bit public frame APIも未完です。
 .NET 8 bindingではABI version/capability query、型付きerror、SafeHandleに加え、
 `IDisposable`な`MkvVideoWriter`/`MkvVideoCapture`とowned I420 frameを実装済みです。
 利用可能と報告される機能は、実装済みbackendだけに限定します。
@@ -81,7 +84,7 @@ ctest --test-dir build -R mkvc_dotnet --output-on-failure
 ```
 
 `MKVC_LIBRARY_PATH`はCTestがbuild済みnative libraryへ設定します。高水準の
-reader/writer APIとNuGet packagingは後続段階です。
+NuGet packagingは後続段階です。
 
 ## Documentation generation
 

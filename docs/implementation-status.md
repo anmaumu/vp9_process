@@ -51,6 +51,7 @@ Status: `PARTIAL`
 | `INT-PERF-001`, `TEST-PERF-001/002` foundation | versioned public-API JSON benchmark parameterized by backend/codec/resolution/fps/queue/prefetch | `mkvc_python_benchmark_smoke` | end-to-end fps, submit latency distribution, first-frame latency, bytes, RSS and explicit copy path recorded; approved baselines/regression thresholds pending |
 | `EXT-OBS-001`, `INT-OBS-001/003/004` aggregate subset | versioned C ABI/Python metrics snapshots for frame counts, queue wait, backend time, capacity/peak, GPU pending peak and actual copy path | CPU native round-trip, Python benchmark smoke and Intel public round-trip | bounded queue/high-water and four pending Intel operations observed; per-stage conversion/codec/mux and GPU-event timing pending |
 | `INT-NV-001..003`, `TEST-NV-001`, `TEST-BACK-001` decode slice | pinned `nv-codec-headers`, runtime-only CUDA/NVCUVID loading, incremental libwebm demux and owned I420 readback exposed through C ABI/Python Capture | `mkvc_nvidia_probe`, `mkvc_nvidia_webm_decode` on Windows plus NVIDIA-free Linux CTest | RTX 2060 VP9 decodes 30 ordered frames in creating-thread and transferred-worker-thread modes; unsupported AV1 is rejected before opening input; min/max dimensions are queried; AV1 positive hardware run and zero-copy remain pending |
+| `INT-NV-001..003`, `TEST-NV-002/003/005`, `TEST-BACK-001` encode slice | runtime-loaded CUDA/NVENC AV1 P4 synchronous adapter, CPU I420/NV12/BGR/RGB/BGRA to NV12 conversion and libwebm mux exposed through the common Writer | `mkvc_nvidia_webm_encode`, C ABI unsupported-backend assertions, NVIDIA-enabled strict Linux build | VP9 encode is always rejected; unsupported AV1 hardware and NVIDIA-free hosts return NotSupported without creating output; positive AV1 encode on a capable NVIDIA GPU, independent decode, GPU conversion and zero-copy remain pending |
 
 The decoder keeps a libwebm cluster/block/frame cursor and reads compressed packets
 incrementally. One compressed packet is limited to 256 MiB. No CPU pipeline uses
@@ -68,8 +69,11 @@ native prefetch queue as CPU decode.
 The NVIDIA decoder follows the same bounded prefetch contract. It pushes its
 CUDA context on the actual read thread, lets NVCUVID synchronously parse/decode,
 maps NV12 only for completed display-order frames, and splits the host readback
-into the common owned I420 representation. Backend capability rows are emitted
-only for runtime-supported decode directions; NVENC is not advertised yet.
+into the common owned I420 representation. The NVIDIA writer converts supported
+8-bit CPU inputs to NV12, submits one synchronous NVENC AV1 operation at a time,
+and immediately muxes the returned packet. Backend capability rows are emitted
+only for runtime-supported directions; NVENC AV1 is advertised only when the
+runtime encode GUID query succeeds, while NVENC VP9 is never advertised.
 The oneVPL encoder and decoder use `AsyncDepth=4` publicly and retain four
 independently owned SyncPoint slots before waiting on the oldest operation. Raw
 hardware tests also cover depths 1, 2, and 8 for both directions.

@@ -230,7 +230,8 @@ mkvc_result mkvc_encoder_create(const mkvc_encoder_config* config,
         config->output_path_utf8[0] == '\0' ||
         (config->codec != MKVC_CODEC_VP9 && config->codec != MKVC_CODEC_AV1) ||
         (config->backend != MKVC_BACKEND_CPU &&
-         config->backend != MKVC_BACKEND_INTEL) || config->width == 0 ||
+         config->backend != MKVC_BACKEND_INTEL &&
+         config->backend != MKVC_BACKEND_NVIDIA) || config->width == 0 ||
         config->height == 0 || (config->width & 1u) != 0 ||
         (config->height & 1u) != 0 || config->fps_num == 0 ||
         config->fps_den == 0 || config->quality > 63 ||
@@ -239,6 +240,18 @@ mkvc_result mkvc_encoder_create(const mkvc_encoder_config* config,
         return fail(MKVC_ERROR_INVALID_ARGUMENT, "invalid encoder config");
     }
     try {
+        if (config->backend == MKVC_BACKEND_NVIDIA) {
+            const auto& capabilities = mkvc::backend_capabilities();
+            const bool available = std::any_of(
+                capabilities.begin(), capabilities.end(), [config](const auto& item) {
+                    return item.backend == MKVC_BACKEND_NVIDIA &&
+                           item.codec == config->codec && item.can_encode != 0;
+                });
+            if (!available) {
+                return fail(MKVC_ERROR_NOT_SUPPORTED,
+                            "requested NVIDIA encode capability is unavailable");
+            }
+        }
         std::string error;
         auto implementation = mkvc::EncoderSession::create(*config, error);
         if (!implementation) {

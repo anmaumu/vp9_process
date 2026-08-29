@@ -46,9 +46,10 @@
 - [x] Intel decoder multi-SyncPoint overlap and AsyncDepth 1/2/4/8 ordering tests
 - [ ] Intel zero-copy surfaces
 - [x] injected Intel pending-operation failure cleanup and session recovery
-- NVIDIA NVDEC VP9/AV1
-- NVIDIA NVENC AV1（対応GPUが必要）
-- CPU fallbackと明示backend選択
+- [x] NVIDIA NVDEC VP9 public Capture（RTX 2060 VP9 positive、AV1 positive pending）
+- [x] NVIDIA NVENC AV1 public Writer adapter and runtime capability gate
+- [ ] NVIDIA AV1-capable GPU positive encode/decode verification
+- [x] CPU fallbackと明示backend選択
 
 ## Phase 3B: performance and observability
 
