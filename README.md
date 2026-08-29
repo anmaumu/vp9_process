@@ -15,9 +15,9 @@ H.264とHEVCは対象外です。
 
 ## 現在地
 
-CPU VP9の同期WebM encode/decode、C ABI、I420 NumPy用Python APIまで実装済みです。
-GPU backend、AV1、BGR/NV12変換、非同期pipelineは未実装です。利用可能と報告される
-機能は、実装済みbackendだけに限定します。
+CPU VP9のWebM encode/decode、C ABI、NumPy用Python API、bounded非同期Writer、
+bounded decode prefetchまで実装済みです。GPU backendとAV1は未実装です。
+利用可能と報告される機能は、実装済みbackendだけに限定します。
 
 ## Build
 
@@ -40,6 +40,7 @@ with mkvcodec.VideoWriter(
 ) as writer:
     writer.write(bgr_ndarray)                 # OpenCV-style BGR
     writer.write((y_plane, u_plane, v_plane)) # I420
+    accepted = writer.try_write(bgr_ndarray)  # queue満杯ならFalse
 
 with mkvcodec.VideoCapture("output.webm", prefetch=4) as capture:
     bgr_frame = capture.read()       # or read_bgr()
@@ -54,6 +55,8 @@ RGB系やNV12を明示するときは`write_rgb`、`write_bgra`、`write_nv12`�
 Captureの既定`read()`とiteratorはBGR ndarrayを返します。`read_i420`、
 `read_rgb`、`read_bgra`、`read_nv12`も選択できます。
 `prefetch=0`は同期decode、正数はnative側の固定容量先読みqueueを使用します。
+Writerの`queue_size=0`は同期encode、正数（Python既定8）は入力をdeep copyして
+native workerへ渡します。通常の`write`はqueue空きを待ち、`try_write`は待機しません。
 
 ## Documentation generation
 

@@ -8,6 +8,7 @@ from pathlib import Path
 MKVC_OK = 0
 MKVC_ERROR_INVALID_STATE = 5
 MKVC_END_OF_STREAM = 8
+MKVC_WOULD_BLOCK = 9
 MKVC_BACKEND_CPU = 1
 MKVC_CODEC_VP9 = 1
 MKVC_PIXEL_FORMAT_I420 = 1
@@ -31,6 +32,7 @@ class EncoderConfig(ct.Structure):
         ("quality", ct.c_uint32),
         ("keyframe_interval_frames", ct.c_uint32),
         ("threads", ct.c_uint32),
+        ("queue_size", ct.c_uint32),
     ]
 
 
@@ -106,6 +108,8 @@ lib.mkvc_encoder_create.argtypes = [ct.POINTER(EncoderConfig), ct.POINTER(Encode
 lib.mkvc_encoder_create.restype = ct.c_int
 lib.mkvc_encoder_write_frame.argtypes = [EncoderHandle, ct.POINTER(FrameView)]
 lib.mkvc_encoder_write_frame.restype = ct.c_int
+lib.mkvc_encoder_try_write_frame.argtypes = [EncoderHandle, ct.POINTER(FrameView)]
+lib.mkvc_encoder_try_write_frame.restype = ct.c_int
 lib.mkvc_encoder_flush.argtypes = [EncoderHandle]
 lib.mkvc_encoder_flush.restype = ct.c_int
 lib.mkvc_encoder_close.argtypes = [EncoderHandle]

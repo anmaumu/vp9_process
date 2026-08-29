@@ -27,6 +27,7 @@ def main() -> None:
                 u = np.full((height // 2, width // 2), 96 + index, np.uint8)
                 v = np.full((height // 2, width // 2), 160 - index, np.uint8)
                 writer.write((y, u, v))
+            writer.flush()
 
         with mkvcodec.VideoCapture(path, prefetch=0) as capture:
             frames = []
@@ -41,6 +42,23 @@ def main() -> None:
         assert [frame.pts_ns for frame in frames] == sorted(
             frame.pts_ns for frame in frames
         )
+
+        nonblocking_path = os.path.join(directory, "nonblocking.webm")
+        image = np.zeros((height, width, 3), np.uint8)
+        accepted = 0
+        with mkvcodec.VideoWriter(
+            nonblocking_path, fps=30, frame_size=(width, height), queue_size=1
+        ) as writer:
+            for index in range(100):
+                image.fill(index)
+                if writer.try_write(image):
+                    accepted += 1
+            writer.flush()
+            writer.write(image)
+            accepted += 1
+        with mkvcodec.VideoCapture(nonblocking_path) as capture:
+            assert sum(1 for _ in capture) == accepted
+        assert accepted >= 2
         with mkvcodec.VideoCapture(path, prefetch=4) as capture:
             prefetched = list(capture)
         assert len(prefetched) == 30

@@ -22,10 +22,11 @@
 
 ## Phase 2: asynchronous pipeline
 
-- bounded queueとbuffer pool
-- blocking write / non-blocking try-write
-- ordered drain、flush、finalize
-- prefetch decode
+- [x] bounded encode queue（per-frame owned buffer）
+- [x] blocking write / non-blocking try-write
+- [x] ordered drain、flush、finalize
+- [x] bounded prefetch decode
+- [ ] reusable buffer pool、explicit cancellation、pipeline metrics
 
 ## Phase 3: hardware backends
 
@@ -39,4 +40,3 @@
 - Python wheel
 - .NET P/Invoke / NuGet
 - SBOM、THIRD_PARTY_NOTICES、license gate
-

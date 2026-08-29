@@ -1,8 +1,8 @@
 #include "mkvcodec/mkvc.h"
 
 #include "backend_registry.hpp"
-#include "cpu_vp9_encoder.hpp"
 #include "cpu_vp9_decoder.hpp"
+#include "encoder_session.hpp"
 #include "frame_conversion.hpp"
 
 #include <algorithm>
@@ -17,7 +17,7 @@
 #include <thread>
 
 struct mkvc_encoder {
-    std::unique_ptr<mkvc::CpuVp9Encoder> implementation;
+    std::unique_ptr<mkvc::EncoderSession> implementation;
 };
 
 struct mkvc_decoder {
@@ -161,6 +161,7 @@ const char* mkvc_result_string(mkvc_result result) {
         case MKVC_ERROR_IO: return "I/O error";
         case MKVC_ERROR_CODEC: return "codec error";
         case MKVC_END_OF_STREAM: return "end of stream";
+        case MKVC_WOULD_BLOCK: return "would block";
         default: return "unknown result";
     }
 }
@@ -185,7 +186,7 @@ mkvc_result mkvc_encoder_create(const mkvc_encoder_config* config,
     }
     try {
         std::string error;
-        auto implementation = mkvc::CpuVp9Encoder::create(*config, error);
+        auto implementation = mkvc::EncoderSession::create(*config, error);
         if (!implementation) {
             return fail(MKVC_ERROR_CODEC, std::move(error));
         }
@@ -209,12 +210,33 @@ mkvc_result mkvc_encoder_write_frame(mkvc_encoder* encoder,
     }
     try {
         std::string error;
-        const mkvc_result result = encoder->implementation->write(*frame, error);
+        const mkvc_result result = encoder->implementation->write(*frame, true, error);
         return result == MKVC_OK ? result : fail(result, std::move(error));
     } catch (const std::exception& exception) {
         return fail(MKVC_ERROR_INTERNAL, exception.what());
     } catch (...) {
         return fail(MKVC_ERROR_INTERNAL, "unknown frame write failure");
+    }
+}
+
+mkvc_result mkvc_encoder_try_write_frame(mkvc_encoder* encoder,
+                                         const mkvc_frame_view* frame) {
+    last_error.clear();
+    if (encoder == nullptr || frame == nullptr ||
+        frame->struct_size < sizeof(mkvc_frame_view) || frame->struct_version != 1) {
+        return fail(MKVC_ERROR_INVALID_ARGUMENT, "invalid encoder or frame view");
+    }
+    try {
+        std::string error;
+        const mkvc_result result = encoder->implementation->write(*frame, false, error);
+        if (result == MKVC_OK || result == MKVC_WOULD_BLOCK) {
+            return result;
+        }
+        return fail(result, std::move(error));
+    } catch (const std::exception& exception) {
+        return fail(MKVC_ERROR_INTERNAL, exception.what());
+    } catch (...) {
+        return fail(MKVC_ERROR_INTERNAL, "unknown nonblocking frame write failure");
     }
 }
 

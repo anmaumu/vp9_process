@@ -39,7 +39,8 @@ typedef enum mkvc_result {
     MKVC_ERROR_INVALID_STATE = 5,     /**< Operation is invalid in the handle's current state. */
     MKVC_ERROR_IO = 6,                /**< Container or filesystem I/O failed. */
     MKVC_ERROR_CODEC = 7,             /**< Codec initialization or processing failed. */
-    MKVC_END_OF_STREAM = 8            /**< Decoder reached a clean end of stream. */
+    MKVC_END_OF_STREAM = 8,           /**< Decoder reached a clean end of stream. */
+    MKVC_WOULD_BLOCK = 9              /**< Nonblocking submission found a full queue. */
 } mkvc_result;
 
 /** Backend families addressable through the common API. */
@@ -84,7 +85,7 @@ typedef enum mkvc_pixel_format {
     MKVC_PIXEL_FORMAT_BGRA32 = 5  /**< Interleaved B, G, R, A bytes. */
 } mkvc_pixel_format;
 
-/** Synchronous encoder creation parameters. */
+/** Encoder creation parameters, including optional bounded asynchronous submission. */
 typedef struct mkvc_encoder_config {
     uint32_t struct_size;              /**< Size of this struct. */
     uint32_t struct_version;           /**< Must be 1 for this ABI. */
@@ -98,6 +99,7 @@ typedef struct mkvc_encoder_config {
     uint32_t quality;                  /**< Quality from 0 (best) to 63 (worst). */
     uint32_t keyframe_interval_frames; /**< Zero selects the four-second default. */
     uint32_t threads;                  /**< Zero selects automatic thread count. */
+    uint32_t queue_size;               /**< Zero is synchronous; positive values enable a bounded worker queue. */
 } mkvc_encoder_config;
 
 /**
@@ -163,12 +165,16 @@ MKVC_API mkvc_result mkvc_get_backend_capabilities(
 /** Return a static English name for a result code. */
 MKVC_API const char* mkvc_result_string(mkvc_result result);
 
-/** Create a synchronous encoder. The caller owns the returned handle. */
+/** Create an encoder. queue_size selects synchronous or asynchronous operation. */
 MKVC_API mkvc_result mkvc_encoder_create(
     const mkvc_encoder_config* config,
     mkvc_encoder** out_encoder);
 /** Copy and submit one CPU frame to an encoder. */
 MKVC_API mkvc_result mkvc_encoder_write_frame(
+    mkvc_encoder* encoder,
+    const mkvc_frame_view* frame);
+/** Submit one frame without waiting for queue space; may return MKVC_WOULD_BLOCK. */
+MKVC_API mkvc_result mkvc_encoder_try_write_frame(
     mkvc_encoder* encoder,
     const mkvc_frame_view* frame);
 /** Drain currently submitted encoder work without closing the handle. */

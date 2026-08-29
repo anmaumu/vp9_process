@@ -42,6 +42,7 @@ int main(int argc, char** argv) {
     config.fps_num = 30;
     config.fps_den = 1;
     config.quality = 32;
+    config.queue_size = 2;
 
     mkvc_encoder* encoder = nullptr;
     mkvc_encoder_config failing_config = config;
@@ -79,7 +80,13 @@ int main(int argc, char** argv) {
         frame.strides[1] = width / 2;
         frame.strides[2] = width / 2;
         frame.pts = -1;
-        require_ok(mkvc_encoder_write_frame(encoder, &frame));
+        const mkvc_result try_result =
+            mkvc_encoder_try_write_frame(encoder, &frame);
+        if (try_result == MKVC_WOULD_BLOCK) {
+            require_ok(mkvc_encoder_write_frame(encoder, &frame));
+        } else {
+            require_ok(try_result);
+        }
     }
 
     require_ok(mkvc_encoder_flush(encoder));

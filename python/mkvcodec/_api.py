@@ -48,6 +48,7 @@ class VideoWriter:
         quality: int = 32,
         keyframe_interval_frames: int = 0,
         threads: int = 0,
+        queue_size: int = 8,
     ) -> None:
         if codec != "vp9" or backend != "cpu":
             raise ValueError("the current Python slice supports codec='vp9', backend='cpu'")
@@ -67,13 +68,27 @@ class VideoWriter:
         config.quality = quality
         config.keyframe_interval_frames = keyframe_interval_frames
         config.threads = threads
+        if queue_size < 0:
+            raise ValueError("queue_size must be zero or positive")
+        config.queue_size = queue_size
         self._handle = native.EncoderHandle()
         native.check(native.lib.mkvc_encoder_create(ct.byref(config), ct.byref(self._handle)))
         self._width = width
         self._height = height
         self._closed = False
 
-    def write_i420(self, y: U8Plane, u: U8Plane, v: U8Plane, *, pts: int = -1) -> None:
+    def _submit(self, frame: native.FrameView, *, block: bool) -> bool:
+        function = (native.lib.mkvc_encoder_write_frame if block else
+                    native.lib.mkvc_encoder_try_write_frame)
+        result = function(self._handle, ct.byref(frame))
+        if result == native.MKVC_WOULD_BLOCK:
+            return False
+        native.check(result)
+        return True
+
+    def _write_i420(
+        self, y: U8Plane, u: U8Plane, v: U8Plane, *, pts: int, block: bool
+    ) -> bool:
         if self._closed:
             raise RuntimeError("writer is closed")
         planes = tuple(np.asarray(plane) for plane in (y, u, v))
@@ -97,9 +112,12 @@ class VideoWriter:
             frame.planes[index] = _plane_pointer(plane)
             frame.strides[index] = plane.strides[0]
         frame.pts = pts
-        native.check(native.lib.mkvc_encoder_write_frame(self._handle, ct.byref(frame)))
+        return self._submit(frame, block=block)
 
-    def write_nv12(self, y: U8Plane, uv: U8Plane, *, pts: int = -1) -> None:
+    def write_i420(self, y: U8Plane, u: U8Plane, v: U8Plane, *, pts: int = -1) -> None:
+        self._write_i420(y, u, v, pts=pts, block=True)
+
+    def _write_nv12(self, y: U8Plane, uv: U8Plane, *, pts: int, block: bool) -> bool:
         if self._closed:
             raise RuntimeError("writer is closed")
         planes = (np.asarray(y), np.asarray(uv))
@@ -120,11 +138,15 @@ class VideoWriter:
             frame.planes[index] = _plane_pointer(plane)
             frame.strides[index] = plane.strides[0]
         frame.pts = pts
-        native.check(native.lib.mkvc_encoder_write_frame(self._handle, ct.byref(frame)))
+        return self._submit(frame, block=block)
+
+    def write_nv12(self, y: U8Plane, uv: U8Plane, *, pts: int = -1) -> None:
+        self._write_nv12(y, uv, pts=pts, block=True)
 
     def _write_packed(
-        self, array: U8Plane, channels: int, pixel_format: int, *, pts: int
-    ) -> None:
+        self, array: U8Plane, channels: int, pixel_format: int, *, pts: int,
+        block: bool = True,
+    ) -> bool:
         if self._closed:
             raise RuntimeError("writer is closed")
         packed = np.asarray(array)
@@ -142,7 +164,7 @@ class VideoWriter:
         frame.planes[0] = _plane_pointer(packed)
         frame.strides[0] = packed.strides[0]
         frame.pts = pts
-        native.check(native.lib.mkvc_encoder_write_frame(self._handle, ct.byref(frame)))
+        return self._submit(frame, block=block)
 
     def write_bgr(self, frame: U8Plane, *, pts: int = -1) -> None:
         self._write_packed(frame, 3, native.MKVC_PIXEL_FORMAT_BGR24, pts=pts)
@@ -162,6 +184,18 @@ class VideoWriter:
             self.write_i420(*frame, pts=pts)
             return
         self.write_bgr(frame, pts=pts)
+
+    def try_write(
+        self, frame: U8Plane | tuple[U8Plane, U8Plane, U8Plane], *, pts: int = -1
+    ) -> bool:
+        """Submit without waiting; return False when the bounded queue is full."""
+        if isinstance(frame, tuple):
+            if len(frame) != 3:
+                raise ValueError("I420 tuple must contain (Y, U, V)")
+            return self._write_i420(*frame, pts=pts, block=False)
+        return self._write_packed(
+            frame, 3, native.MKVC_PIXEL_FORMAT_BGR24, pts=pts, block=False
+        )
 
     def flush(self) -> None:
         if not self._closed:
