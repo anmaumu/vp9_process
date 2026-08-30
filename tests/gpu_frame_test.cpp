@@ -192,6 +192,12 @@ int main() {
     assert(mkvc_gpu_frame_import_external(
         &external_config, &external_frame) == MKVC_ERROR_INVALID_ARGUMENT);
     assert(external_frame == nullptr);
+    external_config.release = release_external;
+    external_config.query = nullptr;
+    external_config.native_handle.handles[3] = 0;
+    assert(mkvc_gpu_frame_import_cuda_event(
+        &external_config, &external_frame) == MKVC_ERROR_INVALID_ARGUMENT);
+    assert(external_frame == nullptr && external_state.releases.load() == 1);
 
     auto pool = std::make_shared<mkvc::gpu::GpuFramePool>(2);
     auto pool_done_a = std::make_shared<mkvc::gpu::ManualCompletion>();

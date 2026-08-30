@@ -311,6 +311,7 @@ mkvc_cpu_buffer_release();
 mkvc_encoder_cancel();
 mkvc_gpu_frame_get_native_handle();
 mkvc_gpu_frame_import_external();
+mkvc_gpu_frame_import_cuda_event();
 mkvc_encoder_write_gpu_frame();
 mkvc_gpu_frame_query_completion();
 mkvc_gpu_frame_wait();
@@ -318,6 +319,9 @@ mkvc_get_last_error();
 ```
 
 export descriptorはmemoryを所有せず、対応するframe leaseがdescriptorの有効期間を支配する。import submissionはconsumer completionまで外部ownerをretainし、その後release callbackを一度だけ呼ぶ。
+NVIDIA CUDA pointerの非同期importでは`native_handle.handles[1]`を`CUcontext`、
+`handles[3]`をproducerが記録した`CUevent`として渡す。event/contextは最終lease release
+まで有効でなければならず、libraryはdevice-wide synchronizeを行わずeventをpollする。
 
 ### 6.4 C#
 

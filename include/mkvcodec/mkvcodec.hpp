@@ -254,6 +254,13 @@ class GpuFrame {
         check(mkvc_gpu_frame_import_external(&config, &frame));
         return GpuFrame(frame);
     }
+
+    static GpuFrame import_cuda_event(
+        const mkvc_gpu_external_frame_config& config) {
+        mkvc_gpu_frame* frame = nullptr;
+        check(mkvc_gpu_frame_import_cuda_event(&config, &frame));
+        return GpuFrame(frame);
+    }
     ~GpuFrame() { reset(); }
     GpuFrame(const GpuFrame&) = delete;
     GpuFrame& operator=(const GpuFrame&) = delete;

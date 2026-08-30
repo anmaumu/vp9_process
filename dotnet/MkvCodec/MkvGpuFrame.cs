@@ -68,6 +68,53 @@ public sealed class MkvGpuFrame : IDisposable
         }
     }
 
+    /// <summary>
+    /// Imports an NVIDIA CUDA-pointer frame and tracks its producer through the
+    /// CUevent stored in nativeHandle.Handles[3], without synchronizing a device.
+    /// The CUDA context is stored in Handles[1].
+    /// </summary>
+    public static unsafe MkvGpuFrame ImportCudaEvent(
+        MkvGpuFrameDescriptor descriptor,
+        MkvGpuNativeHandleDescriptor nativeHandle,
+        object owner,
+        Action<object>? release = null)
+    {
+        ArgumentNullException.ThrowIfNull(owner);
+        if (descriptor.PlaneOffsets is null || descriptor.PlaneOffsets.Length != 4 ||
+            descriptor.Pitches is null || descriptor.Pitches.Length != 4)
+            throw new ArgumentException("GPU descriptor arrays must contain four values",
+                nameof(descriptor));
+        if (nativeHandle.Handles is null || nativeHandle.Handles.Length != 4 ||
+            nativeHandle.Handles[3] == 0)
+            throw new ArgumentException("CUDA event handle must be stored in Handles[3]",
+                nameof(nativeHandle));
+        descriptor.StructSize = checked((uint)Marshal.SizeOf<MkvGpuFrameDescriptor>());
+        descriptor.StructVersion = 1;
+        nativeHandle.StructSize =
+            checked((uint)Marshal.SizeOf<MkvGpuNativeHandleDescriptor>());
+        nativeHandle.StructVersion = 1;
+        var state = new ExternalOwner { Owner = owner, Release = release };
+        GCHandle root = GCHandle.Alloc(state);
+        var config = new NativeGpuExternalFrameConfig {
+            StructSize = checked((uint)Marshal.SizeOf<NativeGpuExternalFrameConfig>()),
+            StructVersion = 1, Frame = descriptor, NativeHandle = nativeHandle,
+            Query = nint.Zero,
+            Release = (nint)(delegate* unmanaged[Cdecl]<nint, void>)&ReleaseExternal,
+            UserData = GCHandle.ToIntPtr(root)
+        };
+        try
+        {
+            MkvCodecInfo.ThrowIfFailed(
+                NativeMethods.mkvc_gpu_frame_import_cuda_event(ref config, out var frame));
+            return new MkvGpuFrame(frame);
+        }
+        catch
+        {
+            root.Free();
+            throw;
+        }
+    }
+
     [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
     private static unsafe MkvResult QueryExternal(nint opaque, uint* complete)
     {

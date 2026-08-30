@@ -368,21 +368,19 @@ class GpuFrame:
         pts_ns: int = -1, stream: int = 0, event: int = 0,
         producer_synchronized: bool = False,
     ) -> "GpuFrame":
-        """Import an already-ready contiguous CUDA-pointer NV12 resource.
+        """Import a contiguous CUDA-pointer NV12 resource.
 
         ``owner`` is retained entirely by the stable-ABI extension until the
-        final native lease is released. This initial Python adapter requires
-        the producer to be synchronized explicitly; asynchronous CUDA-event
-        dependency insertion is not yet implemented.
+        final native lease is released. Pass a producer-recorded CUDA ``event``
+        for asynchronous dependency tracking, or explicitly assert that the
+        producer is already complete with ``producer_synchronized=True``.
         """
         if _dlpack is None:
             raise RuntimeError(
                 "external CUDA import requires the mkvcodec stable-ABI extension"
             )
-        if not producer_synchronized:
-            raise ValueError(
-                "producer_synchronized=True is required until CUDA event import is implemented"
-            )
+        if not producer_synchronized and event <= 0:
+            raise ValueError("event is required unless producer_synchronized=True")
         width, height = frame_size
         values = (pointer, context, device_id, width, height, pitch, stream, event)
         if any(not isinstance(value, int) for value in values):
@@ -421,7 +419,10 @@ class GpuFrame:
         config.user_data = user_data
         result_handle = native.GpuFrameHandle()
         try:
-            native.check(native.lib.mkvc_gpu_frame_import_external(
+            importer = (native.lib.mkvc_gpu_frame_import_external
+                        if producer_synchronized
+                        else native.lib.mkvc_gpu_frame_import_cuda_event)
+            native.check(importer(
                 ct.byref(config), ct.byref(result_handle)
             ))
         except Exception:

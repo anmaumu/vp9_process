@@ -319,6 +319,10 @@ lib.mkvc_gpu_frame_import_external.argtypes = [
     ct.POINTER(GpuExternalFrameConfig), ct.POINTER(GpuFrameHandle)
 ]
 lib.mkvc_gpu_frame_import_external.restype = ct.c_int
+lib.mkvc_gpu_frame_import_cuda_event.argtypes = [
+    ct.POINTER(GpuExternalFrameConfig), ct.POINTER(GpuFrameHandle)
+]
+lib.mkvc_gpu_frame_import_cuda_event.restype = ct.c_int
 lib.mkvc_gpu_frame_wait.argtypes = [GpuFrameHandle, ct.c_uint32]
 lib.mkvc_gpu_frame_wait.restype = ct.c_int
 lib.mkvc_gpu_frame_export_dlpack.argtypes = [

@@ -93,10 +93,13 @@ D3D11/VA handles can be wrapped/exported, but direct oneVPL encoding still
 requires a native-surface import adapter. .NET `MkvGpuFrame.ImportExternal`
 roots its managed owner through final native release and safely bridges
 thread-safe producer/release callbacks. Python uses a stable-ABI native holder
-so the owner survives wrapper GC without a Python finalizer callback; its first
-adapter accepts explicitly synchronized contiguous CUDA-pointer NV12 frames.
-CUarray, DLPack import, CUDA-event dependency insertion and hardware
-qualification remain pending.
+so the owner survives wrapper GC without a Python finalizer callback. The adapter
+accepts explicitly synchronized or producer-CUDA-event-backed contiguous CUDA
+pointer NV12 frames. Native event import dynamically loads the CUDA driver,
+pushes the supplied context only around `cuEventQuery`, and never performs a
+device-wide synchronize. A Windows NVIDIA hardware test validates context/event
+completion and exactly-once release. CUarray, DLPack import and CuPy end-to-end
+hardware qualification remain pending.
 Encoder metrics now distinguish CPU-only, GPU-resident, and mixed input paths.
 Python Writer/Capture accept `require_gpu_resident=True`; CPU submission/read APIs
 then fail instead of silently crossing host memory. The first supported strict
@@ -125,7 +128,7 @@ and an OS/oneVPL trace has not yet independently proven zero host pixel transfer
 | `EXT-FRAME-011` | `WriteBorrowedI420` short-duration managed pin plus `MkvCpuFramePool` writable unmanaged spans and `MkvSubmission` completion lease | `.NET` native-load, borrowed and pooled async round-trip smoke | synchronous short-pin and asynchronous unmanaged pool complete; optional OS page-lock metrics remain pending |
 | `EXT-ENC-013`, `EXT-FRAME-010..012` native-pool subset | fixed-capacity C ABI pool, generation-checked slot lease, nonblocking/timed backpressure, Python NumPy/.NET Span views, async encoder ownership transfer | `mkvc_cpu_frame_pool`, Python/.NET capacity/generation/view-lifetime/round-trip coverage | native allocation slice complete; OS page-lock, strict fallback and detailed copy trace remain pending |
 | C++ RAII facade | header-only move-only `Encoder`, `Decoder`, CPU/GPU `Frame`, `CpuFramePool`, `CpuBuffer`, `Submission` over the stable C ABI; typed `ResultError` retains the native result | `mkvc_cpp_raii` move/lifetime/generation/async encode/decode round-trip | common CPU path complete and GPU source/sink facade compile-qualified; Intel/NVIDIA C++ hardware round-trip remains pending |
-| `EXT-GPU-004..005`, `INT-GPU-008/010` external-frame subset | `mkvc_gpu_frame_import_external`, C++ RAII factory, .NET managed-owner adapter and Python stable-ABI synchronized-pointer adapter; producer query, immutable descriptor/native handle, single-shot release and CUDA-pointer backend resource binding | native/C++/.NET/Python pending→complete, descriptor, owner-GC, invalid-layout and exactly-once release tests | synchronized CUDA-pointer foundation complete; asynchronous CUDA event, DLPack/CUarray and Intel oneVPL resource import pending |
+| `EXT-GPU-004..005`, `INT-GPU-008/010` external-frame subset | `mkvc_gpu_frame_import_external` and `mkvc_gpu_frame_import_cuda_event`, C++ RAII factories, .NET managed-owner adapters and Python stable-ABI synchronized/event pointer adapter; callback or native CUDA-event producer completion, immutable descriptor/native handle, single-shot release and CUDA-pointer backend binding | native/C++/.NET/Python callback lifecycle tests plus Windows CUDA context/event hardware test | linear CUDA-pointer import and native event dependency complete; DLPack/CUarray and Intel oneVPL external-resource import pending |
 | `EXT-ENC-006` | bounded queue/pool; blocking write; nonblocking try-write; ordered flush/close; explicit cancel wakeup | native async failure/cancel and Python round-trip | complete for CPU writer; queued submissions receive a distinct cancelled terminal state while an already-active codec call finishes safely |
 | `EXT-ENC-007` | CQ quality 0..63, default contract 32 | integration config uses 32 | backend mapping complete; binding default pending |
 | `EXT-ENC-009` | four-second keyframe default, auto threads | code review/build | complete for libvpx writer |

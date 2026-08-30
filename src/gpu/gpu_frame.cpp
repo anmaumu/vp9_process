@@ -1,5 +1,9 @@
 #include "gpu_frame.hpp"
 
+#if defined(MKVC_HAS_NVIDIA)
+#include "nvidia/cuda_completion.hpp"
+#endif
+
 #include <chrono>
 #include <limits>
 #include <stdexcept>
@@ -249,6 +253,43 @@ bool valid_external_layout(const mkvc_gpu_external_frame_config& config,
     error = "external GPU import backend is unsupported";
     return false;
 }
+
+mkvc_result import_external_with_completion(
+    const mkvc_gpu_external_frame_config& config,
+    std::shared_ptr<mkvc::gpu::Completion> producer,
+    mkvc_gpu_frame** out_frame) {
+    try {
+        const auto release = config.release;
+        void* const user_data = config.user_data;
+        auto accepted = std::make_shared<std::atomic<bool>>(false);
+        auto recycle = [release, user_data, accepted](uint64_t) noexcept {
+            if (!accepted->load(std::memory_order_acquire) || release == nullptr)
+                return;
+            try { release(user_data); } catch (...) {}
+        };
+        mkvc::gpu::BackendResource resource{};
+        if (config.frame.backend == MKVC_BACKEND_NVIDIA) {
+            resource.kind = mkvc::gpu::BackendResourceKind::kNvidiaCudaFrame;
+            resource.object = reinterpret_cast<void*>(static_cast<uintptr_t>(
+                config.native_handle.handles[0]));
+        }
+        auto core = std::make_shared<mkvc::gpu::GpuFrameCore>(
+            config.frame, std::move(producer), std::move(recycle),
+            config.native_handle, resource);
+        *out_frame = mkvc::gpu::make_handle(core);
+        if (*out_frame == nullptr) {
+            return gpu_fail(MKVC_ERROR_INTERNAL,
+                            "failed to allocate external GPU frame handle");
+        }
+        accepted->store(true, std::memory_order_release);
+        return MKVC_OK;
+    } catch (const std::exception& exception) {
+        return gpu_fail(MKVC_ERROR_INTERNAL, exception.what());
+    } catch (...) {
+        return gpu_fail(MKVC_ERROR_INTERNAL,
+                        "unknown external GPU frame import failure");
+    }
+}
 }  // namespace
 
 extern "C" {
@@ -351,36 +392,44 @@ mkvc_result mkvc_gpu_frame_import_external(
                     return MKVC_OK;
                 });
         }
-        const auto release = config->release;
-        void* const user_data = config->user_data;
-        auto accepted = std::make_shared<std::atomic<bool>>(false);
-        auto recycle = [release, user_data, accepted](uint64_t) noexcept {
-            if (!accepted->load(std::memory_order_acquire) || release == nullptr)
-                return;
-            try { release(user_data); } catch (...) {}
-        };
-        mkvc::gpu::BackendResource resource{};
-        if (config->frame.backend == MKVC_BACKEND_NVIDIA) {
-            resource.kind = mkvc::gpu::BackendResourceKind::kNvidiaCudaFrame;
-            resource.object = reinterpret_cast<void*>(static_cast<uintptr_t>(
-                config->native_handle.handles[0]));
-        }
-        auto core = std::make_shared<mkvc::gpu::GpuFrameCore>(
-            config->frame, std::move(producer), std::move(recycle),
-            config->native_handle, resource);
-        *out_frame = mkvc::gpu::make_handle(core);
-        if (*out_frame == nullptr) {
-            return gpu_fail(MKVC_ERROR_INTERNAL,
-                            "failed to allocate external GPU frame handle");
-        }
-        accepted->store(true, std::memory_order_release);
-        return MKVC_OK;
+        return import_external_with_completion(*config, std::move(producer), out_frame);
     } catch (const std::exception& exception) {
         return gpu_fail(MKVC_ERROR_INTERNAL, exception.what());
     } catch (...) {
         return gpu_fail(MKVC_ERROR_INTERNAL,
                         "unknown external GPU frame import failure");
     }
+}
+
+mkvc_result mkvc_gpu_frame_import_cuda_event(
+    const mkvc_gpu_external_frame_config* config,
+    mkvc_gpu_frame** out_frame) {
+    mkvc_last_error.clear();
+    if (config == nullptr || out_frame == nullptr ||
+        config->struct_size < sizeof(*config) || config->struct_version != 1) {
+        return gpu_fail(MKVC_ERROR_INVALID_ARGUMENT,
+                        "invalid CUDA event frame configuration");
+    }
+    *out_frame = nullptr;
+    std::string error;
+    if (!valid_external_layout(*config, error))
+        return gpu_fail(MKVC_ERROR_INVALID_ARGUMENT, std::move(error));
+    if (config->frame.backend != MKVC_BACKEND_NVIDIA || config->query != nullptr ||
+        config->native_handle.handles[3] == 0) {
+        return gpu_fail(MKVC_ERROR_INVALID_ARGUMENT,
+                        "CUDA event import requires NVIDIA, a native event, and no query callback");
+    }
+#if defined(MKVC_HAS_NVIDIA)
+    std::shared_ptr<mkvc::gpu::Completion> producer;
+    const mkvc_result result = mkvc::gpu::nvidia::load_cuda_event_completion(
+        config->native_handle.handles[1], config->native_handle.handles[3],
+        producer, error);
+    if (result != MKVC_OK) return gpu_fail(result, std::move(error));
+    return import_external_with_completion(*config, std::move(producer), out_frame);
+#else
+    return gpu_fail(MKVC_ERROR_NOT_SUPPORTED,
+                    "CUDA event import was not enabled in this build");
+#endif
 }
 
 }  // extern "C"

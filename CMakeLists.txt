@@ -320,6 +320,7 @@ if(MKVC_BUILD_TESTS)
                 tests/nvidia_gpu_test_support.cpp
                 src/nvidia_webm_decoder.cpp src/nvidia_probe.cpp
                 src/gpu/gpu_frame.cpp src/gpu/gpu_frame_pool.cpp
+                src/gpu/nvidia/cuda_completion.cpp
                 src/gpu/nvidia/nvidia_native_handle.cpp)
             target_compile_features(mkvc_nvidia_webm_decoder_test PRIVATE cxx_std_17)
             target_include_directories(mkvc_nvidia_webm_decoder_test PRIVATE
@@ -355,6 +356,18 @@ if(MKVC_BUILD_TESTS)
                     "${CMAKE_CURRENT_BINARY_DIR}/nvidia_gpu_transcode.webm")
             set_tests_properties(mkvc_nvidia_gpu_transcode PROPERTIES
                 FIXTURES_REQUIRED cpu_vp9_sample SKIP_RETURN_CODE 77)
+
+            add_executable(mkvc_nvidia_cuda_event_import_test
+                tests/nvidia_cuda_event_import_test.cpp)
+            target_compile_features(mkvc_nvidia_cuda_event_import_test PRIVATE cxx_std_17)
+            target_include_directories(mkvc_nvidia_cuda_event_import_test PRIVATE
+                ${nv_codec_headers_SOURCE_DIR}/include)
+            target_link_libraries(mkvc_nvidia_cuda_event_import_test PRIVATE
+                mkvcodec ${CMAKE_DL_LIBS})
+            add_test(NAME mkvc_nvidia_cuda_event_import
+                COMMAND mkvc_nvidia_cuda_event_import_test)
+            set_tests_properties(mkvc_nvidia_cuda_event_import PROPERTIES
+                SKIP_RETURN_CODE 77)
         endif()
 
         find_program(FFMPEG_EXECUTABLE ffmpeg)

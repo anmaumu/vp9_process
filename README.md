@@ -29,7 +29,8 @@ decode結果をNumPy/OpenCV、CuPy/DLPack、D3D11、VA-API等へexportし、外�
 - CPU owned NumPy APIと現在のCPU convenience processingは安全な既定機能として残します。
 - borrowed CPU decode、同期/非同期encode、固定容量native input poolはC ABI/Pythonへ
   実装済みです。.NETも同じunmanaged poolとcompletion submissionを利用できます。
-  OS page-lock付きpool、GPU processed-resource importは未実装です。
+  OS page-lock付きpoolは未実装です。GPU processed-resource importはCUDA pointer
+  （完了済みまたはproducer CUDA event付き）を実装済みです。
 
 ## 現在地
 
@@ -42,8 +43,9 @@ NVENC AV1 WriterはC ABI/Python共通経路へ実装済みで、runtime queryが
 だけに公開します。RTX 2060での非対応拒否とGPUなしLinuxでの退行は検証済みですが、
 AV1 NVENC対応GPUでのpositive encode検証は未完です。NVIDIA VP9 decodeはCUDA pointer
 surfaceを公開でき、NVDEC surface→NVENC registered-resource経路と、各NV12 planeを
-DLPackへ渡すnative/Python APIを実装済みです。CUDA eventのconsumer-stream dependency、
-CuPy実機検証、処理済みCUDA resourceのencoder import、NVIDIA AV1対応GPU検証、
+DLPackへ渡すnative/Python APIを実装済みです。外部CUDA pointerはproducer CUDA event
+付きで再importできます。DLPackのconsumer-stream dependency、CuPy実機検証、
+NVIDIA AV1対応GPU検証、
 10-bit public frame APIは未完です。
 .NET 8 bindingではABI version/capability query、型付きerror、SafeHandleに加え、
 `IDisposable`な`MkvVideoWriter`/`MkvVideoCapture`、owned I420 frame、managed arrayの
@@ -143,9 +145,10 @@ managed tensorを解放するまでnative GPU leaseも保持されます。
 `GpuFrame::import_external()`で共通leaseへ取り込めます。producer queryとrelease
 callbackは必須の寿命契約で、CUDA-pointer NV12は対応NVENCへ直接submitできます。
 .NETは`MkvGpuFrame.ImportExternal()`でmanaged ownerを最終releaseまで保持できます。
-Pythonはstable-ABI extension経由の`GpuFrame.import_cuda_pointer()`を利用でき、現時点では
-`producer_synchronized=True`を明示した完了済みresourceに限定します。非同期CUDA event
-dependencyとDLPack importは今後の実装です。
+Pythonはstable-ABI extension経由の`GpuFrame.import_cuda_pointer()`を利用できます。
+完了済みresourceは`producer_synchronized=True`、非同期producerは同じCUDA contextで
+記録した`event`を指定します。native側は`cuEventQuery`をpollし、device-wide synchronize
+なしで完了後だけconsumerへ渡します。DLPackからの直接importは今後の実装です。
 
 ```python
 import cupy as cp

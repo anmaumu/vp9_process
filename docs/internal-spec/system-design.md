@@ -298,7 +298,7 @@ Source layoutは共通所有権・同期を`src/gpu/`、将来のvendor実装を
 - `INT-GPU-014`: device lost/cancel/timeout時は全completionをterminal failureへ遷移させ、waiterを起床し、resourceを依存順に一度だけ解放する。
 - `INT-GPU-015`: copy policyは既存create configのABI sizeを変更せずversioned setterで設定し、最初のframe受理後の変更を拒否する。strict指定時はCPU read/write APIをbackend呼出前に拒否する。
 - `INT-GPU-016`: GPU import descriptorはresource owner、memory type/layout、device/context、producer completion、release callbackを保持し、validation失敗時を含めcallbackを高々一度だけ呼ぶ。
-- `INT-GPU-017`: encoder submissionはproducer dependencyをdevice-wide同期なしで待ち、encode completionまでimport ownerをretainする。consumer completion後にのみrelease callbackを実行する。
+- `INT-GPU-017`: encoder submissionはproducer dependencyをdevice-wide同期なしで待ち、encode completionまでimport ownerをretainする。consumer completion後にのみrelease callbackを実行する。外部CUDA event importはCUDA Driver APIをruntime loadし、指定contextをquery中だけpush/popして`cuEventQuery`を共通completionへ変換する。CUDA runtime callback、Python callback、`cuCtxSynchronize`は使用しない。
 
 所有権の基準シーケンス:
 

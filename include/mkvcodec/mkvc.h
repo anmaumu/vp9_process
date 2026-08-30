@@ -529,6 +529,16 @@ MKVC_API mkvc_result mkvc_gpu_frame_import_external(
     mkvc_gpu_frame** out_frame);
 
 /**
+ * Import an NVIDIA CUDA-pointer frame whose producer dependency is represented
+ * by native_handle.handles[3] (CUevent). The event is queried in the supplied
+ * CUDA context without a device-wide synchronization. The event and context
+ * must remain valid until the final frame lease is released.
+ */
+MKVC_API mkvc_result mkvc_gpu_frame_import_cuda_event(
+    const mkvc_gpu_external_frame_config* config,
+    mkvc_gpu_frame** out_frame);
+
+/**
  * @brief Export one linear GPU plane as a standard DLPack DLManagedTensor.
  *
  * The returned pointer is owned by the DLPack consumer, which must invoke the
