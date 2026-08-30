@@ -82,7 +82,8 @@
 - [x] Python Intel `VideoCapture.read_surface()` descriptor/native-handle lease
 - [x] Python Intel strict `require_gpu_resident` Capture/Writer path and actual copy-path metrics
 - [ ] Windows Intel D3D11 `read_surface` hardware qualification
-- [ ] NVIDIA NVDEC→NVENC registered-resource pipeline
+- [x] NVIDIA NVDEC CUDA pointer→NVENC registered-resource implementation
+- [ ] NVIDIA NVDEC→NVENC positive AV1 hardware qualification and trace proof
 - [x] backend-neutral borrowed native-handle descriptor and lease validation
 - [x] connect Intel VA surface factory to real Linux decoder output
 - [ ] connect Intel D3D11 texture factory and VPP/encoder surfaces

@@ -477,7 +477,8 @@ mkvc_result EncoderSession::set_copy_policy(
         error = "GPU-resident encoding currently requires queue_size=0";
         return MKVC_ERROR_NOT_SUPPORTED;
     }
-    if (policy.require_gpu_resident != 0 && !impl_->intel_encoder) {
+    if (policy.require_gpu_resident != 0 &&
+        !impl_->intel_encoder && !impl_->nvidia_encoder) {
         error = "GPU-resident encoding is unavailable for this backend";
         return MKVC_ERROR_NOT_SUPPORTED;
     }
@@ -503,12 +504,14 @@ mkvc_result EncoderSession::write_gpu(
         error = "encoder is closing or closed";
         return MKVC_ERROR_INVALID_STATE;
     }
-    if (!impl_->intel_encoder) {
+    if (!impl_->intel_encoder && !impl_->nvidia_encoder) {
         error = "GPU frame is not compatible with this encoder backend";
         return MKVC_ERROR_NOT_SUPPORTED;
     }
     const auto started = std::chrono::steady_clock::now();
-    const mkvc_result result = impl_->intel_encoder->write_gpu(frame, error);
+    const mkvc_result result = impl_->intel_encoder
+        ? impl_->intel_encoder->write_gpu(frame, error)
+        : impl_->nvidia_encoder->write_gpu(frame, error);
     impl_->backend_time_ns += elapsed_ns(started);
     impl_->hardware_pending_peak = std::max(
         impl_->hardware_pending_peak, backend_hardware_pending(*impl_));

@@ -141,11 +141,15 @@ class VideoWriter:
         queue_size: int = 8,
         require_gpu_resident: bool = False,
     ) -> None:
-        if codec not in ("vp9", "av1") or backend not in ("cpu", "intel"):
-            raise ValueError("the Python writer supports VP9/AV1 on CPU or Intel")
-        if require_gpu_resident and backend != "intel":
+        if codec not in ("vp9", "av1") or backend not in (
+            "cpu", "intel", "nvidia"
+        ):
             raise ValueError(
-                "require_gpu_resident currently requires the Intel backend"
+                "the Python writer supports VP9/AV1 on CPU, Intel or NVIDIA"
+            )
+        if require_gpu_resident and backend not in ("intel", "nvidia"):
+            raise ValueError(
+                "require_gpu_resident requires the Intel or NVIDIA backend"
             )
         if require_gpu_resident and queue_size != 0:
             raise ValueError(
@@ -160,8 +164,11 @@ class VideoWriter:
         config.output_path_utf8 = encoded_path
         config.codec = (native.MKVC_CODEC_VP9 if codec == "vp9" else
                         native.MKVC_CODEC_AV1)
-        config.backend = (native.MKVC_BACKEND_CPU if backend == "cpu" else
-                          native.MKVC_BACKEND_INTEL)
+        config.backend = {
+            "cpu": native.MKVC_BACKEND_CPU,
+            "intel": native.MKVC_BACKEND_INTEL,
+            "nvidia": native.MKVC_BACKEND_NVIDIA,
+        }[backend]
         config.width = width
         config.height = height
         config.fps_num = rate.numerator
