@@ -31,7 +31,7 @@ if(MKVC_ENABLE_CPU_VP9 OR MKVC_ENABLE_CPU_AV1 OR MKVC_ENABLE_INTEL_ONEVPL OR MKV
 endif()
 
 if(MKVC_ENABLE_INTEL_ONEVPL)
-    find_package(VPL CONFIG REQUIRED)
+    find_package(VPL 2.10 CONFIG REQUIRED)
 endif()
 
 if(MKVC_ENABLE_CPU_VP9)
@@ -107,7 +107,8 @@ if(MKVC_ENABLE_INTEL_ONEVPL)
     target_sources(mkvcodec PRIVATE
         src/gpu/intel/intel_completion.cpp
         src/gpu/intel/intel_surface_factory.cpp)
-    target_compile_definitions(mkvcodec PRIVATE MKVC_HAS_INTEL_ONEVPL=1)
+    target_compile_definitions(mkvcodec PRIVATE
+        MKVC_HAS_INTEL_ONEVPL=1 ONEVPL_EXPERIMENTAL=1)
     target_include_directories(mkvcodec PRIVATE ${LIBWEBM_COMPAT_INCLUDE_DIR})
     target_link_libraries(mkvcodec PRIVATE
         VPL::dispatcher unofficial::libwebm::libwebm yuv)
@@ -403,7 +404,8 @@ if(MKVC_BUILD_TESTS)
 
     if(MKVC_ENABLE_INTEL_ONEVPL AND MKVC_ENABLE_CPU_VP9)
         add_test(NAME mkvc_intel_gpu_surface
-            COMMAND mkvc_intel_gpu_surface_test "${MKVC_VP9_TEST_OUTPUT}")
+            COMMAND mkvc_intel_gpu_surface_test "${MKVC_VP9_TEST_OUTPUT}"
+                "${CMAKE_CURRENT_BINARY_DIR}/intel_external_va_import.webm")
         set_tests_properties(mkvc_intel_gpu_surface PROPERTIES
             FIXTURES_REQUIRED cpu_vp9_sample SKIP_RETURN_CODE 77)
     endif()

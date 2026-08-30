@@ -3,6 +3,7 @@
 
 #if defined(MKVC_HAS_INTEL_ONEVPL)
 #include <vpl/mfxdispatcher.h>
+#include <vpl/mfxmemory.h>
 #include <vpl/mfxvideo.h>
 #endif
 
@@ -194,6 +195,73 @@ mkvc_result submit_surface(IntelVplEncoder::Impl& impl,
     return MKVC_OK;
 }
 
+mkvc_result import_external_surface(
+    IntelVplEncoder::Impl& impl,
+    const std::shared_ptr<gpu::GpuFrameCore>& frame,
+    mfxFrameSurface1*& surface, std::string& error) {
+    surface = nullptr;
+    mkvc_gpu_native_handle_desc native{};
+    mkvc_result result = frame->get_native_handle(native, error);
+    if (result != MKVC_OK) return result;
+    mfxMemoryInterface* memory = nullptr;
+    if (MFXGetMemoryInterface(impl.session, &memory) != MFX_ERR_NONE ||
+        memory == nullptr || memory->Version.Major < 1 ||
+        (memory->Version.Major == 1 && memory->Version.Minor < 1) ||
+        memory->ImportFrameSurface == nullptr) {
+        error = "oneVPL runtime does not expose external surface import";
+        return MKVC_ERROR_NOT_SUPPORTED;
+    }
+    mfxSurfaceHeader* header = nullptr;
+#if defined(_WIN32)
+    mfxSurfaceD3D11Tex2D external{};
+    if (native.type != MKVC_GPU_NATIVE_D3D11_TEXTURE ||
+        native.handles[0] == 0 || native.handles[1] != 0) {
+        error = "oneVPL D3D11 import requires texture subresource zero";
+        return MKVC_ERROR_NOT_SUPPORTED;
+    }
+    external.SurfaceInterface.Header.SurfaceType = MFX_SURFACE_TYPE_D3D11_TEX2D;
+    external.SurfaceInterface.Header.SurfaceFlags = MFX_SURFACE_FLAG_IMPORT_SHARED;
+    external.SurfaceInterface.Header.StructSize = sizeof(external);
+    external.texture2D = reinterpret_cast<mfxHDL>(
+        static_cast<uintptr_t>(native.handles[0]));
+    header = &external.SurfaceInterface.Header;
+#else
+    mfxSurfaceVAAPI external{};
+    if (native.type != MKVC_GPU_NATIVE_VA_SURFACE || native.handles[0] == 0 ||
+        native.handles[1] > std::numeric_limits<mfxU32>::max()) {
+        error = "oneVPL VA import requires a valid display and surface";
+        return MKVC_ERROR_INVALID_ARGUMENT;
+    }
+    external.SurfaceInterface.Header.SurfaceType = MFX_SURFACE_TYPE_VAAPI;
+    external.SurfaceInterface.Header.SurfaceFlags = MFX_SURFACE_FLAG_IMPORT_SHARED;
+    external.SurfaceInterface.Header.StructSize = sizeof(external);
+    external.vaDisplay = reinterpret_cast<mfxHDL>(
+        static_cast<uintptr_t>(native.handles[0]));
+    external.vaSurfaceID = static_cast<mfxU32>(native.handles[1]);
+    header = &external.SurfaceInterface.Header;
+#endif
+    const mfxStatus status = memory->ImportFrameSurface(
+        memory, MFX_SURFACE_COMPONENT_ENCODE, header, &surface);
+    if (status != MFX_ERR_NONE || surface == nullptr ||
+        surface->FrameInterface == nullptr) {
+        if (surface != nullptr && surface->FrameInterface != nullptr)
+            surface->FrameInterface->Release(surface);
+        surface = nullptr;
+        error = "oneVPL shared external surface import failed with status " +
+                std::to_string(status);
+        return status == MFX_ERR_UNSUPPORTED
+            ? MKVC_ERROR_NOT_SUPPORTED : MKVC_ERROR_CODEC;
+    }
+    if ((header->SurfaceFlags & MFX_SURFACE_FLAG_IMPORT_SHARED) == 0 ||
+        (header->SurfaceFlags & MFX_SURFACE_FLAG_IMPORT_COPY) != 0) {
+        surface->FrameInterface->Release(surface);
+        surface = nullptr;
+        error = "oneVPL external surface import would copy pixels";
+        return MKVC_ERROR_NOT_SUPPORTED;
+    }
+    return MKVC_OK;
+}
+
 }  // namespace
 #endif
 
@@ -331,18 +399,22 @@ mkvc_result IntelVplEncoder::write_gpu_surface(
         error = "GPU frame is not a compatible Intel NV12 surface";
         return MKVC_ERROR_INVALID_ARGUMENT;
     }
-    const auto resource = frame->backend_resource();
-    if (resource.kind != gpu::BackendResourceKind::kIntelVplSurface ||
-        resource.object == nullptr) {
-        error = "GPU frame has no internal oneVPL surface";
-        return MKVC_ERROR_NOT_SUPPORTED;
-    }
     // Separate decode/encode sessions cannot share a SyncPoint dependency. Waiting
     // here keeps pixels resident while establishing readiness deterministically.
     mkvc_result result = frame->producer_completion()->wait(
         std::numeric_limits<uint32_t>::max(), error);
     if (result != MKVC_OK) return result;
-    auto* surface = static_cast<mfxFrameSurface1*>(resource.object);
+    const auto resource = frame->backend_resource();
+    mfxFrameSurface1* surface = nullptr;
+    bool imported = false;
+    if (resource.kind == gpu::BackendResourceKind::kIntelVplSurface &&
+        resource.object != nullptr) {
+        surface = static_cast<mfxFrameSurface1*>(resource.object);
+    } else {
+        result = import_external_surface(impl, frame, surface, error);
+        if (result != MKVC_OK) return result;
+        imported = true;
+    }
     const int64_t frame_pts = pts >= 0 ? pts : impl.next_pts;
     const mfxU64 original_timestamp = surface->Data.TimeStamp;
     surface->Data.TimeStamp = static_cast<mfxU64>(frame_pts) * 90000ULL *
@@ -350,6 +422,7 @@ mkvc_result IntelVplEncoder::write_gpu_surface(
     auto completion = std::make_shared<gpu::ManualCompletion>();
     result = submit_surface(impl, surface, error, completion, frame);
     surface->Data.TimeStamp = original_timestamp;
+    if (imported) surface->FrameInterface->Release(surface);
     if (result != MKVC_OK && result != MKVC_END_OF_STREAM) {
         completion->fail(error);
         return result;

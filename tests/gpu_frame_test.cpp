@@ -211,6 +211,16 @@ int main() {
     assert(external_frame != nullptr);
     mkvc_gpu_frame_release(external_frame);
     assert(external_state.releases.load() == 2);
+    external_config.frame.backend = MKVC_BACKEND_INTEL;
+    external_config.frame.memory_type = MKVC_GPU_MEMORY_VA_SURFACE;
+    external_config.native_handle.type = MKVC_GPU_NATIVE_VA_SURFACE;
+    external_config.native_handle.handles[0] = 0x55550000;
+    external_config.native_handle.handles[1] = 17;
+    assert(mkvc_gpu_frame_import_external(
+        &external_config, &external_frame) == MKVC_OK);
+    assert(external_frame != nullptr);
+    mkvc_gpu_frame_release(external_frame);
+    assert(external_state.releases.load() == 3);
 
     auto pool = std::make_shared<mkvc::gpu::GpuFramePool>(2);
     auto pool_done_a = std::make_shared<mkvc::gpu::ManualCompletion>();

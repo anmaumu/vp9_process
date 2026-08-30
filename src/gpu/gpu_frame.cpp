@@ -253,7 +253,9 @@ bool valid_external_layout(const mkvc_gpu_external_frame_config& config,
             native.type == MKVC_GPU_NATIVE_D3D11_TEXTURE;
         const bool va = desc.memory_type == MKVC_GPU_MEMORY_VA_SURFACE &&
                         native.type == MKVC_GPU_NATIVE_VA_SURFACE;
-        if ((!d3d11 && !va) || native.handles[0] == 0) {
+        if ((!d3d11 && !va) || native.handles[0] == 0 ||
+            desc.pixel_format != MKVC_PIXEL_FORMAT_NV12 ||
+            desc.plane_count != 2) {
             error = "external Intel import requires a D3D11 or VA resource";
             return false;
         }
