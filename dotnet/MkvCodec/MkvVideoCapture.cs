@@ -50,6 +50,17 @@ public sealed class MkvVideoCapture : IDisposable
         }
     }
 
+    /// <summary>Read one leased GPU surface without copying pixels to CPU memory.</summary>
+    public MkvGpuFrame? ReadSurface()
+    {
+        ObjectDisposedException.ThrowIf(handle is null || handle.IsClosed, this);
+        MkvResult result = NativeMethods.mkvc_decoder_read_gpu(
+            handle!, out MkvGpuFrameHandle frame);
+        if (result == MkvResult.EndOfStream) return null;
+        MkvCodecInfo.ThrowIfFailed(result);
+        return new MkvGpuFrame(frame);
+    }
+
     private static byte[] CopyPlane(nint source, int stride, uint width, uint height)
     {
         byte[] result = new byte[checked((int)(width * height))];

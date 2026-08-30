@@ -18,7 +18,9 @@ public enum MkvResult : uint
 
 public enum MkvBackend : uint { Cpu = 1, Nvidia = 2, Intel = 3 }
 public enum MkvCodecKind : uint { Vp9 = 1, Av1 = 2 }
-public enum MkvPixelFormat : uint { I420 = 1, Nv12 = 2, Bgr24 = 3, Rgb24 = 4, Bgra32 = 5 }
+public enum MkvPixelFormat : uint { I420 = 1, Nv12 = 2, Bgr24 = 3, Rgb24 = 4, Bgra32 = 5, P010 = 6 }
+public enum MkvGpuMemoryType : uint { D3D11Texture = 1, VaSurface = 2, CudaPointer = 3, CudaArray = 4, Usm = 5 }
+public enum MkvGpuNativeHandleType : uint { D3D11Texture = 1, VaSurface = 2, CudaPointer = 3, CudaArray = 4, UsmPointer = 5 }
 
 [StructLayout(LayoutKind.Sequential)]
 public struct MkvVersion
@@ -105,4 +107,38 @@ internal unsafe struct NativeFrameView
     internal int Stride2;
     internal int Stride3;
     internal long Pts;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct MkvGpuFrameDescriptor
+{
+    public uint StructSize;
+    public uint StructVersion;
+    public MkvBackend Backend;
+    public MkvGpuMemoryType MemoryType;
+    public ulong DeviceId;
+    public ulong Generation;
+    public MkvPixelFormat PixelFormat;
+    public uint Width;
+    public uint Height;
+    public uint PlaneCount;
+    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)] public ulong[] PlaneOffsets;
+    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)] public ulong[] Pitches;
+    public long PtsNanoseconds;
+    public uint ColorPrimaries;
+    public uint ColorTransfer;
+    public uint ColorMatrix;
+    public uint ColorRange;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct MkvGpuNativeHandleDescriptor
+{
+    public uint StructSize;
+    public uint StructVersion;
+    public MkvGpuNativeHandleType Type;
+    public uint Borrowed;
+    public ulong DeviceId;
+    public ulong Generation;
+    [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)] public ulong[] Handles;
 }

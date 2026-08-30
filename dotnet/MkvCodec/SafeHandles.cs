@@ -33,3 +33,13 @@ public sealed class MkvFrameHandle : SafeHandleZeroOrMinusOneIsInvalid
         return true;
     }
 }
+
+public sealed class MkvGpuFrameHandle : SafeHandleZeroOrMinusOneIsInvalid
+{
+    private MkvGpuFrameHandle() : base(true) { }
+    protected override bool ReleaseHandle()
+    {
+        NativeMethods.mkvc_gpu_frame_release(handle);
+        return true;
+    }
+}

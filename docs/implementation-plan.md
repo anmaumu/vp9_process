@@ -93,7 +93,8 @@
 - [ ] Intel oneVPL VPP/D3D11/VA-API mapping
 - [ ] fused processing, strict GPU-resident policy and copy-path trace
 - [ ] Python GPU Frame/DLPack/CuPy processing surface
-- [ ] C++/.NET GPU Frame and native handle surface
+- [x] .NET GPU Frame SafeHandle, descriptor/native handle/wait and Capture.ReadSurface source API
+- [ ] .NET GPU Frame SDK build, Intel/NVIDIA hardware smoke and C++ RAII wrapper
 - [ ] `TEST-GPU-001..014` lifetime, interop, fault, trace and soak qualification
 
 ## Phase 4: language bindings and distribution

@@ -62,6 +62,10 @@ internal static class NativeMethods
         MkvDecoderHandle decoder, out MkvFrameHandle frame);
 
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern MkvResult mkvc_decoder_read_gpu(
+        MkvDecoderHandle decoder, out MkvGpuFrameHandle frame);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
     internal static extern MkvResult mkvc_decoder_close(nint decoder);
 
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
@@ -77,4 +81,19 @@ internal static class NativeMethods
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
     internal static extern MkvResult mkvc_frame_get_view(
         MkvFrameHandle frame, ref NativeFrameView view);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern void mkvc_gpu_frame_release(nint frame);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern MkvResult mkvc_gpu_frame_get_desc(
+        MkvGpuFrameHandle frame, ref MkvGpuFrameDescriptor descriptor);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern MkvResult mkvc_gpu_frame_get_native_handle(
+        MkvGpuFrameHandle frame, ref MkvGpuNativeHandleDescriptor descriptor);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern MkvResult mkvc_gpu_frame_wait(
+        MkvGpuFrameHandle frame, uint timeoutMilliseconds);
 }
