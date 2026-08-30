@@ -148,6 +148,7 @@ struct EncoderSession::Impl {
     uint64_t backend_time_ns = 0;
     uint32_t peak_queue_depth = 0;
     uint32_t hardware_pending_peak = 0;
+    uint32_t copy_path = MKVC_COPY_PATH_UNKNOWN;
 #if defined(MKVC_ENABLE_TEST_HOOKS)
     uint64_t test_fail_after = std::numeric_limits<uint64_t>::max();
 #endif
@@ -185,6 +186,11 @@ uint32_t backend_hardware_pending(const EncoderSession::Impl& impl) {
 uint64_t elapsed_ns(std::chrono::steady_clock::time_point started) {
     return static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(
         std::chrono::steady_clock::now() - started).count());
+}
+
+void observe_copy_path(EncoderSession::Impl& impl, uint32_t path) {
+    if (impl.copy_path == MKVC_COPY_PATH_UNKNOWN) impl.copy_path = path;
+    else if (impl.copy_path != path) impl.copy_path = MKVC_COPY_PATH_MIXED;
 }
 
 void encoder_worker(EncoderSession::Impl* impl) noexcept {
@@ -249,6 +255,7 @@ void encoder_worker(EncoderSession::Impl* impl) noexcept {
                     impl->state_changed.notify_all();
                 } else {
                     ++impl->completed_frames;
+                    observe_copy_path(*impl, MKVC_COPY_PATH_CPU);
                 }
             }
         }
@@ -355,6 +362,7 @@ mkvc_result EncoderSession::write(const mkvc_frame_view& frame, bool block,
         if (result == MKVC_OK) {
             ++impl_->accepted_frames;
             ++impl_->completed_frames;
+            observe_copy_path(*impl_, MKVC_COPY_PATH_CPU);
         }
         return result;
     }
@@ -471,6 +479,7 @@ mkvc_result EncoderSession::write_gpu(
     if (result == MKVC_OK) {
         ++impl_->accepted_frames;
         ++impl_->completed_frames;
+        observe_copy_path(*impl_, MKVC_COPY_PATH_ZERO_COPY);
     }
     return result;
 }
@@ -485,8 +494,7 @@ void EncoderSession::get_metrics(mkvc_pipeline_metrics& metrics) const {
     metrics.queue_capacity = static_cast<uint32_t>(impl_->capacity);
     metrics.peak_queue_depth = impl_->peak_queue_depth;
     metrics.hardware_pending_peak = impl_->hardware_pending_peak;
-    metrics.copy_path = impl_->completed_frames == 0
-        ? MKVC_COPY_PATH_UNKNOWN : MKVC_COPY_PATH_CPU;
+    metrics.copy_path = impl_->copy_path;
 }
 
 mkvc_result EncoderSession::flush(std::string& error) {

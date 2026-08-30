@@ -98,7 +98,7 @@ def _read_metrics(handle: ct.c_void_p, function: object) -> PipelineMetrics:
     metrics.struct_size = ct.sizeof(metrics)
     metrics.struct_version = 1
     native.check(function(handle, ct.byref(metrics)))
-    paths = {0: "unknown", 1: "cpu", 2: "zero_copy"}
+    paths = {0: "unknown", 1: "cpu", 2: "zero_copy", 3: "mixed"}
     return PipelineMetrics(
         accepted_frames=metrics.accepted_frames,
         completed_frames=metrics.completed_frames,
@@ -139,9 +139,18 @@ class VideoWriter:
         keyframe_interval_frames: int = 0,
         threads: int = 0,
         queue_size: int = 8,
+        require_gpu_resident: bool = False,
     ) -> None:
         if codec not in ("vp9", "av1") or backend not in ("cpu", "intel"):
             raise ValueError("the Python writer supports VP9/AV1 on CPU or Intel")
+        if require_gpu_resident and backend != "intel":
+            raise ValueError(
+                "require_gpu_resident currently requires the Intel backend"
+            )
+        if require_gpu_resident and queue_size != 0:
+            raise ValueError(
+                "require_gpu_resident currently requires queue_size=0"
+            )
         width, height = frame_size
         rate = _fps_fraction(fps)
         encoded_path = str(Path(path)).encode("utf-8")
@@ -168,6 +177,7 @@ class VideoWriter:
         self._width = width
         self._height = height
         self._closed = False
+        self._require_gpu_resident = bool(require_gpu_resident)
         self._last_metrics: PipelineMetrics | None = None
 
     @property
@@ -179,6 +189,10 @@ class VideoWriter:
         return _read_metrics(self._handle, native.lib.mkvc_encoder_get_metrics)
 
     def _submit(self, frame: native.FrameView, *, block: bool) -> bool:
+        if self._require_gpu_resident:
+            raise RuntimeError(
+                "CPU frame submission is disabled by require_gpu_resident=True"
+            )
         function = (native.lib.mkvc_encoder_write_frame if block else
                     native.lib.mkvc_encoder_try_write_frame)
         result = function(self._handle, ct.byref(frame))
@@ -351,9 +365,18 @@ class VideoCapture(Iterator[U8Plane]):
         backend: str = "cpu",
         threads: int = 0,
         prefetch: int = 4,
+        require_gpu_resident: bool = False,
     ) -> None:
         if codec not in ("vp9", "av1") or backend not in ("cpu", "intel", "nvidia"):
             raise ValueError("the Python capture supports VP9/AV1 on CPU, Intel, or NVIDIA")
+        if require_gpu_resident and backend != "intel":
+            raise ValueError(
+                "require_gpu_resident currently requires the Intel backend"
+            )
+        if require_gpu_resident and prefetch != 0:
+            raise ValueError(
+                "require_gpu_resident currently requires prefetch=0"
+            )
         encoded_path = str(Path(path)).encode("utf-8")
         config = native.DecoderConfig()
         config.struct_size = ct.sizeof(config)
@@ -371,6 +394,7 @@ class VideoCapture(Iterator[U8Plane]):
         self._handle = native.DecoderHandle()
         native.check(native.lib.mkvc_decoder_create(ct.byref(config), ct.byref(self._handle)))
         self._closed = False
+        self._require_gpu_resident = bool(require_gpu_resident)
         self._last_metrics: PipelineMetrics | None = None
         self.last_pts_ns: int | None = None
 
@@ -383,6 +407,11 @@ class VideoCapture(Iterator[U8Plane]):
         return _read_metrics(self._handle, native.lib.mkvc_decoder_get_metrics)
 
     def _read_handle(self) -> native.FrameHandle | None:
+        if self._require_gpu_resident:
+            raise RuntimeError(
+                "CPU frame reads are disabled by require_gpu_resident=True; "
+                "use read_surface()"
+            )
         if self._closed:
             raise RuntimeError("capture is closed")
         handle = native.FrameHandle()

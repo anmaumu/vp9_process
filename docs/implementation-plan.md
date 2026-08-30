@@ -78,6 +78,7 @@
 - [ ] Intel decode→VPP→encode shared-session pipeline (direct decode→encode is implemented on Linux)
 - [x] Linux Intel oneVPL video-memory decode→`mkvc_decoder_read_gpu`→VA surface lease
 - [x] Python Intel `VideoCapture.read_surface()` descriptor/native-handle lease
+- [x] Python Intel strict `require_gpu_resident` Capture/Writer path and actual copy-path metrics
 - [ ] Windows Intel D3D11 `read_surface` hardware qualification
 - [ ] NVIDIA NVDEC→NVENC registered-resource pipeline
 - [x] backend-neutral borrowed native-handle descriptor and lease validation

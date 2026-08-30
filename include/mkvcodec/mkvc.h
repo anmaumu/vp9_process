@@ -91,7 +91,8 @@ typedef enum mkvc_pixel_format {
 typedef enum mkvc_copy_path {
     MKVC_COPY_PATH_UNKNOWN = 0,  /**< No frame has completed yet. */
     MKVC_COPY_PATH_CPU = 1,      /**< Pixels crossed caller-owned CPU memory. */
-    MKVC_COPY_PATH_ZERO_COPY = 2 /**< GPU surface remained device-resident. */
+    MKVC_COPY_PATH_ZERO_COPY = 2, /**< GPU surface remained device-resident. */
+    MKVC_COPY_PATH_MIXED = 3      /**< Both CPU and GPU-resident inputs were used. */
 } mkvc_copy_path;
 
 /** Geometry policy used by CPU/GPU frame processing backends. */

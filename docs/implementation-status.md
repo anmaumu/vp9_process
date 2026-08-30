@@ -80,6 +80,10 @@ immediate Python lease release after submission. The current implementation wait
 the producer and oldest encode SyncPoint on the calling thread for bounded pool
 progress; VPP, asynchronous cross-stage overlap, Windows D3D11, AV1 direct
 transcode qualification, and trace-based proof of zero CPU transfer remain pending.
+Encoder metrics now distinguish CPU-only, GPU-resident, and mixed input paths.
+Python Writer/Capture accept `require_gpu_resident=True`; CPU submission/read APIs
+then fail instead of silently crossing host memory. The first supported strict
+combination is Intel Capture with `prefetch=0` and Intel Writer with `queue_size=0`.
 
 | Specification | Implementation | Verification | Status |
 |---|---|---|---|
