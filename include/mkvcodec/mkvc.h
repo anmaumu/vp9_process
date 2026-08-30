@@ -393,6 +393,19 @@ MKVC_API mkvc_result mkvc_gpu_frame_wait(
 MKVC_API mkvc_result mkvc_gpu_frame_get_native_handle(
     const mkvc_gpu_frame* frame, mkvc_gpu_native_handle_desc* out_handle);
 
+/**
+ * @brief Export one linear GPU plane as a standard DLPack DLManagedTensor.
+ *
+ * The returned pointer is owned by the DLPack consumer, which must invoke the
+ * embedded DLManagedTensor deleter exactly once. That deleter retains/releases
+ * the source GPU-frame lease entirely in native code. NV12 planes are exposed
+ * as uint8 matrices: Y=(height,width), UV=(height/2,width). A nonzero consumer
+ * stream is accepted only when the producer dependency can be satisfied.
+ */
+MKVC_API mkvc_result mkvc_gpu_frame_export_dlpack(
+    mkvc_gpu_frame* frame, uint32_t plane_index,
+    uint64_t consumer_stream, void** out_managed_tensor);
+
 #ifdef __cplusplus
 }
 #endif

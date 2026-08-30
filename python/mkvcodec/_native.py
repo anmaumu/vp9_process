@@ -235,6 +235,12 @@ lib.mkvc_gpu_frame_get_native_handle.argtypes = [
 lib.mkvc_gpu_frame_get_native_handle.restype = ct.c_int
 lib.mkvc_gpu_frame_wait.argtypes = [GpuFrameHandle, ct.c_uint32]
 lib.mkvc_gpu_frame_wait.restype = ct.c_int
+lib.mkvc_gpu_frame_export_dlpack.argtypes = [
+    GpuFrameHandle, ct.c_uint32, ct.c_uint64, ct.POINTER(ct.c_void_p)
+]
+lib.mkvc_gpu_frame_export_dlpack.restype = ct.c_int
+lib.mkvc_gpu_frame_retain.argtypes = [GpuFrameHandle]
+lib.mkvc_gpu_frame_retain.restype = ct.c_int
 lib.mkvc_gpu_frame_release.argtypes = [GpuFrameHandle]
 lib.mkvc_get_last_error.restype = ct.c_char_p
 

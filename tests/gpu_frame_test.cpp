@@ -11,6 +11,19 @@
 
 thread_local std::string mkvc_last_error;
 
+namespace {
+struct TestDLDevice { int32_t type; int32_t id; };
+struct TestDLDataType { uint8_t code; uint8_t bits; uint16_t lanes; };
+struct TestDLTensor {
+    void* data; TestDLDevice device; int32_t ndim; TestDLDataType dtype;
+    int64_t* shape; int64_t* strides; uint64_t byte_offset;
+};
+struct TestDLManagedTensor {
+    TestDLTensor dl_tensor; void* manager_ctx;
+    void (*deleter)(TestDLManagedTensor*);
+};
+}
+
 int main() {
     mkvc_gpu_frame_desc desc{};
     desc.struct_size = sizeof(desc);
@@ -60,6 +73,27 @@ int main() {
     exported.struct_version = 1;
     assert(mkvc_gpu_frame_get_native_handle(handle, &exported) == MKVC_OK);
     assert(exported.borrowed == 1 && exported.handles[0] == 0x12340000);
+
+    auto dl_ready = std::make_shared<mkvc::gpu::ManualCompletion>();
+    dl_ready->complete();
+    unsigned dl_recycled = 0;
+    auto dl_core = std::make_shared<mkvc::gpu::GpuFrameCore>(
+        desc, dl_ready, [&](uint64_t) { ++dl_recycled; }, native);
+    mkvc_gpu_frame* dl_handle = mkvc::gpu::make_handle(dl_core);
+    void* opaque_tensor = nullptr;
+    assert(mkvc_gpu_frame_export_dlpack(dl_handle, 1, 0, &opaque_tensor) == MKVC_OK);
+    auto* tensor = static_cast<TestDLManagedTensor*>(opaque_tensor);
+    assert(tensor->dl_tensor.data == reinterpret_cast<void*>(
+        native.handles[0] + desc.plane_offsets[1]));
+    assert(tensor->dl_tensor.device.type == 2 && tensor->dl_tensor.device.id == 7);
+    assert(tensor->dl_tensor.ndim == 2 && tensor->dl_tensor.dtype.code == 1 &&
+           tensor->dl_tensor.dtype.bits == 8 && tensor->dl_tensor.dtype.lanes == 1);
+    assert(tensor->dl_tensor.shape[0] == 540 && tensor->dl_tensor.shape[1] == 1920);
+    assert(tensor->dl_tensor.strides[0] == 2048 && tensor->dl_tensor.strides[1] == 1);
+    mkvc_gpu_frame_release(dl_handle);
+    assert(dl_core->external_leases() == 1 && dl_recycled == 0);
+    tensor->deleter(tensor);
+    assert(dl_core->external_leases() == 0 && dl_recycled == 1);
 
     mkvc_gpu_native_handle_desc platform{};
     assert(mkvc::gpu::intel::make_d3d11_handle(

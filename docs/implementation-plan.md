@@ -89,7 +89,8 @@
 - [ ] connect Intel D3D11 texture factory and VPP/encoder surfaces
 - [x] connect NVIDIA CUdeviceptr/context/pitch factory to mapped NVDEC surfaces
 - [ ] NVIDIA CUarray/stream/event export and asynchronous dependency factory
-- [ ] Intel safe USM path and NVIDIA CUDA DLPack adapters
+- [x] native NVIDIA linear CUDA-pointer DLPack plane adapter and native lease deleter
+- [ ] Python DLPack capsule/CuPy protocol, consumer CUDA event dependency and Intel safe USM adapter
 - [ ] NVIDIA NPP/CUDA mapping
 - [ ] Intel oneVPL VPP/D3D11/VA-API mapping
 - [ ] fused processing, strict GPU-resident policy and copy-path trace

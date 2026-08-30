@@ -52,6 +52,7 @@ add_library(mkvcodec SHARED
     src/frame_processor.cpp
     src/gpu/gpu_frame.cpp
     src/gpu/gpu_frame_pool.cpp
+    src/gpu/dlpack_adapter.cpp
     src/gpu/intel/intel_native_handle.cpp
     src/gpu/nvidia/nvidia_native_handle.cpp
     src/encoder_session.cpp
@@ -165,9 +166,11 @@ if(MKVC_BUILD_TESTS)
     add_executable(mkvc_gpu_frame_test
         tests/gpu_frame_test.cpp src/gpu/gpu_frame.cpp
         src/gpu/gpu_frame_pool.cpp
+        src/gpu/dlpack_adapter.cpp
         src/gpu/intel/intel_native_handle.cpp
         src/gpu/nvidia/nvidia_native_handle.cpp)
     target_compile_features(mkvc_gpu_frame_test PRIVATE cxx_std_17)
+    target_compile_definitions(mkvc_gpu_frame_test PRIVATE MKVC_BUILDING_LIBRARY=1)
     target_include_directories(mkvc_gpu_frame_test PRIVATE
         src/gpu src/gpu/intel src/gpu/nvidia include)
     if(MSVC)
