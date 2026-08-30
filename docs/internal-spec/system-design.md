@@ -21,7 +21,7 @@ Status: `PROPOSED`
 
 - `INT-ARCH-001`: C++ Coreを唯一の処理本体とし、Python/C# bindingは薄く保つ。
 - `INT-ARCH-002`: 公開境界をC ABIとし、C++ ABI/STL/exceptionを越境させない。
-- `INT-ARCH-003`: container、codec backend、pixel conversion、memory interop、queue、statisticsを分離する。
+- `INT-ARCH-003`: container、codec backend、CPU convenience conversion、frame import/export、memory interop、queue、statisticsを分離する。GPU画像処理algorithmはCoreへ実装しない。
 - `INT-ARCH-004`: GPU adapterはoptional moduleとし、GPUなしでもCoreをload可能にする。
 - `INT-ARCH-005`: component依存方向をBinding → C ABI → Core → Interface → Backendとし、逆依存を禁止する。
 
@@ -36,7 +36,8 @@ VideoCapture / VideoWriter
     +-- IDemuxer / IMuxer (libwebm)
     +-- IVideoDecoder
     +-- IVideoEncoder
-    +-- IPixelConverter / VPP
+    +-- FrameInterop / ImportExport
+    +-- optional CPU PixelConverter
     +-- DeviceRegistry / CapabilityRegistry
     +-- FramePool / BitstreamPool / BoundedQueue
     `-- Statistics / Trace
@@ -86,9 +87,11 @@ libwebm demux -> EncodedPacket -> decoder submit -> completion/reorder
 Encode flow:
 
 ```text
-external frame -> validate/copy-or-retain -> convert/VPP -> encoder submit
+external frame -> validate import -> retain owner/completion -> encoder submit
 -> completion -> EncodedPacket -> libwebm mux -> finalize
 ```
+
+明示的なCPU convenience APIまたはcodec入力layoutと不一致のcopy許可経路だけが形式変換を行う。GPU processingは外部libraryが行い、Coreはそのresourceとproducer completionをimportする。
 
 ## 4. Data Model / Invariants
 
@@ -144,7 +147,7 @@ write(BGR)
 ```text
 demux -> DecodeFrameAsync -> SyncPoint
 -> decoded D3D11/VA Surface lease
--> optional VPP/GPU copy
+-> external export -> external processing -> resource import
 -> EncodeFrameAsync -> SyncPoint
 -> packet -> mux
 ```
@@ -209,9 +212,9 @@ Status: `PROPOSED`
 - `INT-PIPE-003`: GPU backendは複数SyncPoint/event/slotを保持し、submit直後の全面waitを避ける。
 - `INT-PIPE-004`: frame leaseはatomic reference countとbackend completionの両方が成立した時だけpoolへ返す。
 - `INT-PIPE-005`: queue close/cancelは全block中threadを起床する。
-- `INT-PIPE-006`: Python objectを非同期で参照しない。MVPはlibrary bufferへ同期copyしてからGILを解放する。
+- `INT-PIPE-006`: safe既定APIはlibrary bufferへ同期copyしてからGILを解放する。明示borrowed APIだけがowner referenceをcompletionまで保持する。
 - `INT-PIPE-007`: long-running native処理、queue wait、GPU waitではGILを解放する。
-- `INT-PIPE-008`: borrowed NumPyを将来追加する場合はcompletion tokenまでPython referenceを保持する。
+- `INT-PIPE-008`: borrowed NumPy入力を非同期submitする場合はcompletion tokenまでPython owner referenceを保持し、完了前のmutationを契約違反とする。
 
 Mode初期値:
 
@@ -246,8 +249,8 @@ Status: `PROPOSED`
 
 - `INT-INTEL-001`: WindowsはD3D11、LinuxはVA-API memoryを使用する。
 - `INT-INTEL-002`: `DecodeFrameAsync/EncodeFrameAsync`と複数SyncPointを使用する。
-- `INT-INTEL-003`: RGB変換、resize等は対応時oneVPL VPPでGPU実行する。
-- `INT-INTEL-004`: decode/encode deviceとSurface互換ならzero-copy、同GPU非互換ならGPU copy/VPP、それ以外は明示経路とする。
+- `INT-INTEL-003`: RGB変換、resize等は外部VPP/D3D11/VA-API/OpenCL/SYCL libraryの責務とし、Coreは処理済みresourceのidentity、layout、completionを検証してimportする。
+- `INT-INTEL-004`: decode/encode deviceとimport Surfaceが互換ならzero-copy、同GPUで別allocationを要する場合は明示`gpu_copy`、CPU経由は明示`cpu_readback/cpu_upload`とする。
 - `INT-INTEL-005`: CPU plane access時のみsync/map/copyする。
 
 ### 9.4 NVIDIA
@@ -260,27 +263,18 @@ Status: `PROPOSED`
 - `INT-NV-006`: 対応時NVDEC application-provided block-linear CUarrayをNVENCへ直接登録する。
 - `INT-NV-007`: libwebmへ渡す圧縮packetのみhostへ回収する。
 
-### 9.5 Common Frame Processing（将来対応）
+### 9.5 CPU Convenience Processing
 
-- `INT-PROC-001`: resize、crop、色変換、rotate/flip、letterbox/pillarboxをbackend非依存の`FrameProcessPlan`へ正規化する。
-- `INT-PROC-002`: CPUはlibyuv等、NVIDIAはNPP/CUDA、IntelはoneVPL VPPまたは共有D3D11/VA-API処理へmappingする。
-- `INT-PROC-003`: 入力frameをin-place変更せず、出力surfaceはbounded poolからleaseし、producer/consumer completion後だけ再利用する。
+- `INT-PROC-001`: CPU owned frameのresize、crop、色変換、rotate/flip、letterbox/pillarboxを`FrameProcessPlan`へ正規化する。
+- `INT-PROC-002`: CPU implementationだけをlibyuv等へmappingし、NVIDIA NPP/CUDAおよびIntel VPP/shader kernelは実装しない。
+- `INT-PROC-003`: 入力frameをin-place変更せず、CPU出力bufferはbounded poolからleaseする。
 - `INT-PROC-004`: pixel format、chroma subsampling、color primaries、transfer、matrix、range、PTSを処理前後で検証・伝播する。
 - `INT-PROC-005`: crop alignment、fit、letterbox/pillarbox配置、background、rotate後寸法を決定論的な共通幾何規則で計算する。
-- `INT-PROC-006`: capability queryで処理、format、補間方式、memory typeを事前確認し、strict copy指定時は非対応として失敗する。
-- `INT-PROC-007`: 連続処理は可能な範囲で単一VPP/kernelへ融合し、不要な中間surfaceとGPU同期を避ける。
-- `INT-PROC-008`: C ABIはopaque frame/process handleを使用し、Python/C++/C# bindingが同じ処理planと実行結果を共有する。
+- `INT-PROC-006`: capability queryでCPU処理、format、補間方式を事前確認し、GPU frame入力はinterop APIを示すunsupported errorとする。
+- `INT-PROC-007`: CPU処理の中間allocationを抑制するが、処理結果をzero-copy/shared-surfaceとは報告しない。
+- `INT-PROC-008`: C ABIはopaque CPU frame/process handleを使用し、Python/C++/C# bindingが同じCPU処理planと実行結果を共有する。
 
-目標mapping:
-
-| Operation | CPU | NVIDIA | Intel |
-|---|---|---|---|
-| resize/crop | libyuv等 | NPP/CUDA | oneVPL VPP |
-| basic color conversion | libyuv | NPP/CUDA | oneVPL VPP |
-| rotate/flip | libyuv等 | NPP/CUDA | oneVPL VPPまたはGPU shader |
-| letterbox/pillarbox | CPU compositor | CUDA kernel | oneVPL VPPまたはGPU shader |
-
-GPU処理が同一surfaceを共有できる場合は`zero_copy/shared_surface`、GPU内の別surfaceを必要とする場合は`gpu_copy`と記録する。いずれもCPU round-tripを行わない。CPU fallbackが許可されていない場合、未対応処理をCPUへ降格しない。
+GPU処理は外部libraryに委ねる。Coreは処理前resourceのexportと処理後resourceのimportだけを担当し、外部kernelの処理時間や内部copyをCore自身のzero-copyとして推測しない。
 
 ### 9.6 GPU Frame、Lease、Interop（実装予定）
 
@@ -292,10 +286,10 @@ Source layoutは共通所有権・同期を`src/gpu/`、将来のvendor実装を
 - `INT-GPU-002`: `GpuFrameCore`はsurface resource、immutable metadata、device identity、producer completion、atomic external lease count、pool generationを保持する。
 - `INT-GPU-003`: pool再利用条件を`producer complete && consumer completion complete && external lease count == 0`とし、generation不一致handleを拒否する。
 - `INT-GPU-004`: completion backendはIntel SyncPoint/D3D11 fence/VA sync、NVIDIA CUDA eventを共通query/wait/dependency interfaceへadapterする。
-- `INT-GPU-005`: Intel pipelineは同一oneVPL session/deviceのdecode surfaceをVPP inputとしてretainし、VPP output surfaceをencode completionまでretainする。CPU Mapは明示CPU export時だけ許可する。
+- `INT-GPU-005`: Intel pipelineはdecode surfaceをexternal lease中retainし、外部処理済みD3D11/VA-API resourceをproducer completion後にoneVPL encoderへ渡してencode completionまでretainする。CPU Mapは明示CPU export時だけ許可する。
 - `INT-GPU-006`: Intel native exportはWindowsで`ID3D11Texture2D* + subresource`、Linuxで`VADisplay + VASurfaceID`を返し、AddRef/Releaseまたはlease lifetime規則をplatform別に固定する。
 - `INT-GPU-007`: Intel external consumerとの同期はD3D11 fence/keyed mutexまたはoneVPL/VA completionを明示し、暗黙の同時accessを許可しない。
-- `INT-GPU-008`: NVIDIA pipelineはmapped NVDEC CUarray/device viewをcompletion付きslotとして保持し、対応時NVENC registered resourceへ登録する。unmap/unregisterは全consumer完了後に行う。
+- `INT-GPU-008`: NVIDIA pipelineはmapped NVDEC CUarray/device viewをcompletion付きslotとしてexportし、外部処理済みCUDA resourceをNVENC registered resourceへ登録する。unmap/unregisterは全consumer完了後に行う。
 - `INT-GPU-009`: NVIDIA exportはCUDA primary/owned context identity、device ordinal、CUdeviceptr/CUarray、pitch、plane offset、producer CUDA eventを返し、別context pointerの誤使用を拒否する。
 - `INT-GPU-010`: DLPack producerはmanaged tensorのdeleterへGPU frame leaseを保持させ、`__dlpack__(stream=...)`でconsumer streamがproducer completionを待つdependencyを挿入する。
 - `INT-GPU-011`: Intel USM/DLPackは実memoryがUSM pointerとして安全に表現できる経路だけを公開し、D3D11 texture/VA surfaceを偽のlinear pointerとして公開しない。非対応時はnative surface APIを使用させる。
@@ -303,6 +297,8 @@ Source layoutは共通所有権・同期を`src/gpu/`、将来のvendor実装を
 - `INT-GPU-013`: copy-path recorderは各edgeを`shared_surface/zero_copy/gpu_copy/cpu_upload/cpu_readback`として実測記録し、要求値から推測しない。
 - `INT-GPU-014`: device lost/cancel/timeout時は全completionをterminal failureへ遷移させ、waiterを起床し、resourceを依存順に一度だけ解放する。
 - `INT-GPU-015`: copy policyは既存create configのABI sizeを変更せずversioned setterで設定し、最初のframe受理後の変更を拒否する。strict指定時はCPU read/write APIをbackend呼出前に拒否する。
+- `INT-GPU-016`: GPU import descriptorはresource owner、memory type/layout、device/context、producer completion、release callbackを保持し、validation失敗時を含めcallbackを高々一度だけ呼ぶ。
+- `INT-GPU-017`: encoder submissionはproducer dependencyをdevice-wide同期なしで待ち、encode completionまでimport ownerをretainする。consumer completion後にのみrelease callbackを実行する。
 
 所有権の基準シーケンス:
 
@@ -313,13 +309,24 @@ pool slot lease -> producer submit -> producer completion
                 -> generation increment -> pool recyclable
 ```
 
-`zero_copy`は同一native allocationを共有する場合、`shared_surface`は同一surfaceをAPI間で共有する場合、`gpu_copy`はGPU内の別allocationへcopy/VPPする場合とする。いずれも`cpu_readback`を含まない。
+`zero_copy`は同一native allocationを共有する場合、`shared_surface`は同一surfaceをAPI間で共有する場合、`gpu_copy`はGPU内の別allocationへcopyする場合とする。いずれも`cpu_readback`を含まない。外部library内部のcopy有無は、外部consumerが申告可能な場合を除き`unknown_external`として境界traceへ記録する。
+
+### 9.7 CPU Frame、Lease、Interop
+
+- `INT-CPUINT-001`: CPU export descriptorはplane pointer、length、shape、stride、format、PTS、access modeとnative owner leaseを保持する。
+- `INT-CPUINT-002`: borrowed NumPy viewはbase/capsule経由でnative ownerをretainし、最後のview解放までdecode slotをpoolへ戻さない。既定はread-onlyとする。
+- `INT-CPUINT-003`: 同期borrowed encodeは呼出中だけpointerを参照し、codecがinputを読了してからreturnする。
+- `INT-CPUINT-004`: 非同期borrowed encodeはsubmission objectがPython/.NET/native ownerをcompletionまで保持し、完了・cancel・failure時に一度だけ解放する。
+- `INT-CPUINT-005`: .NETおよび高throughput非同期経路は長時間managed pinningを避け、固定容量native/pinned pool、backpressure、generation検査を使う。
+- `INT-CPUINT-006`: import時にplane count、dtype、shape、stride、alignment、format、writabilityを検証し、strict時は共有不能layoutを拒否し、copy許可時だけ明示copyする。
+- `INT-CPUINT-007`: GPU frameからstandard NumPyへの変換は必ず`cpu_readback`を記録し、BGR等への形式変換allocationも別edgeとして記録する。
+- `INT-CPUINT-008`: native finalizer/release callbackはinterpreter shutdown後にPython APIを呼ばず、exceptionを越境させない。
 
 ## 10. Performance / Observability
 
 Status: `PROPOSED`
 
-- `INT-OBS-001`: demux、decode、surface wait、queue wait、upload、convert、encode、muxを別metricにする。
+- `INT-OBS-001`: demux、decode、surface wait、queue wait、export、import dependency wait、upload/download、CPU convert、encode、muxを別metricにする。
 - `INT-OBS-002`: CPU timerとGPU event timerを区別する。
 - `INT-OBS-003`: input/encoded fps、drop、peak queue、prefetch hit/miss、RAM/VRAM概算を公開する。
 - `INT-OBS-004`: copy path判定は実際に実行したoperationから設定し、requested pathから推測しない。
@@ -363,7 +370,7 @@ Status: `CONFIRMED`
 - `ADR-CODEC-001`: H.264/HEVCを除外しVP9/AV1に限定する。
 - `ADR-CPU-001`: CPU AV1をSVT-AV1 encode/libaom decodeへ分割する。
 - `ADR-NV-001`: NVIDIA SDK sampleを使わずnv-codec-headers + dynamic driver loadを採用する。
-- `ADR-NP-001`: borrowed NumPyをMVPから外し、安全なcopyを採用する。
+- `ADR-NP-001`: 安全なowned NumPy APIを既定として維持し、明示的なborrowed APIをowner lease/completion付きで追加する。
 - `ADR-DROP-001`: file完全性のためMVPはblock/try_writeのみとする。
 - `ADR-PKG-001`: OSS CPU dependencyをartifactへ同梱しvendor driver/runtimeは同梱しない。
 
@@ -374,6 +381,8 @@ Status: `CONFIRMED`
 - NVIDIA NVENCでVP9 encodeできない。
 - zero-copyはdevice/context/format/operation互換時のみ成立する。
 - NumPy入力はCPU memoryであり、GPU backendではuploadが必要。
+- standard NumPy出力もCPU memoryであり、GPU decodeから取得するとdownloadが必要。GPU zero-copyにはDLPackまたはnative handleを使う。
+- 外部GPU library内部のcopy/processingは本libraryの観測・保証範囲外である。
 - process強制終了時のcontainer finalizeを保証しない。
 - backend間の同一quality値は同一画質を保証しない。
 - MVPは映像1track、固定FPS中心、Python 3.12、x64のみ。

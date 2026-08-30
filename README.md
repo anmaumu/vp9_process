@@ -13,6 +13,23 @@ PythonからOpenCVに近い感覚で利用できるAPIと.NET bindingを提供�
 
 H.264とHEVCは対象外です。
 
+## Frame interopの方針
+
+このlibraryはcodec/containerとCPU/GPU memoryの所有権・同期を担当し、GPU上の
+resize、crop、色変換、rotate/flip、letterbox等の画像処理algorithmは内蔵しません。
+decode結果をNumPy/OpenCV、CuPy/DLPack、D3D11、VA-API等へexportし、外部libraryで
+処理したresourceをencodeへimportする共通のlease/completion APIを目標にします。
+
+- standard NumPyはCPU memoryです。CPU borrowed viewはcopyなしにできますが、viewの
+  生存中はdecode bufferを再利用しません。
+- GPU decode結果をNumPyで受け取る場合はGPU downloadが必須で、BGR等への変換も
+  allocation/copyとしてmetricsへ記録します。
+- GPU zero-copy処理はDLPack/native handleで外部libraryへ渡し、処理済みresourceと
+  producer event/fenceをencoderへimportします。
+- CPU owned NumPy APIと現在のCPU convenience processingは安全な既定機能として残します。
+- borrowed CPU API、GPU processed-resource import、非同期submission leaseは仕様確定済みで、
+  現時点では未実装です。
+
 ## 現在地
 
 CPU VP9のWebM encode/decode、CPU AV1のSVT-AV1 encode/libaom decode、C ABI、
@@ -25,7 +42,8 @@ NVENC AV1 WriterはC ABI/Python共通経路へ実装済みで、runtime queryが
 AV1 NVENC対応GPUでのpositive encode検証は未完です。NVIDIA VP9 decodeはCUDA pointer
 surfaceを公開でき、NVDEC surface→NVENC registered-resource経路と、各NV12 planeを
 DLPackへ渡すnative/Python APIを実装済みです。CUDA eventのconsumer-stream dependency、
-CuPy実機検証、NVIDIA AV1対応GPU検証、10-bit public frame APIは未完です。
+CuPy実機検証、処理済みCUDA resourceのencoder import、NVIDIA AV1対応GPU検証、
+10-bit public frame APIは未完です。
 .NET 8 bindingではABI version/capability query、型付きerror、SafeHandleに加え、
 `IDisposable`な`MkvVideoWriter`/`MkvVideoCapture`とowned I420 frameを実装済みです。
 利用可能と報告される機能は、実装済みbackendだけに限定します。

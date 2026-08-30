@@ -15,15 +15,16 @@
 
 Status: `PARTIAL`
 
-Frame processing status: the common immutable C ABI and CPU/libyuv implementation
-now cover resize, crop, 8-bit I420-to-basic-format conversion, rotate/flip, and
-letterbox/pillarbox (`contain`/`cover`). Python exposes the same native plan through
-`VideoCapture.read_processed`. NVIDIA NPP/CUDA, Intel oneVPL VPP/shared-surface,
-color-metadata conversion, surface pooling/fusion, and C# bindings remain future
-work; GPU requests are rejected instead of silently falling back to CPU.
+CPU convenience processing status: the common immutable C ABI and CPU/libyuv
+implementation covers resize, crop, 8-bit I420-to-basic-format conversion,
+rotate/flip, and letterbox/pillarbox (`contain`/`cover`). Python exposes the same
+native plan through `VideoCapture.read_processed`. GPU image-processing algorithms
+are intentionally outside this library: GPU requests are rejected instead of
+silently falling back, and applications use native handle/DLPack interop.
 
-GPU-resident implementation contract is now specified by `EXT-GPU-001..010`,
-`INT-GPU-001..014`, `AC-GPU-001`, and `TEST-GPU-001..014`. The associated
+GPU-resident implementation contract is specified as decode/export/external
+processing/import/encode by `EXT-GPU-001..010`, `INT-GPU-001..017`,
+`AC-GPU-001`, and `TEST-GPU-001..020`. The associated
 ownership, synchronization, DLPack, device-loss, hidden-copy, and pool-exhaustion
 risks are tracked in `gpu-risk-register.md`; these entries describe planned work,
 not current implementation.
@@ -41,7 +42,8 @@ VA display/surface, CUDA pointer/CUarray/context/stream/event, and USM resources
 without exposing vendor SDK types. Intel and NVIDIA descriptor factories validate
 the platform handle layout and bind device identity + pool generation to the
 lease. Connection to real decoded surfaces remains pending, so this is only the
-contract/factory subset of `TEST-GPU-003/005`.
+contract/factory subset of `TEST-GPU-003/005`. External processed-resource import
+and release-callback ownership are specified but not implemented yet.
 
 Backend completion foundations now normalize oneVPL `mfxSyncPoint` and NVIDIA
 CUDA event query into the common non-device-wide `Completion` interface. The
@@ -61,15 +63,15 @@ surface plus SyncPoint into `GpuFramePool` without CPU Map, export its D3D11 or
 VA native descriptor, and defer `FrameInterface::Release` until completion and
 all leases finish. Abandoned internal frames perform a best-effort completion
 wait before releasing the backend resource. The factory is now consumed by the
-Linux Intel public GPU decode path; D3D11 and VPP/encode consumers remain incomplete.
+Linux Intel public GPU decode path; D3D11 export and external-resource import remain incomplete.
 
 Linux Intel public GPU decode is now connected end to end: the decoder requests
 `MFX_IOPATTERN_OUT_VIDEO_MEMORY`, `mkvc_decoder_read_gpu` returns a leased VA
 surface, and Python exposes it as `VideoCapture.read_surface()`. The frame retains
 the oneVPL session after Capture close, reports `zero_copy`, and releases the VA
 surface/session at final lease release. VP9 native and Python hardware tests pass
-on `linux-machine`; AV1 Python GPU surface acquisition also passes. VPP→encode
-connection and Windows D3D11 hardware qualification remain pending.
+on `linux-machine`; AV1 Python GPU surface acquisition also passes. External
+resource import and Windows D3D11 hardware qualification remain pending.
 
 Linux Intel VP9 decode surfaces can now be submitted through
 `mkvc_encoder_write_gpu_frame` / Python `VideoWriter.write_surface`. The internal
@@ -78,7 +80,8 @@ a consumer dependency, and the VA surface is never CPU-mapped or read back. A
 12-frame 320x240 VP9 and AV1 decode→encode→decode tests pass on `linux-machine`, including
 immediate Python lease release after submission. The current implementation waits
 the producer and oldest encode SyncPoint on the calling thread for bounded pool
-progress; VPP, asynchronous cross-stage overlap, Windows D3D11, and trace-based
+progress; external processed-resource import, asynchronous cross-stage overlap,
+Windows D3D11, and trace-based
 proof of zero CPU transfer remain pending.
 Encoder metrics now distinguish CPU-only, GPU-resident, and mixed input paths.
 Python Writer/Capture accept `require_gpu_resident=True`; CPU submission/read APIs
@@ -103,6 +106,7 @@ and an OS/oneVPL trace has not yet independently proven zero host pixel transfer
 | `EXT-ENC-001` | create/write/flush/idempotent close/destroy | `mkvc_cpu_vp9_encode` | synchronous and bounded asynchronous CPU paths complete |
 | `EXT-ENC-002` | BGR/RGB/BGRA/I420/NV12 CPU input | VP9/AV1 Python round-trips | complete for both CPU writers |
 | `EXT-ENC-005` | asynchronous input deep-copied before return | mutable reused inputs in native/Python round-trip | complete for supported CPU formats |
+| `EXT-DEC-006`, `EXT-ENC-011..013`, `EXT-FRAME-006..012` | borrowed CPU export/import, async owner lease, native/pinned pool | `TEST-CPUINT-001..007` planned | specified; high-level C ABI/Python/.NET implementation pending |
 | `EXT-ENC-006` | bounded queue/pool; blocking write; nonblocking try-write; ordered flush/close | native and Python round-trip | complete for CPU writer; cancel API pending |
 | `EXT-ENC-007` | CQ quality 0..63, default contract 32 | integration config uses 32 | backend mapping complete; binding default pending |
 | `EXT-ENC-009` | four-second keyframe default, auto threads | code review/build | complete for libvpx writer |
@@ -112,7 +116,7 @@ and an OS/oneVPL trace has not yet independently proven zero host pixel transfer
 | `EXT-DEC-004` | `prefetch=0` synchronous and positive bounded native read-ahead | VP9/AV1 round-trips and early close | CPU decoders complete |
 | `EXT-ENC-001/002/005/006` Python | context manager; BGR default; safe input; queue_size; try_write | `mkvc_python_roundtrip` | CPU input and bounded async complete |
 | `INT-CPU-002` | libyuv BGR/RGB/BGRA/NV12 conversion | known-color and padded-stride round-trip | complete for 8-bit formats |
-| `EXT-PROC-002..006` / `INT-PROC-001,005` | immutable CPU process plan: crop, bilinear resize, rotate/flip, contain/cover composition and basic output conversion | `mkvc_frame_processor`, `mkvc_python_roundtrip` | CPU 8-bit subset complete; GPU and color metadata pending |
+| `EXT-PROC-002..006` / `INT-PROC-001,005` | immutable CPU process plan: crop, bilinear resize, rotate/flip, contain/cover composition and basic output conversion | `mkvc_frame_processor`, `mkvc_python_roundtrip` | CPU 8-bit subset complete; GPU processing is out of scope; color metadata pending |
 | `TEST-ENC-001` | dtype/shape/positive and negative stride validation | `mkvc_python_roundtrip` | supported CPU input formats passing |
 | `EXT-FRAME-001` | owned I420 planes, stride, dimensions and PTS | round-trip frame assertions | I420 frame complete |
 | `EXT-ABI-002..005` | `mkvc_`, opaque encoder handle, versioned structs, stable result | `mkvc_c_api_tests` | encoder subset complete |

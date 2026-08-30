@@ -48,7 +48,7 @@ profile: test-spec@1.0
 | `TEST-FRAME-003` | device/context/format不一致を拒否または明示copy | hardware | Intel/NVIDIA |
 | `TEST-ZC-001` | zero-copy traceでCPU round-trip/GPU copyなしを確認 | performance | supported GPU |
 | `TEST-ZC-002` | require_zero_copy時にcopyへ降格しない | hardware | Intel/NVIDIA |
-| `TEST-INTEL-001` | D3D11/VA-API oneVPL decode/encode/VPP | hardware | Windows/Linux Intel |
+| `TEST-INTEL-001` | D3D11/VA-API oneVPL decode/export/import/encode | hardware | Windows/Linux Intel |
 | `TEST-INTEL-002` | AsyncDepth 1/2/4/8、SyncPoint順序、device lost cleanup | hardware | Intel |
 | `TEST-NV-001` | NVDEC VP9/AV1 decode | hardware | NVIDIA |
 | `TEST-NV-002` | NVENC AV1 8-bit、対応時10-bit encode | hardware | NVIDIA |
@@ -60,31 +60,45 @@ profile: test-spec@1.0
 | `TEST-GPU-003` | CUDA context/device、D3D11 device、VA display不一致と別process handle使用を拒否 | negative/hardware | Windows/Linux GPU |
 | `TEST-GPU-004` | device-wide syncなしでconsumer stream/fence dependencyが正しく待機する | trace/race | Intel/NVIDIA |
 | `TEST-GPU-005` | NV12/P010のplane offset、pitch、alignment、D3D11 subresource、VA surface、CUDA pointer/CUarray descriptorをguard付き検証 | hardware | Intel/NVIDIA |
-| `TEST-GPU-006` | Intel oneVPL decode→VPP→encodeをCPU Mapなしで実行し、PTS/order/golden decodeを検証 | end-to-end/trace | Windows D3D11/Linux VA-API Intel |
-| `TEST-GPU-015` | Linux VA Intel VP9/AV1 decode surfaceを`write_surface`へ渡し、lease即時解放、pool進行、frame数一致を検証 | end-to-end/hardware | Linux Intel |
-| `TEST-GPU-016` | `require_gpu_resident=True`でCPU read/writeを拒否し、GPU transcode metricsが`zero_copy`となる | API/end-to-end | Python/Linux Intel |
-| `TEST-GPU-017` | .NET strict Capture `ReadSurface`→Writer `WriteSurface`でlease解放順、frame数、PTS、`zero_copy` metricsを検証する | end-to-end/hardware | .NET Intel/NVIDIA |
-| `TEST-GPU-017` | C ABI copy policyのsize/version/conflict、初回frame後変更、queue/prefetch制約を検証 | ABI/unit | CPU/Intel |
+| `TEST-GPU-006` | Intel oneVPL decode→native export→外部resource import→encodeをCPU Mapなしで実行し、PTS/order/golden decodeを検証 | end-to-end/trace | Windows D3D11/Linux VA-API Intel |
 | `TEST-GPU-007` | NVIDIA NVDEC→NVENCをDtoH/HtoDなしで実行し、map/register/unmap lifetime、PTS/order/golden decodeを検証 | end-to-end/trace | NVIDIA |
-| `TEST-GPU-008` | Intel/NVIDIA decode→全GPU処理→encodeでformat、色metadata、PTS、crop/rotation geometryを検証 | end-to-end | Intel/NVIDIA |
+| `TEST-GPU-008` | Intel/NVIDIA decode→export→外部GPU処理→import→encodeでformat、色metadata、PTS、layoutを検証 | end-to-end | Intel/NVIDIA |
 | `TEST-GPU-009` | DLPackをconsumer stream付きでCuPy等へ渡し、producer dependency、shape/stride/device/deleterを検証 | Python/hardware | Intel対応環境/NVIDIA |
 | `TEST-GPU-010` | Python objectを先にGC、DLPack consumerを先に解放、循環参照、interpreter shutdownの各順序でcrash/leakなし | stress/subprocess | Python GPU CI |
 | `TEST-GPU-011` | `require_gpu_resident`、`allow_gpu_copy`、`allow_cpu_copy`の組合せ表どおり成功/失敗し、silent fallbackがない | parameterized | all |
-| `TEST-GPU-012` | decode/VPP/encode各stageのdevice lost、timeout、cancelで全waiterが起床し一度だけcleanupされる | fault injection | Intel/NVIDIA |
+| `TEST-GPU-012` | decode/export/import/encode各stageのdevice lost、timeout、cancelで全waiterが起床し一度だけcleanupされる | fault injection | Intel/NVIDIA |
 | `TEST-GPU-013` | API traceとCUDA/oneVPL/OS traceでoperation別copy-pathを照合し、CPU transfer counterがzero | trace/performance | Intel/NVIDIA |
 | `TEST-GPU-014` | pool枯渇、遅いconsumer、複数stream、30分soakでdeadlockせずVRAM/handle/pending数がbounded | stress/soak | Intel/NVIDIA |
+| `TEST-GPU-015` | Linux VA Intel VP9/AV1 decode surfaceを`write_surface`へ渡し、lease即時解放、pool進行、frame数一致を検証 | end-to-end/hardware | Linux Intel |
+| `TEST-GPU-016` | `require_gpu_resident=True`でCPU read/writeを拒否し、GPU transcode metricsが`zero_copy`となる | API/end-to-end | Python/Linux Intel |
+| `TEST-GPU-017` | .NET strict Capture `ReadSurface`→Writer `WriteSurface`でlease解放順、frame数、PTS、`zero_copy` metricsを検証する | end-to-end/hardware | .NET Intel/NVIDIA |
+| `TEST-GPU-018` | C ABI copy policyのsize/version/conflict、初回frame後変更、queue/prefetch制約を検証 | ABI/unit | CPU/Intel |
+| `TEST-GPU-019` | CUDA pointer/CUarray、D3D11 texture、VA surface importのdevice/layout/completionを検証し、encode完了後だけrelease callbackを一度呼ぶ | hardware/lifetime | Intel/NVIDIA |
+| `TEST-GPU-020` | DLPack importでproducer stream/event dependency、deleter所有権、未消費capsule、cancel/failure時cleanupを検証 | Python/hardware | NVIDIA/対応Intel |
 
-### 1.4 Frame Processing（将来対応）
+### 1.4 CPU Frame Interoperability
 
 | ID | Test requirement | Level | Environment |
 |---|---|---|---|
-| `TEST-PROC-001` | resize/crop/rotate/flip/letterbox/pillarboxの寸法、ROI、配置、背景をgolden imageと照合 | unit/integration | CPU/Intel/NVIDIA |
-| `TEST-PROC-002` | NV12/P010/I420/RGB系変換とBT.601/709/2020、limited/full range、metadata伝播を検証 | integration | CPU/Intel/NVIDIA |
-| `TEST-PROC-003` | 個別methodと融合`process`の結果が許容誤差内で一致し、中間surface数がbounded | integration/performance | CPU/Intel/NVIDIA |
-| `TEST-PROC-004` | GPU-resident指定時にCPU readbackがなく、実経路がzero_copy/shared_surface/gpu_copyとしてtraceされる | hardware/trace | Intel/NVIDIA |
-| `TEST-PROC-005` | unsupported補間・format・memory組合せとstrict copy制約を明示errorにし、黙ってfallbackしない | unit/hardware | all |
+| `TEST-CPUINT-001` | borrowed NumPyのpointer identity、shape/stride、read-only属性、PTSをnative descriptorと照合する | unit/integration | Python CPU CI |
+| `TEST-CPUINT-002` | frameを先にcloseしてもview lease中はslotを再利用せず、最後のview解放後にだけ再利用する | lifetime/concurrency | Python CPU CI |
+| `TEST-CPUINT-003` | sync borrowed encodeがreturnまでinputを読み終え、return後の再利用・mutationが安全である | integration/race | CPU CI |
+| `TEST-CPUINT-004` | async borrowed submissionが成功/失敗/cancelのcompletionまでownerを保持し、一度だけ解放する | concurrency/fault | Python/.NET/native CI |
+| `TEST-CPUINT-005` | native/pinned poolが固定容量、backpressure、generation規則を満たし、長時間.NET GC pinningとmemory増加がない | stress/performance | .NET/CPU CI |
+| `TEST-CPUINT-006` | GPU decode→NumPyは`cpu_readback`、CPU borrowed共有は`zero_copy`となり、形式変換allocationをedge別traceする | trace/hardware | CPU/Intel/NVIDIA |
+| `TEST-CPUINT-007` | plane count、dtype、shape、stride、alignment不一致がstrict時に失敗し、copy許可時だけcopyする | parameterized | CPU CI |
 
-### 1.5 ABI / Language / Error
+### 1.5 CPU Convenience Processing
+
+| ID | Test requirement | Level | Environment |
+|---|---|---|---|
+| `TEST-PROC-001` | CPU resize/crop/rotate/flip/letterbox/pillarboxの寸法、ROI、配置、背景をgolden imageと照合 | unit/integration | CPU CI |
+| `TEST-PROC-002` | CPU NV12/P010/I420/RGB系変換とBT.601/709/2020、limited/full range、metadata伝播を検証 | integration | CPU CI |
+| `TEST-PROC-003` | 個別methodと`process`の結果が許容誤差内で一致し、CPU中間allocation数がbounded | integration/performance | CPU CI |
+| `TEST-PROC-004` | GPU frameへconvenience processingを要求するとinterop APIを示すunsupported errorを返し、CPU fallbackしない | API/hardware | Intel/NVIDIA |
+| `TEST-PROC-005` | unsupported補間・format・memory組合せを明示errorにし、黙ってfallbackしない | unit | CPU/all |
+
+### 1.6 ABI / Language / Error
 
 | ID | Test requirement | Level | Environment |
 |---|---|---|---|
@@ -96,7 +110,7 @@ profile: test-spec@1.0
 | `TEST-ERR-001` | disk full、I/O error、cancel、timeout、device lost cleanup | fault injection | backend CI |
 | `TEST-ERR-002` | close/release/destroyを反復・複数回実行 | stress | all CI |
 
-### 1.6 Performance / Stability / Security
+### 1.7 Performance / Stability / Security
 
 | ID | Test requirement | Level | Environment |
 |---|---|---|---|
@@ -108,7 +122,7 @@ profile: test-spec@1.0
 | `TEST-SEC-001` | malformed container/packet/size overflow fuzz | fuzz | sanitizer CI |
 | `TEST-SEC-002` | dynamic library searchが許可名/安全pathに限定 | unit/integration | Windows/Linux |
 
-### 1.7 Packaging / Compliance
+### 1.8 Packaging / Compliance
 
 | ID | Test requirement | Level | Environment |
 |---|---|---|---|

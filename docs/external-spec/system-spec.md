@@ -14,7 +14,7 @@ source_snapshot: ../../SPECIFICATION.md
 
 Status: `CONFIRMED`
 
-Pythonおよび将来のC#から、OpenCVに近い操作感でMatroska/WebM映像をdecode/encodeする。CPU、Intel GPU、NVIDIA GPUを共通APIから選択でき、対応環境ではGPU Surfaceとzero-copy経路を利用できる。
+Python/C/C++/C#からMatroska/WebM映像をdecode/encodeし、CPU、Intel GPU、NVIDIA GPU上のframeを外部画像処理libraryへ安全にexportし、その処理結果をencodeへimportする。Coreの責務はcodec、container、memory interop、所有権、同期、copy-path検証であり、画像処理algorithmそのものではない。
 
 Sources:
 
@@ -35,15 +35,17 @@ Status: `CONFIRMED`
 - `EXT-ABI-001`: Python/C#から共有可能なC ABIを提供する。
 - `EXT-CS-001`: C# P/Invokeを初期からsmoke testし、後続phaseで高水準APIを提供する。
 - `EXT-BACK-001`: CPU、Intel GPU、NVIDIA GPUを実行時に列挙・選択できる。
+- `EXT-SYS-002`: decode frameのCPU/GPU zero-copy exportと、外部処理結果のCPU/GPU importを共通のlease/completion契約で提供する。
 
 ### 2.2 Out of Scope
 
 - macOS、VideoToolbox、Metal
 - H.264、HEVC、およびこれらへのfallback
 - 初期releaseでの音声、字幕、複数映像track、chapter、attachment
-- 初期releaseでのlive配信、frame drop、borrowed NumPy
+- 初期releaseでのlive配信、frame drop
 - ARM64
 - 全環境でのzero-copy保証
+- GPU resize/crop/rotate/flip/letterbox、NPP kernel、oneVPL VPP、OpenCL/SYCL kernel、AI推論などの画像処理algorithm
 
 Sources:
 
@@ -60,6 +62,7 @@ Status: `CONFIRMED`
 | `UC-DEC-001` | Python利用者 | MKV/WebMを開き、BGR/I420/NV12またはGPU Surfaceを順次取得する |
 | `UC-ENC-001` | Python利用者 | NumPy/OpenCV frameまたはGPU SurfaceをVP9/AV1のMKV/WebMへ書く |
 | `UC-TRANS-001` | Native/GPU利用者 | decode SurfaceをCPUへ戻さずencodeへ渡す |
+| `UC-INTEROP-001` | 外部画像処理利用者 | decode frameを外部libraryへexportし、処理済みframeをcopyなしでencodeへimportする |
 | `UC-ABI-001` | C/C#利用者 | C ABI handleを介して同じCoreを使用する |
 | `UC-DIAG-001` | 運用・開発者 | device、capability、実際のcopy path、性能統計を確認する |
 
@@ -72,6 +75,9 @@ Status: `CONFIRMED`
 - **CPU frame**: host memory上のBGR/RGB/BGRA/I420/NV12 plane。
 - **GPU Surface**: D3D11 Texture、VA-API Surface、CUDA device memory/array。
 - **lease**: consumer完了までSurface再利用を禁止する寿命契約。
+- **borrowed frame**: ownerのmemoryを複製せず参照し、lease中だけ有効なframe。
+- **imported frame**: 外部ownerのmemory/resourceをencode完了までleaseして利用するframe。
+- **completion**: producerまたはconsumerがresource利用を完了したことを示すtoken/event/fence。
 - **zero-copy**: 映像pixelのCPU round-tripおよびGPU内中間copyを行わない経路。
 - **gpu-copy**: CPU round-tripはないがGPU内copy/VPPを伴う経路。
 - **cpu-upload**: CPU frameをGPUへ転送する経路。
@@ -97,6 +103,7 @@ Status: `CONFIRMED`
 - `EXT-DEC-003`: `read_batch(max_size, timeout_ms=0)`を提供する。
 - `EXT-DEC-004`: `prefetch=0`の同期動作と、正数のbounded先読みを提供する。
 - `EXT-DEC-005`: end-of-streamではPython APIの単発readは`None`、iteratorは`StopIteration`とする。
+- `EXT-DEC-006`: CPU backendはnative decode planeをread-only NumPy viewとしてleaseする`read_borrowed`を提供し、owned `read`と明示的に区別する。
 
 ### 5.3 Encode
 
@@ -106,6 +113,9 @@ Status: `CONFIRMED`
 - `EXT-ENC-004`: `write_batch`を提供する。
 - `EXT-ENC-005`: 初期releaseのNumPy入力はlibrary-owned bufferへ安全にcopyする。
 - `EXT-ENC-006`: queue満杯時の既定動作はblockとし、`try_write`は`False/WOULD_BLOCK`を返す。
+- `EXT-ENC-011`: 同期`write_borrowed`は呼出中だけCPU inputを借用し、codecが読み終えてから戻る。
+- `EXT-ENC-012`: 非同期`submit_borrowed`はsubmission completionまでinput ownerを保持し、変更禁止期間をAPI契約として公開する。
+- `EXT-ENC-013`: 高throughput非同期入力向けに固定容量のnative/pinned buffer poolを提供し、未完了bufferの再取得を禁止する。
 
 ### 5.4 Backend / Device
 
@@ -132,18 +142,28 @@ AV1 decode: supported GPU backend -> libaom -> error
 - `EXT-FRAME-004`: 実際に選択した`cpu/cpu_upload/gpu_copy/zero_copy`を統計で公開する。
 - `EXT-FRAME-005`: released Surfaceへのaccessは判定可能なerrorとする。
 
-### 5.5.1 GPU-resident Frame Interoperability（実装予定）
+### 5.5.1 CPU Frame Interoperability
+
+- `EXT-FRAME-006`: CPU exportはplane pointer、length、shape、stride、format、PTS、read-only/writable属性とowner leaseを公開する。
+- `EXT-FRAME-007`: borrowed NumPy viewは対応するnative allocationを共有し、viewまたは明示leaseが残る間はbufferをpoolへ戻さない。
+- `EXT-FRAME-008`: standard NumPyはCPU memoryとして扱い、GPU decodeからNumPyを要求した場合は`gpu_download`と必要な形式変換をcopy-pathへ記録する。
+- `EXT-FRAME-009`: CPU importはI420/NV12および対応するpacked形式のpointer/shape/strideを検証し、同期borrowまたはcompletion付き非同期leaseとしてencoderへ渡す。
+- `EXT-FRAME-010`: BGR/RGB等からcodec入力形式への変換はzero-copyとは報告しない。同一format/layoutを共有する場合だけCPU zero-copyとする。
+- `EXT-FRAME-011`: .NET同期borrowは呼出中だけmanaged arrayをpinし、非同期経路は長時間pinningを避けるnative/pinned poolを推奨・提供する。
+- `EXT-FRAME-012`: 外部CPU libraryが連続配列、alignmentまたは特定strideを要求して共有不能な場合、strict指定では失敗し、copy許可時だけ明示copyする。
+
+### 5.5.2 GPU-resident Frame Interoperability
 
 - `EXT-GPU-001`: 共通opaque handle `mkvc_gpu_frame`はbackend、device identity、memory type、pixel format、dimensions、planes/pitch、color metadata、PTSを問い合わせ可能にする。
 - `EXT-GPU-002`: `mkvc_gpu_frame`はretain/release可能なleaseとし、producer completionと全consumer lease解放の両方が成立するまでnative resourceを再利用・破棄しない。
 - `EXT-GPU-003`: completionはquery/wait(timeout)/dependency登録を提供し、通常経路でdevice-wide synchronizationを要求しない。
-- `EXT-GPU-004`: Intelでは互換条件を満たすoneVPL decode surfaceをVPPへ渡し、その出力をencodeへ渡すCPU readbackなしの経路を提供する。
-- `EXT-GPU-005`: NVIDIAではNVDEC outputをCUDA/NPP処理またはNVENCへ渡すCPU readbackなしの経路を提供する。
+- `EXT-GPU-004`: IntelではoneVPL decode surfaceをD3D11/VA-API/対応時USMとして外部libraryへexportし、外部処理済みresourceをoneVPL encodeへimportする。
+- `EXT-GPU-005`: NVIDIAではNVDEC outputをCUDA/DLPackとして外部libraryへexportし、外部処理済みCUDA resourceをNVENCへimportする。
 - `EXT-GPU-006`: Intel GPU frameからWindows D3D11 texture/subresourceおよびLinux VA display/surfaceのborrowed native handleを取得できる。D3D11/VA resourceの所有権はlibraryに残す。
 - `EXT-GPU-007`: NVIDIA GPU frameからCUDA device pointerまたはCUarray、pitch、CUDA context/device、producer stream/eventをborrowed viewとして取得できる。
 - `EXT-GPU-008`: PythonではIntel USM対応経路およびNVIDIA CUDA対応経路をDLPack protocolで受け渡しでき、consumer指定streamへ正しいdependencyを設定する。
-- `EXT-GPU-009`: PythonのGPU frameでもCPU frameと同じ`process/resize/crop/convert/rotate/flip`操作感を提供し、結果はCuPy等の対応consumerへCPU copyなしで渡せる。
-- `EXT-GPU-010`: `require_gpu_resident=True`、`allow_gpu_copy`、`allow_cpu_copy`をdecode/process/encode全体へ適用し、実行結果にoperation別copy-pathとfallback理由を返す。
+- `EXT-GPU-009`: CUDA pointer/CUarray、D3D11 texture、VA surface、対応時USM/DLPackのimport APIはresource owner、layout、device/context、producer completion、release callbackを受け取る。
+- `EXT-GPU-010`: `require_gpu_resident=True`、`allow_gpu_copy`、`allow_cpu_copy`をdecode/export/import/encode全体へ適用し、edge別copy-pathとfallback理由を返す。
 
 C/C++/C#利用者はversioned `mkvc_copy_policy`を作成直後に
 `mkvc_encoder_set_copy_policy` / `mkvc_decoder_set_copy_policy`へ渡す。
@@ -155,18 +175,18 @@ DLPack exportは`DLManagedTensor` deleterが独立したnative leaseを保持す
 所有権を渡した後は元のPython/C handleを先に解放できる。未消費capsuleのdestructorと
 consumer側deleterのどちらか一方だけがこのleaseを解放する。
 
-### 5.6 Frame Processing（将来対応）
+### 5.6 CPU Convenience Processing
 
-- `EXT-PROC-001`: CPU frameとGPU Surfaceへ同じ`process/resize/crop/convert/rotate/flip`操作感を提供し、OS/vendor差を通常APIから隠蔽する。
+- `EXT-PROC-001`: 既存のCPU owned frame向け`process/resize/crop/convert/rotate/flip`は任意の便利機能として提供する。
 - `EXT-PROC-002`: `resize(width, height, fit, interpolation)`を提供し、`stretch/contain/cover`とbackendが対応する補間方式を選択できる。
 - `EXT-PROC-003`: `crop(x, y, width, height)`を提供し、chroma subsampling、境界、偶数alignmentを検証する。
 - `EXT-PROC-004`: NV12/P010/I420/BGR/RGB/BGRA間の基本色変換と、BT.601/BT.709/BT.2020、limited/full rangeのmetadata保持・変換を提供する。
 - `EXT-PROC-005`: 90/180/270度rotateとhorizontal/vertical flipを提供する。
 - `EXT-PROC-006`: letterbox/pillarboxを提供し、出力寸法、縦横比、配置、背景色を明示指定できる。
-- `EXT-PROC-007`: GPU入力では対応時GPU-resident処理を選択し、`require_gpu_resident=True`または`allow_cpu_copy=False`の場合はCPU fallbackへ黙って降格しない。
-- `EXT-PROC-008`: 処理結果は新しい論理frameとして返し、実行した`cpu/cpu_upload/gpu_copy/zero_copy/shared_surface`経路と未対応理由を公開する。
+- `EXT-PROC-007`: GPU frameに対する画像処理methodは本libraryのscope外とし、native handle/DLPack exportを案内する。
+- `EXT-PROC-008`: CPU便利処理の結果はowned frameとし、形式変換・allocationをzero-copyと報告しない。
 
-Python API予定形:
+CPU convenience API:
 
 ```python
 processed = frame.process(
@@ -179,14 +199,11 @@ processed = frame.process(
     rotate=0,
     flip=None,
     background=(0, 0, 0),
-    require_gpu_resident=True,
-    allow_gpu_copy=True,
-    allow_cpu_copy=False,
 )
 writer.write(processed)
 ```
 
-個別の`resize/crop/convert/rotate/flip`は同じ処理planを生成する便宜APIとし、連鎖時は可能な範囲で一つのbackend処理へ融合する。
+個別の`resize/crop/convert/rotate/flip`は同じCPU処理planを生成する便宜APIとする。GPU利用者はCuPy/NPP/VA-API/OpenCL/SYCL/D3D11/DirectML等で処理し、処理結果をimport APIへ渡す。
 
 ### 5.7 Mode / Rate control
 
@@ -221,6 +238,10 @@ with mkvcodec.VideoCapture(
     mode="balanced",
 ) as cap:
     frame = cap.read_bgr()
+
+# allocationを共有するread-only view。viewを保持している間はdecode slotを再利用しない。
+with cap.read_borrowed(format="nv12") as frame:
+    y_plane = frame.planes[0]
 ```
 
 ### 6.2 Python encode
@@ -237,6 +258,23 @@ with mkvcodec.VideoWriter(
     queue_size=8,
 ) as writer:
     writer.write(bgr_frame)
+
+# 同一layoutのCPU memoryを呼出中だけ借用する同期経路
+writer.write_borrowed(nv12_frame)
+
+# 非同期経路ではcompletionまでinputを変更・解放しない
+submission = writer.submit_borrowed(pool_buffer)
+submission.wait()
+```
+
+GPU external processing:
+
+```python
+with cap.read_surface() as decoded:
+    # NVIDIAではCuPy等がDLPackをconsumeする。Intel texture/VA surfaceは
+    # 対応するnative API経由で外部libraryへ渡す。
+    external = process_with_external_library(decoded)
+    writer.write_surface(external, require_gpu_resident=True)
 ```
 
 ### 6.3 C ABI
@@ -258,14 +296,24 @@ mkvc_encoder_flush();
 mkvc_encoder_destroy();
 mkvc_frame_retain();
 mkvc_frame_release();
+mkvc_cpu_frame_export();
+mkvc_encoder_submit_cpu_frame();
+mkvc_gpu_frame_export_native();
+mkvc_encoder_submit_gpu_frame();
+mkvc_completion_query();
+mkvc_completion_wait();
 mkvc_get_last_error();
 ```
+
+export descriptorはmemoryを所有せず、対応するframe leaseがdescriptorの有効期間を支配する。import submissionはconsumer completionまで外部ownerをretainし、その後release callbackを一度だけ呼ぶ。
 
 ### 6.4 C#
 
 - `EXT-CS-002`: handleは`SafeHandle`、reader/writer/frameは`IDisposable`で包む。
 - `EXT-CS-003`: CPU frame API後にD3D11 Texture連携を提供する。
 - `EXT-CS-004`: C++ Coreのsubmit/receiveを基に、将来`WriteAsync`等を提供できる設計とする。
+
+.NETの同期CPU入力はP/Invoke中だけmanaged memoryをpinできる。`WriteAsync`はmanaged arrayを長時間pinせず、libraryのnative/pinned poolまたは明示的なunmanaged ownerを使用する。
 
 ## 7. Error Behavior
 
@@ -308,18 +356,19 @@ Status: `PROPOSED`
 
 | ID | Acceptance criterion | Related EXT |
 |---|---|---|
-| `AC-SYS-001` | Windows x64/Linux x64でCPU Coreをbuild/loadできる | EXT-SYS-001, EXT-BACK-006 |
+| `AC-SYS-001` | Windows x64/Linux x64でCPU Coreをbuild/loadでき、共通interop境界を列挙できる | EXT-SYS-001..002, EXT-BACK-006 |
 | `AC-CONT-001` | 生成MKV/WebMを独立toolで最後までdecodeでき、codec/解像度/fps/frame数/durationが一致する | EXT-CONT-001..003 |
 | `AC-CODEC-001` | VP9 CPU round-tripが成立する | EXT-CODEC-001 |
 | `AC-CODEC-002` | AV1の各対応backendでround-tripが成立する | EXT-CODEC-002 |
 | `AC-CODEC-003` | H.264/HEVCが列挙・受理・fallbackされない | EXT-CODEC-003 |
-| `AC-DEC-001` | read各形式、iterator、batch、EOS、prefetchが契約通り動作する | EXT-DEC-001..005 |
-| `AC-ENC-001` | 各CPU入力、batch、flush、close、try_writeが契約通り動作する | EXT-ENC-001..010 |
+| `AC-DEC-001` | read各形式、iterator、batch、EOS、prefetch、borrowed readが契約通り動作する | EXT-DEC-001..006 |
+| `AC-ENC-001` | 各CPU入力、borrowed/async submission、batch、flush、close、try_writeが契約通り動作する | EXT-ENC-001..013 |
 | `AC-BACK-001` | device/capability/auto selectionが実機能力と一致する | EXT-BACK-001..006 |
 | `AC-FRAME-001` | Surface lease中の再利用がなく、release後accessを拒否する | EXT-FRAME-001..005 |
+| `AC-CPUINT-001` | CPU frameのborrowed export/importがpointer/shape/stride、lease、completion、strict copy policyを満たし、GPU→NumPy copyを明示する | EXT-FRAME-006..012 |
 | `AC-ZC-001` | zero-copy対応経路をtraceで証明し、require時に降格しない | EXT-FRAME-003..004 |
-| `AC-GPU-001` | Intel/NVIDIAでdecode→process→encodeがGPU-resident契約、lease/completion、native export、DLPack stream semantics、copy policyを満たす | EXT-GPU-001..010 |
-| `AC-PROC-001` | 5種のframe処理がCPU/GPU共通契約、幾何・色metadata、copy制約どおり動作する | EXT-PROC-001..008 |
+| `AC-GPU-001` | Intel/NVIDIAでdecode→export→外部処理→import→encodeがGPU-resident契約、lease/completion、native/DLPack interop、copy policyを満たす | EXT-GPU-001..010 |
+| `AC-PROC-001` | CPU owned frame向け5種の便利処理が幾何・色metadata契約どおり動作し、GPU処理はinteropへ案内される | EXT-PROC-001..008 |
 | `AC-ABI-001` | C/C#/Pythonから同じCoreのcreate/read-write/destroyが成立する | EXT-ABI-001..005, EXT-CS-001..004 |
 | `AC-ERR-001` | 全失敗でexception leak、double free、resource leakがない | EXT-ERR-001..006 |
 | `AC-PERF-001` | bounded resource、pipeline並行性、GIL解放、baseline回帰gateを満たす | EXT-PERF-001..006 |
