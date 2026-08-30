@@ -406,6 +406,9 @@ MKVC_API mkvc_result mkvc_gpu_frame_export_dlpack(
     mkvc_gpu_frame* frame, uint32_t plane_index,
     uint64_t consumer_stream, void** out_managed_tensor);
 
+/** Release an unconsumed DLManagedTensor returned by the export function. */
+MKVC_API void mkvc_dlpack_managed_tensor_release(void* managed_tensor);
+
 #ifdef __cplusplus
 }
 #endif

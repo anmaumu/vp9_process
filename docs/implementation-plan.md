@@ -90,11 +90,12 @@
 - [x] connect NVIDIA CUdeviceptr/context/pitch factory to mapped NVDEC surfaces
 - [ ] NVIDIA CUarray/stream/event export and asynchronous dependency factory
 - [x] native NVIDIA linear CUDA-pointer DLPack plane adapter and native lease deleter
-- [ ] Python DLPack capsule/CuPy protocol, consumer CUDA event dependency and Intel safe USM adapter
+- [x] Python stable-ABI DLPack capsule and `GpuFrame.plane()` protocol source API
+- [ ] CuPy hardware qualification, consumer CUDA event dependency and Intel safe USM adapter
 - [ ] NVIDIA NPP/CUDA mapping
 - [ ] Intel oneVPL VPP/D3D11/VA-API mapping
 - [ ] fused processing, strict GPU-resident policy and copy-path trace
-- [ ] Python GPU Frame/DLPack/CuPy processing surface
+- [ ] Python GPU processing methods and CuPy hardware qualification
 - [x] .NET GPU Frame SafeHandle, descriptor/native handle/wait and Capture.ReadSurface source API
 - [ ] .NET GPU Frame SDK build, Intel/NVIDIA hardware smoke and C++ RAII wrapper
 - [ ] `TEST-GPU-001..014` lifetime, interop, fault, trace and soak qualification

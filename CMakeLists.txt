@@ -1,10 +1,11 @@
-cmake_minimum_required(VERSION 3.24)
+cmake_minimum_required(VERSION 3.26)
 
 project(vp9_process VERSION 0.1.0 LANGUAGES C CXX)
 
 option(MKVC_BUILD_TESTS "Build native tests" ON)
 option(MKVC_BUILD_PYTHON_TESTS "Build Python binding tests (requires NumPy)" OFF)
 option(MKVC_BUILD_DOTNET_TESTS "Build and run the .NET P/Invoke smoke test" OFF)
+option(MKVC_BUILD_PYTHON_DLPACK "Build the CPython stable-ABI DLPack capsule bridge" ON)
 option(MKVC_ENABLE_CPU_VP9 "Enable the libvpx CPU VP9 backend" ON)
 option(MKVC_ENABLE_CPU_AV1 "Enable SVT-AV1 encode and libaom decode" ON)
 option(MKVC_ENABLE_INTEL_ONEVPL "Enable Intel oneVPL backend foundation" ON)
@@ -133,6 +134,26 @@ install(TARGETS mkvcodec
 install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
 find_package(Python3 QUIET COMPONENTS Interpreter)
+if(MKVC_BUILD_PYTHON_DLPACK)
+    find_package(Python3 QUIET COMPONENTS Development.SABIModule)
+    if(TARGET Python3::SABIModule)
+        Python3_add_library(mkvc_python_dlpack MODULE USE_SABI 3.9 WITH_SOABI
+            python/mkvcodec/_dlpack_module.c)
+        target_compile_definitions(mkvc_python_dlpack PRIVATE Py_LIMITED_API=0x03090000)
+        set_target_properties(mkvc_python_dlpack PROPERTIES
+            OUTPUT_NAME "_dlpack" PREFIX "")
+        install(TARGETS mkvc_python_dlpack
+            LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}/python/mkvcodec
+            RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}/python/mkvcodec)
+        if(MKVC_BUILD_TESTS AND Python3_Interpreter_FOUND)
+            add_test(NAME mkvc_python_dlpack_capsule
+                COMMAND ${CMAKE_COMMAND} -E env
+                    "PYTHONPATH=$<TARGET_FILE_DIR:mkvc_python_dlpack>"
+                    "${Python3_EXECUTABLE}"
+                    "${CMAKE_CURRENT_SOURCE_DIR}/tests/python_dlpack_capsule.py")
+        endif()
+    endif()
+endif()
 if(Python3_Interpreter_FOUND)
     add_custom_target(docgen-check
         COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/docgen.py check

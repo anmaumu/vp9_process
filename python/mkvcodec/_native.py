@@ -239,6 +239,7 @@ lib.mkvc_gpu_frame_export_dlpack.argtypes = [
     GpuFrameHandle, ct.c_uint32, ct.c_uint64, ct.POINTER(ct.c_void_p)
 ]
 lib.mkvc_gpu_frame_export_dlpack.restype = ct.c_int
+lib.mkvc_dlpack_managed_tensor_release.argtypes = [ct.c_void_p]
 lib.mkvc_gpu_frame_retain.argtypes = [GpuFrameHandle]
 lib.mkvc_gpu_frame_retain.restype = ct.c_int
 lib.mkvc_gpu_frame_release.argtypes = [GpuFrameHandle]

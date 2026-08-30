@@ -33,6 +33,7 @@ def build_wheel(
     project_license: pathlib.Path,
     output_dir: pathlib.Path,
     platform_tag: str,
+    dlpack_extension: pathlib.Path | None = None,
 ) -> pathlib.Path:
     if not re.fullmatch(r"[A-Za-z0-9_.]+", platform_tag):
         raise ValueError("platform tag contains unsupported characters")
@@ -41,14 +42,21 @@ def build_wheel(
             raise ValueError(f"{label} is missing or empty: {path}")
     if not legal_dir.is_dir():
         raise ValueError(f"legal directory is missing: {legal_dir}")
+    if dlpack_extension is not None and (
+        not dlpack_extension.is_file() or dlpack_extension.stat().st_size == 0
+    ):
+        raise ValueError(f"DLPack extension is missing or empty: {dlpack_extension}")
 
     output_dir.mkdir(parents=True, exist_ok=True)
-    wheel = output_dir / f"{NAME}-{VERSION}-py3-none-{platform_tag}.whl"
+    python_tag, abi_tag = ("cp39", "abi3") if dlpack_extension else ("py3", "none")
+    wheel = output_dir / f"{NAME}-{VERSION}-{python_tag}-{abi_tag}-{platform_tag}.whl"
     dist_info = f"{NAME}-{VERSION}.dist-info"
     entries: dict[str, bytes] = {}
     for source in sorted((ROOT / "python" / NAME).glob("*.py")):
         entries[f"{NAME}/{source.name}"] = source.read_bytes()
     entries[f"{NAME}/{native.name}"] = native.read_bytes()
+    if dlpack_extension is not None:
+        entries[f"{NAME}/{dlpack_extension.name}"] = dlpack_extension.read_bytes()
     entries[f"{dist_info}/METADATA"] = (
         "Metadata-Version: 2.4\n"
         f"Name: {NAME}\nVersion: {VERSION}\n"
@@ -59,7 +67,7 @@ def build_wheel(
     entries[f"{dist_info}/WHEEL"] = (
         "Wheel-Version: 1.0\nGenerator: mkvcodec-build-wheel\n"
         "Root-Is-Purelib: false\n"
-        f"Tag: py3-none-{platform_tag}\n\n"
+        f"Tag: {python_tag}-{abi_tag}-{platform_tag}\n\n"
     ).encode()
     license_prefix = f"{dist_info}/licenses"
     entries[f"{license_prefix}/LICENSE.txt"] = project_license.read_bytes()
@@ -92,10 +100,12 @@ def main() -> int:
     parser.add_argument("--project-license", required=True, type=pathlib.Path)
     parser.add_argument("--output-dir", required=True, type=pathlib.Path)
     parser.add_argument("--platform-tag", required=True)
+    parser.add_argument("--dlpack-extension", type=pathlib.Path)
     args = parser.parse_args()
     wheel = build_wheel(
         args.native, args.legal_dir, args.project_license, args.output_dir,
         args.platform_tag,
+        args.dlpack_extension,
     )
     print(wheel)
     return 0

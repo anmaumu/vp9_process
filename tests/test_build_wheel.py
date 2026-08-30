@@ -38,6 +38,20 @@ class BuildWheelTests(unittest.TestCase):
                 self.assertEqual(len(rows), len(names))
                 self.assertEqual(rows[-1], [record_name, "", ""])
 
+            extension = root / "_dlpack.abi3.so"
+            extension.write_bytes(b"abi3-extension")
+            abi3_wheel = build_wheel.build_wheel(
+                native, legal, project_license, root / "dist-abi3",
+                "manylinux_2_28_x86_64", extension,
+            )
+            self.assertIn("cp39-abi3", abi3_wheel.name)
+            with zipfile.ZipFile(abi3_wheel) as archive:
+                self.assertIn("mkvcodec/_dlpack.abi3.so", archive.namelist())
+                wheel_metadata = archive.read(
+                    "mkvcodec-0.1.0.dist-info/WHEEL"
+                ).decode()
+                self.assertIn("Tag: cp39-abi3-manylinux_2_28_x86_64", wheel_metadata)
+
     def test_project_license_is_mandatory(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = pathlib.Path(temporary)

@@ -150,7 +150,10 @@ C/C++/C#利用者はversioned `mkvc_copy_policy`を作成直後に
 policyは最初のframe operation後には変更できない。初期実装のstrict Intel
 surface経路はencoder `queue_size=0`、decoder `prefetch=0`を要求する。
 
-Native handleとDLPackはborrowed exportであり、利用者は元の`mkvc_gpu_frame` leaseを保持する。外部consumerがresourceを保持する必要がある場合は、completion付きexport leaseを明示取得する。
+Native handleはborrowed exportであり、利用者は元の`mkvc_gpu_frame` leaseを保持する。
+DLPack exportは`DLManagedTensor` deleterが独立したnative leaseを保持するため、consumerへ
+所有権を渡した後は元のPython/C handleを先に解放できる。未消費capsuleのdestructorと
+consumer側deleterのどちらか一方だけがこのleaseを解放する。
 
 ### 5.6 Frame Processing（将来対応）
 

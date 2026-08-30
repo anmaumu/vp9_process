@@ -23,8 +23,9 @@ C ABI/Pythonから選択でき、Windows RTX 2060でVP9を検証済みです。
 NVENC AV1 WriterはC ABI/Python共通経路へ実装済みで、runtime queryが対応を示すGPU
 だけに公開します。RTX 2060での非対応拒否とGPUなしLinuxでの退行は検証済みですが、
 AV1 NVENC対応GPUでのpositive encode検証は未完です。NVIDIA VP9 decodeはCUDA pointer
-surfaceを公開できますが、NVDEC→NVENC直結、CUDA event/DLPack、NVIDIA AV1対応GPU検証、
-10-bit public frame APIは未完です。
+surfaceを公開でき、NVDEC surface→NVENC registered-resource経路と、各NV12 planeを
+DLPackへ渡すnative/Python APIを実装済みです。CUDA eventのconsumer-stream dependency、
+CuPy実機検証、NVIDIA AV1対応GPU検証、10-bit public frame APIは未完です。
 .NET 8 bindingではABI version/capability query、型付きerror、SafeHandleに加え、
 `IDisposable`な`MkvVideoWriter`/`MkvVideoCapture`とowned I420 frameを実装済みです。
 利用可能と報告される機能は、実装済みbackendだけに限定します。
@@ -57,6 +58,23 @@ with mkvcodec.VideoWriter(
 with mkvcodec.VideoCapture("output.webm", prefetch=4) as capture:
     bgr_frame = capture.read()       # or read_bgr()
     pts_ns = capture.last_pts_ns
+```
+
+NVIDIA GPU surfaceはY/UV planeごとにDLPack consumerへ渡せます。consumerが
+managed tensorを解放するまでnative GPU leaseも保持されます。
+
+```python
+import cupy as cp
+
+with mkvcodec.VideoCapture(
+    "input.webm", codec="vp9", backend="nvidia",
+    prefetch=0, require_gpu_resident=True,
+) as capture:
+    surface = capture.read_surface()
+    if surface is not None:
+        y = cp.from_dlpack(surface.plane(0))
+        uv = cp.from_dlpack(surface.plane(1))
+        surface.close()  # y/uvが生存中はnative surfaceも再利用されない
 ```
 
 開発時はnative libraryの場所を`MKVC_LIBRARY_PATH`で指定できます。wheelへのnative

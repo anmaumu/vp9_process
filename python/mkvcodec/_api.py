@@ -11,6 +11,11 @@ import numpy.typing as npt
 
 from . import _native as native
 
+try:
+    from . import _dlpack
+except ImportError:
+    _dlpack = None
+
 U8Plane = npt.NDArray[np.uint8]
 
 
@@ -79,6 +84,15 @@ class GpuFrame:
             raise ValueError("timeout_ms is outside uint32 range")
         native.check(native.lib.mkvc_gpu_frame_wait(self._handle, timeout_ms))
 
+    def plane(self, index: int) -> "GpuPlane":
+        """Return one GPU plane implementing the Python DLPack protocol."""
+        if self._closed:
+            raise RuntimeError("GPU frame is released")
+        descriptor = self.descriptor
+        if index < 0 or index >= int(descriptor["plane_count"]):
+            raise IndexError("GPU plane index is out of range")
+        return GpuPlane(self, index)
+
     def close(self) -> None:
         if not self._closed:
             native.lib.mkvc_gpu_frame_release(self._handle)
@@ -91,6 +105,51 @@ class GpuFrame:
     def __del__(self) -> None:
         if getattr(self, "_closed", True) is False:
             self.close()
+
+
+class GpuPlane:
+    """A zero-copy uint8 view of one linear GPU plane."""
+    def __init__(self, frame: GpuFrame, index: int) -> None:
+        self._frame = frame
+        self._index = index
+
+    def __dlpack_device__(self) -> tuple[int, int]:
+        descriptor = self._frame.descriptor
+        if descriptor["memory_type"] != 3:
+            raise BufferError("this GPU surface is not a linear CUDA pointer")
+        return 2, int(descriptor["device_id"])
+
+    def __dlpack__(
+        self, *, stream: int | None = None, max_version: tuple[int, int] | None = None,
+        dl_device: tuple[int, int] | None = None, copy: bool | None = None,
+    ) -> object:
+        del max_version
+        if copy:
+            raise BufferError("mkvcodec DLPack planes do not implement copies")
+        device = self.__dlpack_device__()
+        if dl_device is not None and tuple(dl_device) != device:
+            raise BufferError("requested DLPack device does not match the GPU frame")
+        if _dlpack is None:
+            raise RuntimeError(
+                "the mkvcodec stable-ABI DLPack capsule extension is not installed"
+            )
+        if stream is None:
+            consumer_stream = 0
+        elif not isinstance(stream, int) or stream < 0 or stream > 0xFFFFFFFFFFFFFFFF:
+            raise ValueError("DLPack stream must be a uint64 integer or None")
+        else:
+            consumer_stream = stream
+        managed = ct.c_void_p()
+        native.check(native.lib.mkvc_gpu_frame_export_dlpack(
+            self._frame._handle, self._index, consumer_stream, ct.byref(managed)
+        ))
+        try:
+            return _dlpack.capsule_from_address(managed.value)
+        except Exception:
+            # Capsule construction is the only operation after native ownership
+            # transfer. Reclaim through the standard managed-tensor deleter.
+            native.lib.mkvc_dlpack_managed_tensor_release(managed)
+            raise
 
 
 def _read_metrics(handle: ct.c_void_p, function: object) -> PipelineMetrics:

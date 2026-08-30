@@ -107,3 +107,8 @@ extern "C" mkvc_result mkvc_gpu_frame_export_dlpack(
     *out_managed_tensor = &state.release()->managed;
     return MKVC_OK;
 }
+
+extern "C" void mkvc_dlpack_managed_tensor_release(void* managed_tensor) {
+    auto* tensor = static_cast<DLManagedTensor*>(managed_tensor);
+    if (tensor != nullptr && tensor->deleter != nullptr) tensor->deleter(tensor);
+}
