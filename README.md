@@ -121,6 +121,21 @@ with mkvcodec.VideoWriter(
 pool.close()
 ```
 
+C++17では`mkvcodec/mkvcodec.hpp`のheader-only RAII facadeを利用できます。公開binary
+境界は引き続きC ABIであり、wrapperはcompiler固有のC++ ABIをDLL境界へ公開しません。
+
+```cpp
+mkvcodec::CpuFramePool pool(MKVC_PIXEL_FORMAT_I420, 1920, 1080, 4);
+auto buffer = pool.acquire();
+auto view = buffer.view();
+process_into(view.planes, view.strides);
+mkvcodec::Encoder encoder(config);
+auto submission = encoder.submit(buffer);
+buffer.reset();              // native submissionがslotを保持
+submission.wait();
+encoder.close();
+```
+
 NVIDIA GPU surfaceはY/UV planeごとにDLPack consumerへ渡せます。consumerが
 managed tensorを解放するまでnative GPU leaseも保持されます。
 

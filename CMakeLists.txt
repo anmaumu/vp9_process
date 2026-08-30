@@ -285,6 +285,13 @@ if(MKVC_BUILD_TESTS)
     endif()
 
     if(MKVC_ENABLE_CPU_VP9)
+        add_executable(mkvc_cpp_raii_test tests/cpp_raii_test.cpp)
+        target_compile_features(mkvc_cpp_raii_test PRIVATE cxx_std_17)
+        target_link_libraries(mkvc_cpp_raii_test PRIVATE mkvcodec)
+        add_test(NAME mkvc_cpp_raii
+            COMMAND mkvc_cpp_raii_test
+                "${CMAKE_CURRENT_BINARY_DIR}/cpp_raii_test.webm")
+
         add_executable(mkvc_cpu_frame_pool_test tests/cpu_frame_pool_test.cpp)
         target_compile_features(mkvc_cpu_frame_pool_test PRIVATE cxx_std_17)
         target_link_libraries(mkvc_cpu_frame_pool_test PRIVATE mkvcodec)

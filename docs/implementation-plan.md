@@ -99,7 +99,8 @@
 - [x] .NET GPU Frame SafeHandle, descriptor/native handle/wait and Capture.ReadSurface source API
 - [x] .NET strict GPU-resident Capture/Writer and WriteSurface source API
 - [x] .NET 8 SDK-style build and Windows native-load/CPU round-trip smoke
-- [ ] .NET Intel/NVIDIA hardware smoke and C++ RAII wrapper
+- [x] header-only C++17 RAII wrapper over the stable C ABI
+- [ ] .NET Intel/NVIDIA hardware smoke
 - [ ] `TEST-GPU-001..020` lifetime, interop, fault, trace and soak qualification
 
 ## Phase 3E: CPU borrowed frame interoperability
