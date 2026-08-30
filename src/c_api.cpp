@@ -307,6 +307,27 @@ mkvc_result mkvc_encoder_write_frame(mkvc_encoder* encoder,
     }
 }
 
+mkvc_result mkvc_encoder_write_frame_borrowed(
+    mkvc_encoder* encoder, const mkvc_frame_view* frame) {
+    last_error.clear();
+    if (encoder == nullptr || frame == nullptr ||
+        frame->struct_size < sizeof(mkvc_frame_view) ||
+        frame->struct_version != 1) {
+        return fail(MKVC_ERROR_INVALID_ARGUMENT,
+                    "invalid encoder or borrowed frame view");
+    }
+    try {
+        std::string error;
+        const mkvc_result result =
+            encoder->implementation->write_borrowed(*frame, error);
+        return result == MKVC_OK ? result : fail(result, std::move(error));
+    } catch (const std::exception& exception) {
+        return fail(MKVC_ERROR_INTERNAL, exception.what());
+    } catch (...) {
+        return fail(MKVC_ERROR_INTERNAL, "unknown borrowed frame write failure");
+    }
+}
+
 mkvc_result mkvc_encoder_write_gpu_frame(mkvc_encoder* encoder,
                                          const mkvc_gpu_frame* frame) {
     last_error.clear();

@@ -311,6 +311,16 @@ MKVC_API mkvc_result mkvc_encoder_set_copy_policy(
 MKVC_API mkvc_result mkvc_encoder_write_frame(
     mkvc_encoder* encoder,
     const mkvc_frame_view* frame);
+/**
+ * @brief Synchronously borrow and submit one CPU frame without an ABI-boundary copy.
+ *
+ * The input pointers remain caller-owned and need only stay valid until this
+ * function returns. The initial implementation requires encoder queue_size=0;
+ * return means the codec backend has finished reading the input pixels.
+ */
+MKVC_API mkvc_result mkvc_encoder_write_frame_borrowed(
+    mkvc_encoder* encoder,
+    const mkvc_frame_view* frame);
 /** Submit a compatible GPU frame without copying its pixels to CPU memory. */
 MKVC_API mkvc_result mkvc_encoder_write_gpu_frame(
     mkvc_encoder* encoder,

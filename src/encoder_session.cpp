@@ -465,6 +465,26 @@ mkvc_result EncoderSession::write(const mkvc_frame_view& frame, bool block,
     return MKVC_OK;
 }
 
+mkvc_result EncoderSession::write_borrowed(const mkvc_frame_view& frame,
+                                           std::string& error) {
+    {
+        std::lock_guard<std::mutex> lock(impl_->mutex);
+        if (impl_->capacity != 0) {
+            error = "borrowed CPU writes require queue_size=0";
+            return MKVC_ERROR_NOT_SUPPORTED;
+        }
+        if (impl_->failed) {
+            error = impl_->terminal_error;
+            return impl_->terminal_result;
+        }
+        if (!impl_->accepting) {
+            error = "encoder is closing or closed";
+            return MKVC_ERROR_INVALID_STATE;
+        }
+    }
+    return write(frame, true, error);
+}
+
 mkvc_result EncoderSession::set_copy_policy(
     const mkvc_copy_policy& policy, std::string& error) {
     std::lock_guard<std::mutex> lock(impl_->mutex);

@@ -1,5 +1,6 @@
 import os
 import tempfile
+import gc
 
 import numpy as np
 
@@ -42,6 +43,67 @@ def main() -> None:
         assert [frame.pts_ns for frame in frames] == sorted(
             frame.pts_ns for frame in frames
         )
+
+        with mkvcodec.VideoCapture(path, prefetch=0) as capture:
+            borrowed = capture.read_borrowed()
+            assert borrowed is not None
+            assert borrowed.pixel_format == "i420"
+            assert borrowed.y.shape == (height, width)
+            assert borrowed.u.shape == (height // 2, width // 2)
+            assert borrowed.v.shape == (height // 2, width // 2)
+            assert not borrowed.y.flags.writeable
+            retained_y = borrowed.y[:, 1:]
+            retained_u = borrowed.u
+            retained_v = borrowed.v
+            retained_pts = borrowed.pts_ns
+            try:
+                borrowed.y[0, 0] = 0
+            except ValueError:
+                pass
+            else:
+                raise AssertionError("borrowed decode plane must be read-only")
+            borrowed.close()
+            try:
+                _ = borrowed.y
+            except RuntimeError:
+                pass
+            else:
+                raise AssertionError("closed borrowed frame remained accessible")
+        # ndarray views retain the native frame independently of Capture/frame.
+        assert retained_y.shape == (height, width - 1)
+        assert int(retained_y[0, 0]) >= 0
+
+        borrowed_path = os.path.join(directory, "borrowed.webm")
+        with mkvcodec.VideoCapture(path, prefetch=0) as capture:
+            borrowed = capture.read_borrowed()
+            assert borrowed is not None
+            borrowed_planes = borrowed.planes
+        with mkvcodec.VideoWriter(
+            borrowed_path, fps=30, frame_size=(width, height), queue_size=0
+        ) as writer:
+            writer.write_borrowed(
+                borrowed_planes, format="i420", pts=borrowed.pts_ns
+            )
+        borrowed.close()
+        del borrowed_planes
+        del retained_y, retained_u, retained_v
+        gc.collect()
+        with mkvcodec.VideoCapture(borrowed_path, prefetch=0) as capture:
+            decoded_borrowed = capture.read_i420()
+            assert decoded_borrowed is not None
+            assert decoded_borrowed.pts_ns == retained_pts
+            assert capture.read_i420() is None
+
+        with mkvcodec.VideoWriter(
+            os.path.join(directory, "borrowed-invalid.webm"),
+            fps=30, frame_size=(width, height), queue_size=1,
+        ) as writer:
+            expect_value_error(
+                lambda: writer.write_borrowed(
+                    (frames[0].y, frames[0].u, frames[0].v), format="i420"
+                )
+            )
+            writer.write((frames[0].y, frames[0].u, frames[0].v))
 
         with mkvcodec.VideoCapture(path, prefetch=0) as capture:
             processed = capture.read_processed(

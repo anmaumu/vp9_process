@@ -190,6 +190,10 @@ lib.mkvc_encoder_set_copy_policy.argtypes = [
 lib.mkvc_encoder_set_copy_policy.restype = ct.c_int
 lib.mkvc_encoder_write_frame.argtypes = [EncoderHandle, ct.POINTER(FrameView)]
 lib.mkvc_encoder_write_frame.restype = ct.c_int
+lib.mkvc_encoder_write_frame_borrowed.argtypes = [
+    EncoderHandle, ct.POINTER(FrameView)
+]
+lib.mkvc_encoder_write_frame_borrowed.restype = ct.c_int
 lib.mkvc_encoder_write_gpu_frame.argtypes = [EncoderHandle, GpuFrameHandle]
 lib.mkvc_encoder_write_gpu_frame.restype = ct.c_int
 lib.mkvc_encoder_try_write_frame.argtypes = [EncoderHandle, ct.POINTER(FrameView)]

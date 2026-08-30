@@ -106,7 +106,8 @@ and an OS/oneVPL trace has not yet independently proven zero host pixel transfer
 | `EXT-ENC-001` | create/write/flush/idempotent close/destroy | `mkvc_cpu_vp9_encode` | synchronous and bounded asynchronous CPU paths complete |
 | `EXT-ENC-002` | BGR/RGB/BGRA/I420/NV12 CPU input | VP9/AV1 Python round-trips | complete for both CPU writers |
 | `EXT-ENC-005` | asynchronous input deep-copied before return | mutable reused inputs in native/Python round-trip | complete for supported CPU formats |
-| `EXT-DEC-006`, `EXT-ENC-011..013`, `EXT-FRAME-006..012` | borrowed CPU export/import, async owner lease, native/pinned pool | `TEST-CPUINT-001..007` planned | specified; high-level C ABI/Python/.NET implementation pending |
+| `EXT-DEC-006`, `EXT-ENC-011`, `EXT-FRAME-006..007` | retained native I420 descriptor, Python read-only borrowed NumPy views, synchronous borrowed encode | native VP9 and `mkvc_python_roundtrip` lifetime/round-trip coverage | initial C ABI/Python slice complete; borrowed encode currently requires `queue_size=0` |
+| `EXT-ENC-012..013`, `EXT-FRAME-009..012` | async owner lease, native/pinned pool, strict layout/copy fallback | `TEST-CPUINT-004..007` planned | specified; implementation pending |
 | `EXT-ENC-006` | bounded queue/pool; blocking write; nonblocking try-write; ordered flush/close | native and Python round-trip | complete for CPU writer; cancel API pending |
 | `EXT-ENC-007` | CQ quality 0..63, default contract 32 | integration config uses 32 | backend mapping complete; binding default pending |
 | `EXT-ENC-009` | four-second keyframe default, auto threads | code review/build | complete for libvpx writer |

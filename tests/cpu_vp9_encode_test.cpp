@@ -68,6 +68,21 @@ int main(int argc, char** argv) {
     assert(mkvc_encoder_get_metrics(encoder, &invalid_metrics) ==
            MKVC_ERROR_INVALID_ARGUMENT);
 
+    mkvc_frame_view borrowed_probe{};
+    borrowed_probe.struct_size = sizeof(borrowed_probe);
+    borrowed_probe.struct_version = 1;
+    borrowed_probe.pixel_format = MKVC_PIXEL_FORMAT_I420;
+    borrowed_probe.width = width;
+    borrowed_probe.height = height;
+    borrowed_probe.planes[0] = image.data();
+    borrowed_probe.planes[1] = image.data() + y_size;
+    borrowed_probe.planes[2] = image.data() + y_size + uv_size;
+    borrowed_probe.strides[0] = width;
+    borrowed_probe.strides[1] = width / 2;
+    borrowed_probe.strides[2] = width / 2;
+    assert(mkvc_encoder_write_frame_borrowed(encoder, &borrowed_probe) ==
+           MKVC_ERROR_NOT_SUPPORTED);
+
     for (uint32_t index = 0; index < frame_count; ++index) {
         for (uint32_t row = 0; row < height; ++row) {
             for (uint32_t column = 0; column < width; ++column) {
@@ -128,6 +143,21 @@ int main(int argc, char** argv) {
            MKVC_ERROR_INVALID_STATE);
     assert(mkvc_get_last_error()[0] != '\0');
     mkvc_encoder_destroy(encoder);
+
+    const std::string borrowed_output = output_path + ".borrowed.webm";
+    std::filesystem::remove(borrowed_output);
+    mkvc_encoder_config borrowed_config = config;
+    borrowed_config.output_path_utf8 = borrowed_output.c_str();
+    borrowed_config.queue_size = 0;
+    require_ok(mkvc_encoder_create(&borrowed_config, &encoder));
+    borrowed_probe.pts = 0;
+    require_ok(mkvc_encoder_write_frame_borrowed(encoder, &borrowed_probe));
+    // The synchronous call has consumed its input; caller memory is reusable.
+    image[0] ^= 0xff;
+    require_ok(mkvc_encoder_close(encoder));
+    mkvc_encoder_destroy(encoder);
+    assert(std::filesystem::exists(borrowed_output));
+    assert(std::filesystem::file_size(borrowed_output) > 0);
 
     assert(std::filesystem::exists(output_path));
     assert(std::filesystem::file_size(output_path) > 0);
@@ -202,5 +232,6 @@ int main(int argc, char** argv) {
     assert(decoder_metrics.backend_time_ns > 0);
     assert(decoder_metrics.copy_path == MKVC_COPY_PATH_CPU);
     mkvc_decoder_destroy(decoder);
+    std::filesystem::remove(borrowed_output);
     return 0;
 }

@@ -27,8 +27,8 @@ decode結果をNumPy/OpenCV、CuPy/DLPack、D3D11、VA-API等へexportし、外�
 - GPU zero-copy処理はDLPack/native handleで外部libraryへ渡し、処理済みresourceと
   producer event/fenceをencoderへimportします。
 - CPU owned NumPy APIと現在のCPU convenience processingは安全な既定機能として残します。
-- borrowed CPU API、GPU processed-resource import、非同期submission leaseは仕様確定済みで、
-  現時点では未実装です。
+- borrowed CPU decodeと同期encodeはC ABI/Pythonへ実装済みです。非同期submission
+  lease、native/pinned pool、GPU processed-resource importは未実装です。
 
 ## 現在地
 
@@ -76,6 +76,21 @@ with mkvcodec.VideoWriter(
 with mkvcodec.VideoCapture("output.webm", prefetch=4) as capture:
     bgr_frame = capture.read()       # or read_bgr()
     pts_ns = capture.last_pts_ns
+```
+
+CPU native I420をcopyせずNumPy viewとして借用する場合は`read_borrowed()`を使います。
+返却planeはread-onlyで、frame wrapperを閉じても保持中のplane/sliceがnative leaseを
+維持します。同期borrowed encodeは現在`queue_size=0`が必要です。
+
+```python
+with mkvcodec.VideoCapture("input.webm", prefetch=0) as capture:
+    with capture.read_borrowed() as frame:
+        external_result = process_cpu(frame.planes)
+
+with mkvcodec.VideoWriter(
+    "output.webm", fps=30, frame_size=(1920, 1080), queue_size=0,
+) as writer:
+    writer.write_borrowed(external_result, format="i420")
 ```
 
 NVIDIA GPU surfaceはY/UV planeごとにDLPack consumerへ渡せます。consumerが

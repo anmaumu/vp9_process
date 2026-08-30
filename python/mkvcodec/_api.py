@@ -27,6 +27,92 @@ class CpuFrame:
     pts_ns: int
 
 
+class _CpuFrameLease:
+    """Pure-native decoded-frame owner retained by borrowed ndarray views."""
+    def __init__(self, handle: native.FrameHandle) -> None:
+        self._handle = handle
+
+    def release(self) -> None:
+        if self._handle:
+            native.lib.mkvc_frame_release(self._handle)
+            self._handle = native.FrameHandle()
+
+    def __del__(self) -> None:
+        self.release()
+
+
+class _BorrowedArray(np.ndarray):
+    """ndarray subclass that propagates the native frame lease to its views."""
+    _mkvc_lease: _CpuFrameLease | None
+
+    def __array_finalize__(self, source: object) -> None:
+        self._mkvc_lease = getattr(source, "_mkvc_lease", None)
+
+
+class BorrowedCpuFrame:
+    """Read-only zero-copy views over one native decoded I420 frame.
+
+    Closing this wrapper drops its references. Any plane or slice retained by
+    the caller keeps the native frame alive until that last ndarray is released.
+    """
+    def __init__(
+        self, handle: native.FrameHandle, view: native.FrameView
+    ) -> None:
+        if view.pixel_format != native.MKVC_PIXEL_FORMAT_I420:
+            native.lib.mkvc_frame_release(handle)
+            raise RuntimeError("native decoder returned a non-I420 frame")
+        lease = _CpuFrameLease(handle)
+        planes: list[_BorrowedArray] = []
+        try:
+            for index in range(3):
+                width = view.width if index == 0 else view.width // 2
+                height = view.height if index == 0 else view.height // 2
+                stride = int(view.strides[index])
+                if not view.planes[index] or stride < width:
+                    raise RuntimeError("native decoder returned an invalid I420 plane")
+                raw = np.ctypeslib.as_array(
+                    view.planes[index], shape=(stride * height,)
+                )
+                plane = raw.reshape(height, stride)[:, :width].view(_BorrowedArray)
+                plane._mkvc_lease = lease
+                plane.flags.writeable = False
+                planes.append(plane)
+        except Exception:
+            lease.release()
+            raise
+        self._lease: _CpuFrameLease | None = lease
+        self._planes: tuple[_BorrowedArray, ...] = tuple(planes)
+        self.pts_ns = int(view.pts)
+        self.width = int(view.width)
+        self.height = int(view.height)
+        self.pixel_format = "i420"
+
+    def _plane(self, index: int) -> U8Plane:
+        if self._lease is None:
+            raise RuntimeError("borrowed CPU frame is closed")
+        return self._planes[index]
+
+    @property
+    def y(self) -> U8Plane: return self._plane(0)
+    @property
+    def u(self) -> U8Plane: return self._plane(1)
+    @property
+    def v(self) -> U8Plane: return self._plane(2)
+    @property
+    def planes(self) -> tuple[U8Plane, U8Plane, U8Plane]:
+        return self.y, self.u, self.v
+
+    def close(self) -> None:
+        if getattr(self, "_lease", None) is not None:
+            self._planes = ()
+            self._lease = None
+
+    release = close
+    def __enter__(self) -> "BorrowedCpuFrame": return self
+    def __exit__(self, *args: object) -> None: self.close()
+    def __del__(self) -> None: self.close()
+
+
 @dataclass(frozen=True)
 class PipelineMetrics:
     accepted_frames: int
@@ -281,6 +367,15 @@ class VideoWriter:
         native.check(result)
         return True
 
+    def _submit_borrowed(self, frame: native.FrameView) -> None:
+        if self._require_gpu_resident:
+            raise RuntimeError(
+                "CPU frame submission is disabled by require_gpu_resident=True"
+            )
+        native.check(native.lib.mkvc_encoder_write_frame_borrowed(
+            self._handle, ct.byref(frame)
+        ))
+
     def _write_i420(
         self, y: U8Plane, u: U8Plane, v: U8Plane, *, pts: int, block: bool
     ) -> bool:
@@ -401,6 +496,68 @@ class VideoWriter:
         return self._write_packed(
             frame, 3, native.MKVC_PIXEL_FORMAT_BGR24, pts=pts, block=False
         )
+
+    def write_borrowed(
+        self,
+        frame: U8Plane | tuple[U8Plane, U8Plane] |
+               tuple[U8Plane, U8Plane, U8Plane],
+        *,
+        format: str = "bgr",
+        pts: int = -1,
+    ) -> None:
+        """Synchronously borrow CPU memory until the codec has read the frame.
+
+        The initial implementation requires ``queue_size=0``. No copy is made
+        at the C ABI boundary; codec-required color conversion may still copy.
+        """
+        if self._closed:
+            raise RuntimeError("writer is closed")
+        if format == "i420":
+            if not isinstance(frame, tuple) or len(frame) != 3:
+                raise ValueError("I420 borrowed input must contain (Y, U, V)")
+            planes = tuple(np.asarray(plane) for plane in frame)
+            expected = (
+                (self._height, self._width),
+                (self._height // 2, self._width // 2),
+                (self._height // 2, self._width // 2),
+            )
+            pixel_format = native.MKVC_PIXEL_FORMAT_I420
+        elif format == "nv12":
+            if not isinstance(frame, tuple) or len(frame) != 2:
+                raise ValueError("NV12 borrowed input must contain (Y, UV)")
+            planes = tuple(np.asarray(plane) for plane in frame)
+            expected = (
+                (self._height, self._width),
+                (self._height // 2, self._width),
+            )
+            pixel_format = native.MKVC_PIXEL_FORMAT_NV12
+        elif format in ("bgr", "rgb", "bgra"):
+            if isinstance(frame, tuple):
+                raise ValueError(f"{format} borrowed input must be one ndarray")
+            channels, pixel_format = {
+                "bgr": (3, native.MKVC_PIXEL_FORMAT_BGR24),
+                "rgb": (3, native.MKVC_PIXEL_FORMAT_RGB24),
+                "bgra": (4, native.MKVC_PIXEL_FORMAT_BGRA32),
+            }[format]
+            planes = (np.asarray(frame),)
+            expected = ((self._height, self._width, channels),)
+        else:
+            raise ValueError("format must be i420, nv12, bgr, rgb, or bgra")
+        for plane, shape in zip(planes, expected):
+            if plane.dtype != np.uint8 or plane.shape != shape:
+                raise ValueError(f"borrowed plane must be uint8 with shape {shape}")
+            if plane.strides[0] <= 0 or plane.strides[-1] != 1:
+                raise ValueError("borrowed planes require positive packed element stride")
+            if plane.ndim == 3 and plane.strides[1] != plane.shape[2]:
+                raise ValueError("borrowed packed frame must have interleaved channels")
+        view = native.FrameView()
+        view.struct_size, view.struct_version = ct.sizeof(view), 1
+        view.pixel_format = pixel_format
+        view.width, view.height, view.pts = self._width, self._height, pts
+        for index, plane in enumerate(planes):
+            view.planes[index] = _plane_pointer(plane)
+            view.strides[index] = plane.strides[0]
+        self._submit_borrowed(view)
 
     def flush(self) -> None:
         if not self._closed:
@@ -544,6 +701,26 @@ class VideoCapture(Iterator[U8Plane]):
             return CpuFrame(arrays[0], arrays[1], arrays[2], view.pts)
         finally:
             native.lib.mkvc_frame_release(handle)
+
+    def read_borrowed(self, *, format: str = "i420") -> BorrowedCpuFrame | None:
+        """Return read-only NumPy views sharing the native decoded allocation."""
+        if format != "i420":
+            raise ValueError(
+                "zero-copy borrowed decode currently supports only native I420"
+            )
+        handle = self._read_handle()
+        if handle is None:
+            return None
+        try:
+            view = self._get_view(handle)
+        except Exception:
+            native.lib.mkvc_frame_release(handle)
+            raise
+        owned_handle = handle
+        handle = native.FrameHandle()
+        result = BorrowedCpuFrame(owned_handle, view)
+        self.last_pts_ns = result.pts_ns
+        return result
 
     def read_surface(self) -> GpuFrame | None:
         """Read one GPU-resident frame without a CPU readback."""

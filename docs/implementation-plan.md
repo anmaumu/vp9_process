@@ -104,9 +104,9 @@
 
 ## Phase 3E: CPU borrowed frame interoperability
 
-- [ ] C ABI CPU plane export descriptor and owner lease
-- [ ] Python `read_borrowed()` read-only NumPy view with native owner capsule
-- [ ] synchronous `write_borrowed()` for matching I420/NV12/packed layout
+- [x] C ABI CPU plane export descriptor and retained frame owner lease
+- [x] Python `read_borrowed()` read-only NumPy view with propagated native owner lease
+- [x] synchronous `write_borrowed()` for I420/NV12/packed layout (`queue_size=0` initial slice)
 - [ ] asynchronous `submit_borrowed()` submission lease and mutation contract
 - [ ] fixed-capacity native/pinned input pool with backpressure and generation checks
 - [ ] .NET synchronous short pin and asynchronous unmanaged/pinned pool API

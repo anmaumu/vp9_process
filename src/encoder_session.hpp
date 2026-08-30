@@ -30,6 +30,9 @@ class EncoderSession {
     /** Submit a frame, optionally blocking for bounded queue capacity. */
     mkvc_result write(const mkvc_frame_view& frame, bool block,
                       std::string& error);
+    /** Borrow caller memory synchronously; initially requires queue_size=0. */
+    mkvc_result write_borrowed(const mkvc_frame_view& frame,
+                               std::string& error);
     /** Synchronously submit a GPU-resident frame to a compatible backend. */
     mkvc_result write_gpu(const std::shared_ptr<gpu::GpuFrameCore>& frame,
                           std::string& error);

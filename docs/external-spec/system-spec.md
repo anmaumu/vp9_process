@@ -296,12 +296,12 @@ mkvc_encoder_flush();
 mkvc_encoder_destroy();
 mkvc_frame_retain();
 mkvc_frame_release();
-mkvc_cpu_frame_export();
-mkvc_encoder_submit_cpu_frame();
-mkvc_gpu_frame_export_native();
-mkvc_encoder_submit_gpu_frame();
-mkvc_completion_query();
-mkvc_completion_wait();
+mkvc_frame_get_view();
+mkvc_encoder_write_frame_borrowed();
+mkvc_gpu_frame_get_native_handle();
+mkvc_encoder_write_gpu_frame();
+mkvc_gpu_frame_query_completion();
+mkvc_gpu_frame_wait();
 mkvc_get_last_error();
 ```
 
