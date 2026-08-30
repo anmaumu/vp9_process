@@ -99,6 +99,7 @@
 - [ ] Python CuPy/DLPack processed-resource import and hardware qualification
 - [x] .NET GPU Frame SafeHandle, descriptor/native handle/wait and Capture.ReadSurface source API
 - [x] .NET strict GPU-resident Capture/Writer and WriteSurface source API
+- [x] .NET external GPU frame owner/query/release adapter
 - [x] .NET 8 SDK-style build and Windows native-load/CPU round-trip smoke
 - [x] header-only C++17 RAII wrapper over the stable C ABI
 - [ ] .NET Intel/NVIDIA hardware smoke

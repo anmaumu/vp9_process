@@ -353,8 +353,10 @@ mkvc_result mkvc_gpu_frame_import_external(
         }
         const auto release = config->release;
         void* const user_data = config->user_data;
-        auto recycle = [release, user_data](uint64_t) noexcept {
-            if (release == nullptr) return;
+        auto accepted = std::make_shared<std::atomic<bool>>(false);
+        auto recycle = [release, user_data, accepted](uint64_t) noexcept {
+            if (!accepted->load(std::memory_order_acquire) || release == nullptr)
+                return;
             try { release(user_data); } catch (...) {}
         };
         mkvc::gpu::BackendResource resource{};
@@ -371,6 +373,7 @@ mkvc_result mkvc_gpu_frame_import_external(
             return gpu_fail(MKVC_ERROR_INTERNAL,
                             "failed to allocate external GPU frame handle");
         }
+        accepted->store(true, std::memory_order_release);
         return MKVC_OK;
     } catch (const std::exception& exception) {
         return gpu_fail(MKVC_ERROR_INTERNAL, exception.what());

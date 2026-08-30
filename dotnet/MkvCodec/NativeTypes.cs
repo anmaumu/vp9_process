@@ -197,3 +197,15 @@ public struct MkvGpuNativeHandleDescriptor
     public ulong Generation;
     [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)] public ulong[] Handles;
 }
+
+[StructLayout(LayoutKind.Sequential)]
+internal struct NativeGpuExternalFrameConfig
+{
+    internal uint StructSize;
+    internal uint StructVersion;
+    internal MkvGpuFrameDescriptor Frame;
+    internal MkvGpuNativeHandleDescriptor NativeHandle;
+    internal nint Query;
+    internal nint Release;
+    internal nint UserData;
+}

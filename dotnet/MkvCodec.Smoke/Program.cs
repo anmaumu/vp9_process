@@ -106,6 +106,41 @@ try
         pooledFrame.Width != width || pooledFrame.Height != height ||
         pooledCapture.ReadI420() is not null)
         throw new InvalidOperationException(".NET native-pool round-trip failed");
+
+    int externalReleases = 0;
+    var externalDescriptor = new MkvGpuFrameDescriptor {
+        Backend = MkvBackend.Nvidia,
+        MemoryType = MkvGpuMemoryType.CudaPointer,
+        DeviceId = 1, Generation = 1,
+        PixelFormat = MkvPixelFormat.Nv12,
+        Width = width, Height = height, PlaneCount = 2,
+        PlaneOffsets = [0, width * height, 0, 0],
+        Pitches = [width, width, 0, 0]
+    };
+    var externalHandle = new MkvGpuNativeHandleDescriptor {
+        Type = MkvGpuNativeHandleType.CudaPointer, Borrowed = 1,
+        DeviceId = 1, Generation = 1,
+        Handles = [0x1000, 0x2000, 0, 0]
+    };
+    bool externalReady = false;
+    using (MkvGpuFrame imported = MkvGpuFrame.ImportExternal(
+        externalDescriptor, externalHandle, new object(),
+        producerReady: () => externalReady,
+        release: _ => ++externalReleases))
+    {
+        if (imported.Descriptor.Width != width)
+            throw new InvalidOperationException(".NET external GPU import failed");
+        try
+        {
+            imported.Wait(0);
+            throw new InvalidOperationException("Pending external GPU frame did not time out");
+        }
+        catch (MkvCodecException error) when (error.Result == MkvResult.Timeout) { }
+        externalReady = true;
+        imported.Wait(100);
+    }
+    if (externalReleases != 1)
+        throw new InvalidOperationException(".NET external owner was not released once");
 }
 finally
 {

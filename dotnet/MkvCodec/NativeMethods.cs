@@ -154,4 +154,8 @@ internal static class NativeMethods
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
     internal static extern MkvResult mkvc_gpu_frame_wait(
         MkvGpuFrameHandle frame, uint timeoutMilliseconds);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern MkvResult mkvc_gpu_frame_import_external(
+        ref NativeGpuExternalFrameConfig config, out MkvGpuFrameHandle frame);
 }
