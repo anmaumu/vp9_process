@@ -108,6 +108,7 @@ and an OS/oneVPL trace has not yet independently proven zero host pixel transfer
 | `EXT-ENC-005` | asynchronous input deep-copied before return | mutable reused inputs in native/Python round-trip | complete for supported CPU formats |
 | `EXT-DEC-006`, `EXT-ENC-011`, `EXT-FRAME-006..007` | retained native I420 descriptor, Python read-only borrowed NumPy views, synchronous borrowed encode | native VP9 and `mkvc_python_roundtrip` lifetime/round-trip coverage | initial C ABI/Python slice complete; borrowed encode currently requires `queue_size=0` |
 | `EXT-ENC-012`, `EXT-FRAME-009` | C ABI/Python async borrowed submission with query/wait/release and owner retention | native failure injection and Python GC/round-trip coverage | initial implementation complete; input mutation is prohibited until terminal completion |
+| `EXT-FRAME-011` .NET sync subset | `WriteBorrowedI420` pins managed arrays only for the duration of the synchronous P/Invoke call | `.NET` native-load/round-trip smoke | synchronous short-pin path complete; async unmanaged pool remains pending |
 | `EXT-ENC-013`, `EXT-FRAME-010..012` | native/pinned pool, strict layout/copy fallback and copy-path detail | `TEST-CPUINT-005..007` planned | specified; implementation pending |
 | `EXT-ENC-006` | bounded queue/pool; blocking write; nonblocking try-write; ordered flush/close | native and Python round-trip | complete for CPU writer; cancel API pending |
 | `EXT-ENC-007` | CQ quality 0..63, default contract 32 | integration config uses 32 | backend mapping complete; binding default pending |

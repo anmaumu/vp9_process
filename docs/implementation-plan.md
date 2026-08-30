@@ -109,7 +109,7 @@
 - [x] synchronous `write_borrowed()` for I420/NV12/packed layout (`queue_size=0` initial slice)
 - [x] asynchronous `submit_borrowed()` submission lease, query/wait and mutation contract
 - [ ] fixed-capacity native/pinned input pool with backpressure and generation checks
-- [ ] .NET synchronous short pin and asynchronous unmanaged/pinned pool API
+- [ ] .NET synchronous short pin (implemented) and asynchronous unmanaged/pinned pool API
 - [ ] strict layout/stride/alignment validation and explicit copy-path fallback
 - [ ] GPU decode→NumPy download/conversion edge tracing
 - [ ] `TEST-CPUINT-001..007` lifetime, GC, fault, copy-path and soak qualification

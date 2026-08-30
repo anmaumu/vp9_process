@@ -45,6 +45,10 @@ internal static class NativeMethods
         MkvEncoderHandle encoder, ref NativeFrameView frame);
 
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern MkvResult mkvc_encoder_write_frame_borrowed(
+        MkvEncoderHandle encoder, ref NativeFrameView frame);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
     internal static extern MkvResult mkvc_encoder_write_gpu_frame(
         MkvEncoderHandle encoder, MkvGpuFrameHandle frame);
 

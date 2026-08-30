@@ -32,6 +32,8 @@ foreach (MkvBackendCapability capability in capabilities)
 Console.WriteLine($"mkvcodec ABI {version.AbiVersion}: {capabilities.Count} capabilities");
 
 string path = Path.Combine(Path.GetTempPath(), $"mkvcodec-dotnet-{Guid.NewGuid():N}.webm");
+string borrowedPath = Path.Combine(
+    Path.GetTempPath(), $"mkvcodec-dotnet-borrowed-{Guid.NewGuid():N}.webm");
 try
 {
     const uint width = 64, height = 48;
@@ -61,8 +63,24 @@ try
         ++count;
     }
     if (count != 10) throw new InvalidOperationException(".NET frame count mismatch");
+
+    using (var writer = new MkvVideoWriter(
+        borrowedPath, width, height, queueSize: 0))
+    {
+        writer.WriteBorrowedI420(y, u, v, pts: 0);
+        y[0] ^= 0xff; // safe immediately after the synchronous call returns
+    }
+    using var borrowedCapture = new MkvVideoCapture(borrowedPath, prefetch: 0);
+    if (borrowedCapture.ReadI420() is not { } borrowedFrame ||
+        borrowedFrame.Width != width || borrowedFrame.Height != height ||
+        borrowedCapture.ReadI420() is not null)
+        throw new InvalidOperationException(".NET borrowed round-trip failed");
 }
-finally { if (File.Exists(path)) File.Delete(path); }
+finally
+{
+    if (File.Exists(path)) File.Delete(path);
+    if (File.Exists(borrowedPath)) File.Delete(borrowedPath);
+}
 
 [StructLayout(LayoutKind.Sequential)]
 struct NativeCopyPolicyForSmoke

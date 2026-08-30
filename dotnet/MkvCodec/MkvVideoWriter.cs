@@ -8,6 +8,7 @@ public sealed class MkvVideoWriter : IDisposable
     private MkvEncoderHandle? handle;
     private readonly uint width;
     private readonly uint height;
+    private readonly uint queueSize;
     private MkvPipelineMetrics? finalMetrics;
 
     public MkvVideoWriter(string path, uint width, uint height,
@@ -54,6 +55,7 @@ public sealed class MkvVideoWriter : IDisposable
         finally { Marshal.FreeCoTaskMem(utf8); }
         this.width = width;
         this.height = height;
+        this.queueSize = queueSize;
     }
 
     private static NativeCopyPolicy StrictGpuPolicy() => new() {
@@ -83,6 +85,38 @@ public sealed class MkvVideoWriter : IDisposable
             };
             MkvCodecInfo.ThrowIfFailed(
                 NativeMethods.mkvc_encoder_write_frame(handle!, ref frame));
+        }
+    }
+
+    /// <summary>
+    /// Pins managed I420 arrays only for this synchronous native call. The
+    /// codec has finished reading the input when this method returns.
+    /// </summary>
+    public unsafe void WriteBorrowedI420(
+        byte[] y, byte[] u, byte[] v, long pts = -1)
+    {
+        ObjectDisposedException.ThrowIf(handle is null || handle.IsClosed, this);
+        if (queueSize != 0)
+            throw new InvalidOperationException(
+                "Synchronous borrowed writes require queueSize=0");
+        int ySize = checked((int)(width * height));
+        int chromaSize = checked(ySize / 4);
+        if (y.Length < ySize || u.Length < chromaSize || v.Length < chromaSize)
+            throw new ArgumentException("I420 plane is smaller than the configured frame");
+        fixed (byte* py = y)
+        fixed (byte* pu = u)
+        fixed (byte* pv = v)
+        {
+            var frame = new NativeFrameView {
+                StructSize = checked((uint)Marshal.SizeOf<NativeFrameView>()),
+                StructVersion = 1, PixelFormat = (uint)MkvPixelFormat.I420,
+                Width = width, Height = height, Plane0 = (nint)py,
+                Plane1 = (nint)pu, Plane2 = (nint)pv,
+                Stride0 = checked((int)width), Stride1 = checked((int)width / 2),
+                Stride2 = checked((int)width / 2), Pts = pts
+            };
+            MkvCodecInfo.ThrowIfFailed(
+                NativeMethods.mkvc_encoder_write_frame_borrowed(handle!, ref frame));
         }
     }
 
