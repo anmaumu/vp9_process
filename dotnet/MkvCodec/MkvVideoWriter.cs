@@ -129,6 +129,22 @@ public sealed class MkvVideoWriter : IDisposable
             handle!, frame.BorrowHandle()));
     }
 
+    /// <summary>Submit native pool memory without pinning a managed array.</summary>
+    public MkvSubmission Submit(MkvCpuBuffer buffer, long pts = -1)
+    {
+        ObjectDisposedException.ThrowIf(handle is null || handle.IsClosed, this);
+        ArgumentNullException.ThrowIfNull(buffer);
+        if (queueSize == 0)
+            throw new InvalidOperationException(
+                "Native CPU buffer submission requires a positive queueSize");
+        if (buffer.Width != width || buffer.Height != height)
+            throw new ArgumentException(
+                "CPU buffer dimensions do not match the writer", nameof(buffer));
+        MkvCodecInfo.ThrowIfFailed(NativeMethods.mkvc_encoder_submit_cpu_buffer(
+            handle!, buffer.BorrowHandle(), pts, out MkvSubmissionHandle submission));
+        return new MkvSubmission(submission);
+    }
+
     public void Flush()
     {
         ObjectDisposedException.ThrowIf(handle is null || handle.IsClosed, this);

@@ -28,8 +28,8 @@ decode結果をNumPy/OpenCV、CuPy/DLPack、D3D11、VA-API等へexportし、外�
   producer event/fenceをencoderへimportします。
 - CPU owned NumPy APIと現在のCPU convenience processingは安全な既定機能として残します。
 - borrowed CPU decode、同期/非同期encode、固定容量native input poolはC ABI/Pythonへ
-  実装済みです。OS page-lock付きpool、.NET非同期pool、GPU processed-resource importは
-  未実装です。
+  実装済みです。.NETも同じunmanaged poolとcompletion submissionを利用できます。
+  OS page-lock付きpool、GPU processed-resource importは未実装です。
 
 ## 現在地
 
@@ -46,7 +46,8 @@ DLPackへ渡すnative/Python APIを実装済みです。CUDA eventのconsumer-st
 CuPy実機検証、処理済みCUDA resourceのencoder import、NVIDIA AV1対応GPU検証、
 10-bit public frame APIは未完です。
 .NET 8 bindingではABI version/capability query、型付きerror、SafeHandleに加え、
-`IDisposable`な`MkvVideoWriter`/`MkvVideoCapture`とowned I420 frameを実装済みです。
+`IDisposable`な`MkvVideoWriter`/`MkvVideoCapture`、owned I420 frame、managed arrayの
+長時間pinningを避ける`MkvCpuFramePool`/`MkvSubmission`を実装済みです。
 利用可能と報告される機能は、実装済みbackendだけに限定します。
 Intel capabilityはruntime Queryに成功したcodec/directionだけを公開します。
 Windows NVIDIA VP9 decodeを実GPU検証済みです。Windows Intel GPU検証は未完です。

@@ -14,6 +14,8 @@ if (Marshal.SizeOf<MkvGpuFrameDescriptor>() != 136)
     throw new InvalidOperationException("MkvGpuFrameDescriptor ABI layout mismatch");
 if (Marshal.SizeOf<MkvGpuNativeHandleDescriptor>() != 64)
     throw new InvalidOperationException("MkvGpuNativeHandleDescriptor ABI layout mismatch");
+if (Marshal.SizeOf<MkvCpuBufferDescriptor>() != 32)
+    throw new InvalidOperationException("MkvCpuBufferDescriptor ABI layout mismatch");
 if (Marshal.SizeOf(typeof(NativeCopyPolicyForSmoke)) != 20)
     throw new InvalidOperationException("copy policy ABI layout mismatch");
 
@@ -34,6 +36,8 @@ Console.WriteLine($"mkvcodec ABI {version.AbiVersion}: {capabilities.Count} capa
 string path = Path.Combine(Path.GetTempPath(), $"mkvcodec-dotnet-{Guid.NewGuid():N}.webm");
 string borrowedPath = Path.Combine(
     Path.GetTempPath(), $"mkvcodec-dotnet-borrowed-{Guid.NewGuid():N}.webm");
+string pooledPath = Path.Combine(
+    Path.GetTempPath(), $"mkvcodec-dotnet-pool-{Guid.NewGuid():N}.webm");
 try
 {
     const uint width = 64, height = 48;
@@ -75,11 +79,39 @@ try
         borrowedFrame.Width != width || borrowedFrame.Height != height ||
         borrowedCapture.ReadI420() is not null)
         throw new InvalidOperationException(".NET borrowed round-trip failed");
+
+    using (var pool = new MkvCpuFramePool(
+        MkvPixelFormat.I420, width, height, capacity: 1))
+    using (var writer = new MkvVideoWriter(
+        pooledPath, width, height, queueSize: 1))
+    {
+        using MkvCpuBuffer buffer = pool.Acquire();
+        ulong firstGeneration = buffer.Generation;
+        buffer.GetPlane(0).Fill(96);
+        buffer.GetPlane(1).Fill(128);
+        buffer.GetPlane(2).Fill(128);
+        if (pool.TryAcquire(out _))
+            throw new InvalidOperationException("Native CPU pool exceeded capacity");
+        using MkvSubmission submission = writer.Submit(buffer, pts: 0);
+        buffer.Dispose();
+        submission.Wait(5000);
+        if (submission.Status != MkvSubmissionStatus.Complete)
+            throw new InvalidOperationException("Native CPU submission did not complete");
+        using MkvCpuBuffer recycled = pool.Acquire(5000);
+        if (recycled.Generation <= firstGeneration)
+            throw new InvalidOperationException("Native CPU pool generation did not advance");
+    }
+    using var pooledCapture = new MkvVideoCapture(pooledPath, prefetch: 0);
+    if (pooledCapture.ReadI420() is not { } pooledFrame ||
+        pooledFrame.Width != width || pooledFrame.Height != height ||
+        pooledCapture.ReadI420() is not null)
+        throw new InvalidOperationException(".NET native-pool round-trip failed");
 }
 finally
 {
     if (File.Exists(path)) File.Delete(path);
     if (File.Exists(borrowedPath)) File.Delete(borrowedPath);
+    if (File.Exists(pooledPath)) File.Delete(pooledPath);
 }
 
 [StructLayout(LayoutKind.Sequential)]

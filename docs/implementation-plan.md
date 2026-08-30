@@ -110,7 +110,8 @@
 - [x] asynchronous `submit_borrowed()` submission lease, query/wait and mutation contract
 - [x] fixed-capacity native input pool with backpressure, generation checks and Python NumPy views
 - [ ] optional OS page-locked/pinned allocation mode and pinning metrics
-- [ ] .NET synchronous short pin (implemented) and asynchronous unmanaged/pinned pool API
+- [x] .NET synchronous short pin and asynchronous unmanaged native-pool API
+- [ ] .NET optional OS page-locked pool mode and pin-duration/GC metrics
 - [ ] strict layout/stride/alignment validation and explicit copy-path fallback
 - [ ] GPU decode→NumPy download/conversion edge tracing
 - [ ] `TEST-CPUINT-001..007` lifetime, GC, fault, copy-path and soak qualification

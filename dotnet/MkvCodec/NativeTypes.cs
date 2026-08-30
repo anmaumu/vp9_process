@@ -14,6 +14,7 @@ public enum MkvResult : uint
     Codec = 7,
     EndOfStream = 8,
     WouldBlock = 9,
+    Timeout = 10,
 }
 
 public enum MkvBackend : uint { Cpu = 1, Nvidia = 2, Intel = 3 }
@@ -21,6 +22,30 @@ public enum MkvCodecKind : uint { Vp9 = 1, Av1 = 2 }
 public enum MkvPixelFormat : uint { I420 = 1, Nv12 = 2, Bgr24 = 3, Rgb24 = 4, Bgra32 = 5, P010 = 6 }
 public enum MkvGpuMemoryType : uint { D3D11Texture = 1, VaSurface = 2, CudaPointer = 3, CudaArray = 4, Usm = 5 }
 public enum MkvGpuNativeHandleType : uint { D3D11Texture = 1, VaSurface = 2, CudaPointer = 3, CudaArray = 4, UsmPointer = 5 }
+public enum MkvSubmissionStatus : uint { Pending = 0, Complete = 1, Failed = 2 }
+
+[StructLayout(LayoutKind.Sequential)]
+internal struct NativeCpuFramePoolConfig
+{
+    internal uint StructSize;
+    internal uint StructVersion;
+    internal MkvPixelFormat PixelFormat;
+    internal uint Width;
+    internal uint Height;
+    internal uint Capacity;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct MkvCpuBufferDescriptor
+{
+    public uint StructSize;
+    public uint StructVersion;
+    public MkvPixelFormat PixelFormat;
+    public uint Width;
+    public uint Height;
+    public uint PlaneCount;
+    public ulong Generation;
+}
 
 [StructLayout(LayoutKind.Sequential)]
 internal struct NativeCopyPolicy
@@ -106,6 +131,25 @@ internal unsafe struct NativeFrameView
     internal uint StructSize;
     internal uint StructVersion;
     internal uint PixelFormat;
+    internal uint Width;
+    internal uint Height;
+    internal nint Plane0;
+    internal nint Plane1;
+    internal nint Plane2;
+    internal nint Plane3;
+    internal int Stride0;
+    internal int Stride1;
+    internal int Stride2;
+    internal int Stride3;
+    internal long Pts;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+internal struct NativeMutableFrameView
+{
+    internal uint StructSize;
+    internal uint StructVersion;
+    internal MkvPixelFormat PixelFormat;
     internal uint Width;
     internal uint Height;
     internal nint Plane0;

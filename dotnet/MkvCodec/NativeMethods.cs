@@ -49,6 +49,11 @@ internal static class NativeMethods
         MkvEncoderHandle encoder, ref NativeFrameView frame);
 
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern MkvResult mkvc_encoder_submit_cpu_buffer(
+        MkvEncoderHandle encoder, MkvCpuBufferHandle buffer, long pts,
+        out MkvSubmissionHandle submission);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
     internal static extern MkvResult mkvc_encoder_write_gpu_frame(
         MkvEncoderHandle encoder, MkvGpuFrameHandle frame);
 
@@ -64,6 +69,40 @@ internal static class NativeMethods
 
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
     internal static extern void mkvc_encoder_destroy(nint encoder);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern MkvResult mkvc_submission_query(
+        MkvSubmissionHandle submission, out MkvSubmissionStatus status);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern MkvResult mkvc_submission_wait(
+        MkvSubmissionHandle submission, uint timeoutMilliseconds);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern void mkvc_submission_release(nint submission);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern MkvResult mkvc_cpu_frame_pool_create(
+        ref NativeCpuFramePoolConfig config, out MkvCpuFramePoolHandle pool);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern void mkvc_cpu_frame_pool_destroy(nint pool);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern MkvResult mkvc_cpu_frame_pool_acquire(
+        MkvCpuFramePoolHandle pool, uint timeoutMilliseconds,
+        out MkvCpuBufferHandle buffer);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern MkvResult mkvc_cpu_buffer_get_desc(
+        MkvCpuBufferHandle buffer, ref MkvCpuBufferDescriptor descriptor);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern MkvResult mkvc_cpu_buffer_get_view(
+        MkvCpuBufferHandle buffer, ref NativeMutableFrameView view);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern void mkvc_cpu_buffer_release(nint buffer);
 
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
     internal static extern MkvResult mkvc_decoder_create(

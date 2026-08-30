@@ -43,3 +43,33 @@ public sealed class MkvGpuFrameHandle : SafeHandleZeroOrMinusOneIsInvalid
         return true;
     }
 }
+
+public sealed class MkvCpuFramePoolHandle : SafeHandleZeroOrMinusOneIsInvalid
+{
+    private MkvCpuFramePoolHandle() : base(true) { }
+    protected override bool ReleaseHandle()
+    {
+        NativeMethods.mkvc_cpu_frame_pool_destroy(handle);
+        return true;
+    }
+}
+
+public sealed class MkvCpuBufferHandle : SafeHandleZeroOrMinusOneIsInvalid
+{
+    private MkvCpuBufferHandle() : base(true) { }
+    protected override bool ReleaseHandle()
+    {
+        NativeMethods.mkvc_cpu_buffer_release(handle);
+        return true;
+    }
+}
+
+public sealed class MkvSubmissionHandle : SafeHandleZeroOrMinusOneIsInvalid
+{
+    private MkvSubmissionHandle() : base(true) { }
+    protected override bool ReleaseHandle()
+    {
+        NativeMethods.mkvc_submission_release(handle);
+        return true;
+    }
+}
