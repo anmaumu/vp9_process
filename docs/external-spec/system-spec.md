@@ -324,6 +324,8 @@ NVIDIA CUDA pointerの非同期importでは`native_handle.handles[1]`を`CUconte
 まで有効でなければならず、libraryはdevice-wide synchronizeを行わずeventをpollする。
 Pythonの連続NV12 DLPack importはCUDA `uint8[height*3/2,width]`だけを受理し、row strideを
 pitchとして使用する。DLPackに含まれないCUDA contextとproducer eventは別途明示する。
+CUDA array importは1 channel uint8、width列、height*3/2行の2D arrayを契約とし、
+descriptor pitchはwidthと一致させる。実allocation形状の最終検証はCUDA/NVENC driverが行う。
 
 ### 6.4 C#
 

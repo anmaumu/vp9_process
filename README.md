@@ -151,7 +151,9 @@ Pythonはstable-ABI extension経由の`GpuFrame.import_cuda_pointer()`を利用�
 なしで完了後だけconsumerへ渡します。連続NV12 CUDA tensorは
 `GpuFrame.import_dlpack_nv12()`でDLPack capsuleをconsumeでき、tensor deleterは最終frame
 leaseまで保持されます。producer event付きDLPack exportではconsumer streamへ
-`cuStreamWaitEvent`を挿入します。CuPy実E2E検証とCUarray importは今後の作業です。
+`cuStreamWaitEvent`を挿入します。RTX 2060上のCuPy pointer identity・stream・lease実機
+検証も通過しています。CUDA arrayは`GpuFrame.import_cuda_array()`で取り込めますが、
+NVENC登録・encodeのpositive検証はAV1対応GPU待ちです。
 
 ```python
 import cupy as cp

@@ -133,3 +133,22 @@ else:
     raise AssertionError("invalid DLPack NV12 layout was accepted")
 gc.collect()
 assert invalid_deleted == [True]
+
+array_owner = Owner()
+array_owner_ref = weakref.ref(array_owner)
+array_frame = mkvcodec.GpuFrame.import_cuda_array(
+    array=0x4000,
+    context=0x2000,
+    device_id=0,
+    frame_size=(64, 48),
+    owner=array_owner,
+    producer_synchronized=True,
+)
+del array_owner
+gc.collect()
+assert array_owner_ref() is not None
+assert array_frame.descriptor["memory_type"] == 4
+assert array_frame.native_handle["type"] == 4
+array_frame.close()
+gc.collect()
+assert array_owner_ref() is None

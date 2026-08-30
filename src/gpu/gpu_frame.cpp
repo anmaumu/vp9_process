@@ -224,8 +224,13 @@ bool valid_external_layout(const mkvc_gpu_external_frame_config& config,
         return false;
     }
     if (desc.backend == MKVC_BACKEND_NVIDIA) {
-        if (desc.memory_type != MKVC_GPU_MEMORY_CUDA_POINTER ||
-            native.type != MKVC_GPU_NATIVE_CUDA_POINTER ||
+        const bool pointer =
+            desc.memory_type == MKVC_GPU_MEMORY_CUDA_POINTER &&
+            native.type == MKVC_GPU_NATIVE_CUDA_POINTER;
+        const bool array =
+            desc.memory_type == MKVC_GPU_MEMORY_CUDA_ARRAY &&
+            native.type == MKVC_GPU_NATIVE_CUDA_ARRAY;
+        if ((!pointer && !array) ||
             native.handles[0] == 0 || native.handles[1] == 0 ||
             desc.pixel_format != MKVC_PIXEL_FORMAT_NV12 ||
             desc.plane_count != 2 || desc.pitches[0] < desc.width ||
@@ -233,7 +238,11 @@ bool valid_external_layout(const mkvc_gpu_external_frame_config& config,
             desc.pitches[0] > std::numeric_limits<uint32_t>::max() ||
             desc.plane_offsets[0] != 0 ||
             desc.plane_offsets[1] != desc.pitches[0] * desc.height) {
-            error = "external NVIDIA import requires CUDA-pointer NV12 layout";
+            error = "external NVIDIA import requires CUDA NV12 pointer/array layout";
+            return false;
+        }
+        if (array && desc.pitches[0] != desc.width) {
+            error = "external CUDA-array NV12 pitch must equal its byte width";
             return false;
         }
         return true;

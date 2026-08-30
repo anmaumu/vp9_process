@@ -521,6 +521,8 @@ MKVC_API mkvc_result mkvc_gpu_frame_get_native_handle(
 /**
  * Import a process-local external GPU resource as a normal frame lease.
  * CUDA-pointer NV12 imports can be submitted to a compatible NVIDIA encoder.
+ * A CUDA-array NV12 import uses one byte-wide 2D array of height*3/2 rows;
+ * its descriptor pitch must equal width and NVENC registers it as CUDAARRAY.
  * D3D11/VA imports are exposed uniformly but require a future oneVPL adapter
  * before direct Intel encoding.
  */

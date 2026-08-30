@@ -173,6 +173,16 @@ if(MKVC_BUILD_TESTS)
                 "$<TARGET_FILE:mkvcodec>"
                 "$<TARGET_FILE_DIR:mkvc_python_dlpack>"
                 "${CMAKE_CURRENT_SOURCE_DIR}/python")
+        if(MKVC_ENABLE_NVIDIA)
+            add_test(NAME mkvc_python_nvidia_dlpack
+                COMMAND "${Python3_EXECUTABLE}"
+                    "${CMAKE_CURRENT_SOURCE_DIR}/tests/python_nvidia_dlpack.py"
+                    "$<TARGET_FILE:mkvcodec>"
+                    "$<TARGET_FILE_DIR:mkvc_python_dlpack>"
+                    "${CMAKE_CURRENT_SOURCE_DIR}/python")
+            set_tests_properties(mkvc_python_nvidia_dlpack PROPERTIES
+                SKIP_RETURN_CODE 77)
+        endif()
     endif()
     target_compile_definitions(mkvcodec PRIVATE MKVC_ENABLE_TEST_HOOKS=1)
     if(Python3_Interpreter_FOUND)

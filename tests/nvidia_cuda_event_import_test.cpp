@@ -46,19 +46,29 @@ int main() {
     auto stream_create = reinterpret_cast<tcuStreamCreate*>(symbol(library, "cuStreamCreate"));
     auto stream_sync = reinterpret_cast<tcuStreamSynchronize*>(symbol(library, "cuStreamSynchronize"));
     auto stream_destroy = reinterpret_cast<tcuStreamDestroy_v2*>(symbol(library, "cuStreamDestroy_v2"));
+    auto array_create = reinterpret_cast<tcuArrayCreate*>(symbol(library, "cuArrayCreate_v2"));
+    auto array_destroy = reinterpret_cast<tcuArrayDestroy*>(symbol(library, "cuArrayDestroy"));
     if (!init || !device_get || !context_create || !context_pop || !context_push ||
         !context_destroy || !event_create || !event_record ||
         !event_destroy || !stream_create || !stream_sync || !stream_destroy ||
+        !array_create || !array_destroy ||
         init(0) != CUDA_SUCCESS) return 77;
 
     CUdevice device = 0;
     CUcontext context = nullptr;
     CUevent event = nullptr;
     CUstream stream = nullptr;
+    CUarray array = nullptr;
+    CUDA_ARRAY_DESCRIPTOR array_desc{};
+    array_desc.Width = 64;
+    array_desc.Height = 48 * 3 / 2;
+    array_desc.Format = CU_AD_FORMAT_UNSIGNED_INT8;
+    array_desc.NumChannels = 1;
     if (device_get(&device, 0) != CUDA_SUCCESS ||
         context_create(&context, 0, device) != CUDA_SUCCESS ||
         event_create(&event, CU_EVENT_DISABLE_TIMING) != CUDA_SUCCESS ||
         stream_create(&stream, CU_STREAM_NON_BLOCKING) != CUDA_SUCCESS ||
+        array_create(&array, &array_desc) != CUDA_SUCCESS ||
         event_record(event, nullptr) != CUDA_SUCCESS) return 77;
     CUcontext popped = nullptr;
     if (context_pop(&popped) != CUDA_SUCCESS || popped != context) return 1;
@@ -108,9 +118,22 @@ int main() {
     mkvc_gpu_frame_release(frame);
     if (releases.load() != 1) return 1;
 
+    config.frame.memory_type = MKVC_GPU_MEMORY_CUDA_ARRAY;
+    config.native_handle.type = MKVC_GPU_NATIVE_CUDA_ARRAY;
+    config.native_handle.handles[0] = reinterpret_cast<uintptr_t>(array);
+    frame = nullptr;
+    if (mkvc_gpu_frame_import_cuda_event(&config, &frame) != MKVC_OK ||
+        frame == nullptr || mkvc_gpu_frame_wait(frame, 1000) != MKVC_OK) {
+        std::cerr << mkvc_get_last_error() << '\n';
+        return 1;
+    }
+    mkvc_gpu_frame_release(frame);
+    if (releases.load() != 2) return 1;
+
     if (context_push(context) != CUDA_SUCCESS ||
         stream_sync(stream) != CUDA_SUCCESS ||
         stream_destroy(stream) != CUDA_SUCCESS ||
+        array_destroy(array) != CUDA_SUCCESS ||
         event_destroy(event) != CUDA_SUCCESS ||
         context_pop(&popped) != CUDA_SUCCESS ||
         context_destroy(context) != CUDA_SUCCESS) return 1;

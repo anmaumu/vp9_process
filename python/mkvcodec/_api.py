@@ -468,6 +468,72 @@ class GpuFrame:
             producer_synchronized=producer_synchronized,
         )
 
+    @classmethod
+    def import_cuda_array(
+        cls, *, array: int, context: int, device_id: int,
+        frame_size: tuple[int, int], owner: object,
+        pts_ns: int = -1, stream: int = 0, event: int = 0,
+        producer_synchronized: bool = False,
+    ) -> "GpuFrame":
+        """Import one byte-wide CUDA array containing contiguous NV12 rows.
+
+        The array must have ``width`` columns and ``height * 3 // 2`` rows.
+        CUDA-array shape/channel validation is performed by the producer and
+        NVENC driver because DLPack-style metadata is unavailable for CUarray.
+        """
+        if _dlpack is None:
+            raise RuntimeError(
+                "external CUDA import requires the mkvcodec stable-ABI extension"
+            )
+        if not producer_synchronized and event <= 0:
+            raise ValueError("event is required unless producer_synchronized=True")
+        if (not isinstance(frame_size, tuple) or len(frame_size) != 2 or
+                any(not isinstance(value, int) for value in frame_size)):
+            raise ValueError("frame_size must contain integer width and height")
+        width, height = frame_size
+        values = (array, context, device_id, width, height, stream, event)
+        if any(not isinstance(value, int) for value in values):
+            raise ValueError("CUDA import descriptors must be integers")
+        if (array <= 0 or context <= 0 or device_id < 0 or width <= 0 or
+                height <= 0 or width & 1 or height & 1 or stream < 0 or event < 0 or
+                any(value > 0xFFFFFFFFFFFFFFFF for value in
+                    (array, context, device_id, stream, event)) or
+                width > 0xFFFFFFFF or height > 0xFFFFFFFF or
+                pts_ns < -0x8000000000000000 or pts_ns > 0x7FFFFFFFFFFFFFFF):
+            raise ValueError("CUDA array import descriptor is invalid")
+        generation = next(_external_gpu_generations)
+        config = native.GpuExternalFrameConfig()
+        config.struct_size, config.struct_version = ct.sizeof(config), 1
+        desc = config.frame
+        desc.struct_size, desc.struct_version = ct.sizeof(desc), 1
+        desc.backend = native.MKVC_BACKEND_NVIDIA
+        desc.memory_type = native.MKVC_GPU_MEMORY_CUDA_ARRAY
+        desc.device_id, desc.generation = device_id, generation
+        desc.pixel_format = native.MKVC_PIXEL_FORMAT_NV12
+        desc.width, desc.height, desc.plane_count = width, height, 2
+        desc.plane_offsets[1] = width * height
+        desc.pitches[0] = desc.pitches[1] = width
+        desc.pts = pts_ns
+        handle_desc = config.native_handle
+        handle_desc.struct_size, handle_desc.struct_version = ct.sizeof(handle_desc), 1
+        handle_desc.type = native.MKVC_GPU_NATIVE_CUDA_ARRAY
+        handle_desc.borrowed = 1
+        handle_desc.device_id, handle_desc.generation = device_id, generation
+        handle_desc.handles[0], handle_desc.handles[1] = array, context
+        handle_desc.handles[2], handle_desc.handles[3] = stream, event
+        user_data, release = _dlpack.external_owner_create(owner)
+        config.release, config.user_data = release, user_data
+        result_handle = native.GpuFrameHandle()
+        try:
+            importer = (native.lib.mkvc_gpu_frame_import_external
+                        if producer_synchronized
+                        else native.lib.mkvc_gpu_frame_import_cuda_event)
+            native.check(importer(ct.byref(config), ct.byref(result_handle)))
+        except Exception:
+            _dlpack.external_owner_cancel(user_data)
+            raise
+        return cls(result_handle)
+
     @property
     def descriptor(self) -> dict[str, object]:
         if self._closed:

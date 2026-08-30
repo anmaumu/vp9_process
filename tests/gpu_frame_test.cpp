@@ -198,6 +198,19 @@ int main() {
     assert(mkvc_gpu_frame_import_cuda_event(
         &external_config, &external_frame) == MKVC_ERROR_INVALID_ARGUMENT);
     assert(external_frame == nullptr && external_state.releases.load() == 1);
+    external_config.frame.memory_type = MKVC_GPU_MEMORY_CUDA_ARRAY;
+    external_config.frame.pitches[0] = external_config.frame.pitches[1] =
+        external_config.frame.width;
+    external_config.frame.plane_offsets[1] =
+        static_cast<uint64_t>(external_config.frame.width) *
+        external_config.frame.height;
+    external_config.native_handle.type = MKVC_GPU_NATIVE_CUDA_ARRAY;
+    external_config.native_handle.handles[0] = 0x87650000;
+    assert(mkvc_gpu_frame_import_external(
+        &external_config, &external_frame) == MKVC_OK);
+    assert(external_frame != nullptr);
+    mkvc_gpu_frame_release(external_frame);
+    assert(external_state.releases.load() == 2);
 
     auto pool = std::make_shared<mkvc::gpu::GpuFramePool>(2);
     auto pool_done_a = std::make_shared<mkvc::gpu::ManualCompletion>();

@@ -441,10 +441,13 @@ mkvc_result NvidiaWebmEncoder::write_gpu(
     return MKVC_ERROR_INVALID_STATE;
   }
   const mkvc_gpu_frame_desc &desc = frame->desc();
+  const bool cuda_pointer =
+      desc.memory_type == MKVC_GPU_MEMORY_CUDA_POINTER;
+  const bool cuda_array = desc.memory_type == MKVC_GPU_MEMORY_CUDA_ARRAY;
   if (desc.backend != MKVC_BACKEND_NVIDIA ||
-      desc.memory_type != MKVC_GPU_MEMORY_CUDA_POINTER ||
+      (!cuda_pointer && !cuda_array) ||
       desc.pixel_format != MKVC_PIXEL_FORMAT_NV12 || desc.plane_count != 2) {
-    error = "NVENC requires a NVIDIA CUDA-pointer NV12 frame";
+    error = "NVENC requires a NVIDIA CUDA pointer/array NV12 frame";
     return MKVC_ERROR_NOT_SUPPORTED;
   }
   if (desc.width != state.width || desc.height != state.height ||
@@ -466,7 +469,9 @@ mkvc_result NvidiaWebmEncoder::write_gpu(
   result = frame->get_native_handle(native, error);
   if (result != MKVC_OK)
     return result;
-  if (native.type != MKVC_GPU_NATIVE_CUDA_POINTER || native.handles[0] == 0 ||
+  const uint32_t expected_native_type = cuda_pointer
+      ? MKVC_GPU_NATIVE_CUDA_POINTER : MKVC_GPU_NATIVE_CUDA_ARRAY;
+  if (native.type != expected_native_type || native.handles[0] == 0 ||
       native.handles[1] == 0 || native.handles[0] !=
           static_cast<uint64_t>(reinterpret_cast<uintptr_t>(
               frame->backend_resource().object))) {
@@ -492,7 +497,9 @@ mkvc_result NvidiaWebmEncoder::write_gpu(
 
   NV_ENC_REGISTER_RESOURCE registration{};
   registration.version = NV_ENC_REGISTER_RESOURCE_VER;
-  registration.resourceType = NV_ENC_INPUT_RESOURCE_TYPE_CUDADEVICEPTR;
+  registration.resourceType = cuda_pointer
+      ? NV_ENC_INPUT_RESOURCE_TYPE_CUDADEVICEPTR
+      : NV_ENC_INPUT_RESOURCE_TYPE_CUDAARRAY;
   registration.resourceToRegister = reinterpret_cast<void *>(
       static_cast<uintptr_t>(native.handles[0]));
   registration.width = state.width;
@@ -502,7 +509,7 @@ mkvc_result NvidiaWebmEncoder::write_gpu(
   registration.bufferUsage = NV_ENC_INPUT_IMAGE;
   if (state.functions.nvEncRegisterResource(state.encoder, &registration) !=
       NV_ENC_SUCCESS) {
-    error = "nvEncRegisterResource rejected the NVDEC CUDA pointer";
+    error = "nvEncRegisterResource rejected the CUDA input resource";
     return MKVC_ERROR_CODEC;
   }
   NV_ENC_MAP_INPUT_RESOURCE mapping{};

@@ -88,16 +88,17 @@
 - [x] connect Intel VA surface factory to real Linux decoder output
 - [ ] connect Intel D3D11 texture export factory and external texture import/encoder surfaces
 - [x] connect NVIDIA CUdeviceptr/context/pitch factory to mapped NVDEC surfaces
-- [ ] NVIDIA CUarray/stream export（外部CUDA event import/dependency factoryは完了）
+- [ ] NVIDIA CUarray/stream decode export（外部CUarray importとCUDA event dependencyは完了）
 - [x] native NVIDIA linear CUDA-pointer DLPack plane adapter and native lease deleter
 - [x] Python stable-ABI DLPack capsule and `GpuFrame.plane()` protocol source API
-- [ ] CuPy hardware qualification and Intel safe USM adapter（native CUDA consumer-stream event dependencyは完了）
+- [ ] Intel safe USM adapter（CuPy linear-NV12 DLPack import/exportとnative CUDA consumer-stream dependencyはRTX 2060で実機確認済み）
 - [x] backend-neutral external GPU frame wrapper with producer-query and single-shot release callbacks; CUDA-pointer NV12 is NVIDIA-encode compatible
 - [x] Python stable-ABI owner holder and synchronized/CUDA-event CUDA-pointer NV12 import adapter
-- [ ] external CUDA CUarray import（連続NV12 DLPack importとproducer event/deleter ownershipは完了）
+- [x] external CUDA CUarray/linear-DLPack import with producer event/deleter ownership（CUarray NVENC positive encodeはAV1対応GPU待ち）
 - [ ] external D3D11 texture and VA surface oneVPL import adapter with producer fence/sync ownership
 - [ ] strict GPU-resident policy and export/import edge copy-path trace
-- [ ] Python CuPy hardware qualification（generic contiguous-NV12 DLPack processed-resource importは完了）
+- [x] Python CuPy contiguous-NV12 DLPack processed-resource import/export hardware qualification
+- [ ] Python CuPy/CUarray processed-resource→NVENC positive encode qualification on an AV1-capable GPU
 - [x] .NET GPU Frame SafeHandle, descriptor/native handle/wait and Capture.ReadSurface source API
 - [x] .NET strict GPU-resident Capture/Writer and WriteSurface source API
 - [x] .NET external GPU frame owner/query/release adapter
