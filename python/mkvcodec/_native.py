@@ -98,6 +98,16 @@ class PipelineMetrics(ct.Structure):
     ]
 
 
+class CopyPolicy(ct.Structure):
+    _fields_ = [
+        ("struct_size", ct.c_uint32),
+        ("struct_version", ct.c_uint32),
+        ("require_gpu_resident", ct.c_uint32),
+        ("allow_gpu_copy", ct.c_uint32),
+        ("allow_cpu_copy", ct.c_uint32),
+    ]
+
+
 class FrameProcessConfig(ct.Structure):
     _fields_ = [
         ("struct_size", ct.c_uint32),
@@ -174,6 +184,10 @@ GpuFrameHandle = ct.c_void_p
 
 lib.mkvc_encoder_create.argtypes = [ct.POINTER(EncoderConfig), ct.POINTER(EncoderHandle)]
 lib.mkvc_encoder_create.restype = ct.c_int
+lib.mkvc_encoder_set_copy_policy.argtypes = [
+    EncoderHandle, ct.POINTER(CopyPolicy)
+]
+lib.mkvc_encoder_set_copy_policy.restype = ct.c_int
 lib.mkvc_encoder_write_frame.argtypes = [EncoderHandle, ct.POINTER(FrameView)]
 lib.mkvc_encoder_write_frame.restype = ct.c_int
 lib.mkvc_encoder_write_gpu_frame.argtypes = [EncoderHandle, GpuFrameHandle]
@@ -190,6 +204,10 @@ lib.mkvc_encoder_destroy.argtypes = [EncoderHandle]
 
 lib.mkvc_decoder_create.argtypes = [ct.POINTER(DecoderConfig), ct.POINTER(DecoderHandle)]
 lib.mkvc_decoder_create.restype = ct.c_int
+lib.mkvc_decoder_set_copy_policy.argtypes = [
+    DecoderHandle, ct.POINTER(CopyPolicy)
+]
+lib.mkvc_decoder_set_copy_policy.restype = ct.c_int
 lib.mkvc_decoder_read.argtypes = [DecoderHandle, ct.POINTER(FrameHandle)]
 lib.mkvc_decoder_read.restype = ct.c_int
 lib.mkvc_decoder_read_gpu.argtypes = [DecoderHandle, ct.POINTER(GpuFrameHandle)]

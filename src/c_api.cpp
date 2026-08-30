@@ -48,6 +48,9 @@ struct mkvc_decoder {
     uint32_t peak_queue_depth = 0;
     uint32_t hardware_pending_peak = 0;
     bool gpu_path_exercised = false;
+    bool require_gpu_resident = false;
+    bool allow_gpu_copy = true;
+    bool allow_cpu_copy = true;
 };
 
 struct mkvc_frame {
@@ -274,6 +277,18 @@ mkvc_result mkvc_encoder_create(const mkvc_encoder_config* config,
     }
 }
 
+mkvc_result mkvc_encoder_set_copy_policy(
+    mkvc_encoder* encoder, const mkvc_copy_policy* policy) {
+    last_error.clear();
+    if (encoder == nullptr || policy == nullptr ||
+        policy->struct_size < sizeof(*policy) || policy->struct_version != 1) {
+        return fail(MKVC_ERROR_INVALID_ARGUMENT, "invalid encoder copy policy");
+    }
+    std::string error;
+    const mkvc_result result = encoder->implementation->set_copy_policy(*policy, error);
+    return result == MKVC_OK ? result : fail(result, std::move(error));
+}
+
 mkvc_result mkvc_encoder_write_frame(mkvc_encoder* encoder,
                                      const mkvc_frame_view* frame) {
     last_error.clear();
@@ -463,6 +478,37 @@ mkvc_result mkvc_decoder_create(const mkvc_decoder_config* config,
     }
 }
 
+mkvc_result mkvc_decoder_set_copy_policy(
+    mkvc_decoder* decoder, const mkvc_copy_policy* policy) {
+    last_error.clear();
+    if (decoder == nullptr || policy == nullptr ||
+        policy->struct_size < sizeof(*policy) || policy->struct_version != 1) {
+        return fail(MKVC_ERROR_INVALID_ARGUMENT, "invalid decoder copy policy");
+    }
+    std::lock_guard<std::mutex> lock(decoder->mutex);
+    if (decoder->accepted_frames != 0 || decoder->completed_frames != 0) {
+        return fail(MKVC_ERROR_INVALID_STATE,
+                    "copy policy must be set before the first decoder frame");
+    }
+    if ((policy->require_gpu_resident != 0 || policy->allow_cpu_copy == 0) &&
+        decoder->capacity != 0) {
+        return fail(MKVC_ERROR_NOT_SUPPORTED,
+                    "GPU-resident decoding currently requires prefetch=0");
+    }
+    if (policy->require_gpu_resident != 0 && policy->allow_cpu_copy != 0) {
+        return fail(MKVC_ERROR_INVALID_ARGUMENT,
+                    "require_gpu_resident conflicts with allow_cpu_copy");
+    }
+    if (policy->require_gpu_resident != 0 && !decoder->intel_implementation) {
+        return fail(MKVC_ERROR_NOT_SUPPORTED,
+                    "GPU-resident decoding is unavailable for this backend");
+    }
+    decoder->require_gpu_resident = policy->require_gpu_resident != 0;
+    decoder->allow_gpu_copy = policy->allow_gpu_copy != 0;
+    decoder->allow_cpu_copy = policy->allow_cpu_copy != 0;
+    return MKVC_OK;
+}
+
 mkvc_result mkvc_decoder_read(mkvc_decoder* decoder, mkvc_frame** out_frame) {
     last_error.clear();
     if (out_frame != nullptr) {
@@ -470,6 +516,13 @@ mkvc_result mkvc_decoder_read(mkvc_decoder* decoder, mkvc_frame** out_frame) {
     }
     if (decoder == nullptr || out_frame == nullptr) {
         return fail(MKVC_ERROR_INVALID_ARGUMENT, "invalid decoder or frame output");
+    }
+    {
+        std::lock_guard<std::mutex> lock(decoder->mutex);
+        if (decoder->require_gpu_resident || !decoder->allow_cpu_copy) {
+            return fail(MKVC_ERROR_NOT_SUPPORTED,
+                        "CPU frame read is prohibited by copy policy");
+        }
     }
     try {
         if (decoder->capacity > 0) {

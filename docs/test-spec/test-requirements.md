@@ -61,8 +61,9 @@ profile: test-spec@1.0
 | `TEST-GPU-004` | device-wide syncなしでconsumer stream/fence dependencyが正しく待機する | trace/race | Intel/NVIDIA |
 | `TEST-GPU-005` | NV12/P010のplane offset、pitch、alignment、D3D11 subresource、VA surface、CUDA pointer/CUarray descriptorをguard付き検証 | hardware | Intel/NVIDIA |
 | `TEST-GPU-006` | Intel oneVPL decode→VPP→encodeをCPU Mapなしで実行し、PTS/order/golden decodeを検証 | end-to-end/trace | Windows D3D11/Linux VA-API Intel |
-| `TEST-GPU-006A` | Linux VA Intel VP9 decode surfaceを`write_surface`へ渡し、lease即時解放、pool進行、frame数一致を検証 | end-to-end/hardware | Linux Intel |
-| `TEST-GPU-006B` | `require_gpu_resident=True`でCPU read/writeを拒否し、GPU transcode metricsが`zero_copy`となる | API/end-to-end | Python/Linux Intel |
+| `TEST-GPU-015` | Linux VA Intel VP9 decode surfaceを`write_surface`へ渡し、lease即時解放、pool進行、frame数一致を検証 | end-to-end/hardware | Linux Intel |
+| `TEST-GPU-016` | `require_gpu_resident=True`でCPU read/writeを拒否し、GPU transcode metricsが`zero_copy`となる | API/end-to-end | Python/Linux Intel |
+| `TEST-GPU-017` | C ABI copy policyのsize/version/conflict、初回frame後変更、queue/prefetch制約を検証 | ABI/unit | CPU/Intel |
 | `TEST-GPU-007` | NVIDIA NVDEC→NVENCをDtoH/HtoDなしで実行し、map/register/unmap lifetime、PTS/order/golden decodeを検証 | end-to-end/trace | NVIDIA |
 | `TEST-GPU-008` | Intel/NVIDIA decode→全GPU処理→encodeでformat、色metadata、PTS、crop/rotation geometryを検証 | end-to-end | Intel/NVIDIA |
 | `TEST-GPU-009` | DLPackをconsumer stream付きでCuPy等へ渡し、producer dependency、shape/stride/device/deleterを検証 | Python/hardware | Intel対応環境/NVIDIA |

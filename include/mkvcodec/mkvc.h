@@ -208,6 +208,15 @@ typedef struct mkvc_pipeline_metrics {
     uint32_t copy_path;             /**< One mkvc_copy_path actually exercised. */
 } mkvc_pipeline_metrics;
 
+/** Runtime copy/fallback policy; set before the first frame operation. */
+typedef struct mkvc_copy_policy {
+    uint32_t struct_size;          /**< Size of this struct. */
+    uint32_t struct_version;       /**< Must be 1. */
+    uint32_t require_gpu_resident; /**< Reject every CPU pixel path when nonzero. */
+    uint32_t allow_gpu_copy;       /**< Permit an explicit device-local copy. */
+    uint32_t allow_cpu_copy;       /**< Permit upload, download, or CPU fallback. */
+} mkvc_copy_policy;
+
 /** Encoder creation parameters, including optional bounded asynchronous submission. */
 typedef struct mkvc_encoder_config {
     uint32_t struct_size;              /**< Size of this struct. */
@@ -294,6 +303,10 @@ MKVC_API const char* mkvc_result_string(mkvc_result result);
 MKVC_API mkvc_result mkvc_encoder_create(
     const mkvc_encoder_config* config,
     mkvc_encoder** out_encoder);
+/** Set copy/fallback policy before the first encoder frame operation. */
+MKVC_API mkvc_result mkvc_encoder_set_copy_policy(
+    mkvc_encoder* encoder,
+    const mkvc_copy_policy* policy);
 /** Copy and submit one CPU frame to an encoder. */
 MKVC_API mkvc_result mkvc_encoder_write_frame(
     mkvc_encoder* encoder,
@@ -324,6 +337,10 @@ MKVC_API const char* mkvc_get_last_error(void);
 MKVC_API mkvc_result mkvc_decoder_create(
     const mkvc_decoder_config* config,
     mkvc_decoder** out_decoder);
+/** Set copy/fallback policy before the first decoder frame operation. */
+MKVC_API mkvc_result mkvc_decoder_set_copy_policy(
+    mkvc_decoder* decoder,
+    const mkvc_copy_policy* policy);
 /** Read one decoded frame or return MKVC_END_OF_STREAM. */
 MKVC_API mkvc_result mkvc_decoder_read(
     mkvc_decoder* decoder,

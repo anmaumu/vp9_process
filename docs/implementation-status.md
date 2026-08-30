@@ -84,6 +84,9 @@ Encoder metrics now distinguish CPU-only, GPU-resident, and mixed input paths.
 Python Writer/Capture accept `require_gpu_resident=True`; CPU submission/read APIs
 then fail instead of silently crossing host memory. The first supported strict
 combination is Intel Capture with `prefetch=0` and Intel Writer with `queue_size=0`.
+The same contract is exposed to C/C++ and future C# bindings through versioned
+`mkvc_copy_policy` encoder/decoder setters without changing existing create-config
+structure sizes.
 
 | Specification | Implementation | Verification | Status |
 |---|---|---|---|

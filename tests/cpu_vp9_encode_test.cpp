@@ -56,6 +56,12 @@ int main(int argc, char** argv) {
 
     require_ok(mkvc_encoder_create(&config, &encoder));
     assert(encoder != nullptr);
+    mkvc_copy_policy copy_policy{};
+    copy_policy.struct_size = sizeof(copy_policy);
+    copy_policy.struct_version = 1;
+    copy_policy.allow_gpu_copy = 1;
+    copy_policy.allow_cpu_copy = 1;
+    require_ok(mkvc_encoder_set_copy_policy(encoder, &copy_policy));
     mkvc_pipeline_metrics invalid_metrics{};
     invalid_metrics.struct_size = sizeof(invalid_metrics) - 1;
     invalid_metrics.struct_version = 1;
@@ -93,6 +99,10 @@ int main(int argc, char** argv) {
             require_ok(mkvc_encoder_write_frame(encoder, &frame));
         } else {
             require_ok(try_result);
+        }
+        if (index == 0) {
+            assert(mkvc_encoder_set_copy_policy(encoder, &copy_policy) ==
+                   MKVC_ERROR_INVALID_STATE);
         }
     }
 

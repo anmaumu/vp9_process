@@ -145,6 +145,11 @@ AV1 decode: supported GPU backend -> libaom -> error
 - `EXT-GPU-009`: PythonのGPU frameでもCPU frameと同じ`process/resize/crop/convert/rotate/flip`操作感を提供し、結果はCuPy等の対応consumerへCPU copyなしで渡せる。
 - `EXT-GPU-010`: `require_gpu_resident=True`、`allow_gpu_copy`、`allow_cpu_copy`をdecode/process/encode全体へ適用し、実行結果にoperation別copy-pathとfallback理由を返す。
 
+C/C++/C#利用者はversioned `mkvc_copy_policy`を作成直後に
+`mkvc_encoder_set_copy_policy` / `mkvc_decoder_set_copy_policy`へ渡す。
+policyは最初のframe operation後には変更できない。初期実装のstrict Intel
+surface経路はencoder `queue_size=0`、decoder `prefetch=0`を要求する。
+
 Native handleとDLPackはborrowed exportであり、利用者は元の`mkvc_gpu_frame` leaseを保持する。外部consumerがresourceを保持する必要がある場合は、completion付きexport leaseを明示取得する。
 
 ### 5.6 Frame Processing（将来対応）

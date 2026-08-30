@@ -302,6 +302,7 @@ Source layoutは共通所有権・同期を`src/gpu/`、将来のvendor実装を
 - `INT-GPU-012`: Python wrapperはGPU待機中GILを解放し、GC/finalizerは例外を出さず、interpreter shutdown後にPython APIへcallbackしない。
 - `INT-GPU-013`: copy-path recorderは各edgeを`shared_surface/zero_copy/gpu_copy/cpu_upload/cpu_readback`として実測記録し、要求値から推測しない。
 - `INT-GPU-014`: device lost/cancel/timeout時は全completionをterminal failureへ遷移させ、waiterを起床し、resourceを依存順に一度だけ解放する。
+- `INT-GPU-015`: copy policyは既存create configのABI sizeを変更せずversioned setterで設定し、最初のframe受理後の変更を拒否する。strict指定時はCPU read/write APIをbackend呼出前に拒否する。
 
 所有権の基準シーケンス:
 

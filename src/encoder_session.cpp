@@ -149,6 +149,9 @@ struct EncoderSession::Impl {
     uint32_t peak_queue_depth = 0;
     uint32_t hardware_pending_peak = 0;
     uint32_t copy_path = MKVC_COPY_PATH_UNKNOWN;
+    bool require_gpu_resident = false;
+    bool allow_gpu_copy = true;
+    bool allow_cpu_copy = true;
 #if defined(MKVC_ENABLE_TEST_HOOKS)
     uint64_t test_fail_after = std::numeric_limits<uint64_t>::max();
 #endif
@@ -352,6 +355,13 @@ EncoderSession::~EncoderSession() {
 
 mkvc_result EncoderSession::write(const mkvc_frame_view& frame, bool block,
                                   std::string& error) {
+    {
+        std::lock_guard<std::mutex> lock(impl_->mutex);
+        if (impl_->require_gpu_resident || !impl_->allow_cpu_copy) {
+            error = "CPU frame submission is prohibited by copy policy";
+            return MKVC_ERROR_NOT_SUPPORTED;
+        }
+    }
     if (impl_->capacity == 0) {
         const auto started = std::chrono::steady_clock::now();
         const mkvc_result result = backend_write(*impl_, frame, error);
@@ -452,6 +462,32 @@ mkvc_result EncoderSession::write(const mkvc_frame_view& frame, bool block,
     impl_->peak_queue_depth = std::max<uint32_t>(
         impl_->peak_queue_depth, static_cast<uint32_t>(impl_->queue.size()));
     impl_->has_items.notify_one();
+    return MKVC_OK;
+}
+
+mkvc_result EncoderSession::set_copy_policy(
+    const mkvc_copy_policy& policy, std::string& error) {
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    if (impl_->accepted_frames != 0 || impl_->completed_frames != 0) {
+        error = "copy policy must be set before the first encoder frame";
+        return MKVC_ERROR_INVALID_STATE;
+    }
+    if ((policy.require_gpu_resident != 0 || policy.allow_cpu_copy == 0) &&
+        impl_->capacity != 0) {
+        error = "GPU-resident encoding currently requires queue_size=0";
+        return MKVC_ERROR_NOT_SUPPORTED;
+    }
+    if (policy.require_gpu_resident != 0 && !impl_->intel_encoder) {
+        error = "GPU-resident encoding is unavailable for this backend";
+        return MKVC_ERROR_NOT_SUPPORTED;
+    }
+    if (policy.require_gpu_resident != 0 && policy.allow_cpu_copy != 0) {
+        error = "require_gpu_resident conflicts with allow_cpu_copy";
+        return MKVC_ERROR_INVALID_ARGUMENT;
+    }
+    impl_->require_gpu_resident = policy.require_gpu_resident != 0;
+    impl_->allow_gpu_copy = policy.allow_gpu_copy != 0;
+    impl_->allow_cpu_copy = policy.allow_cpu_copy != 0;
     return MKVC_OK;
 }
 
