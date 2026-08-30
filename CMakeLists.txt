@@ -145,13 +145,6 @@ if(MKVC_BUILD_PYTHON_DLPACK)
         install(TARGETS mkvc_python_dlpack
             LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}/python/mkvcodec
             RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}/python/mkvcodec)
-        if(MKVC_BUILD_TESTS AND Python3_Interpreter_FOUND)
-            add_test(NAME mkvc_python_dlpack_capsule
-                COMMAND ${CMAKE_COMMAND} -E env
-                    "PYTHONPATH=$<TARGET_FILE_DIR:mkvc_python_dlpack>"
-                    "${Python3_EXECUTABLE}"
-                    "${CMAKE_CURRENT_SOURCE_DIR}/tests/python_dlpack_capsule.py")
-        endif()
     endif()
 endif()
 if(Python3_Interpreter_FOUND)
@@ -167,6 +160,13 @@ endif()
 
 if(MKVC_BUILD_TESTS)
     enable_testing()
+    if(TARGET mkvc_python_dlpack AND Python3_Interpreter_FOUND)
+        add_test(NAME mkvc_python_dlpack_capsule
+            COMMAND ${CMAKE_COMMAND} -E env
+                "PYTHONPATH=$<TARGET_FILE_DIR:mkvc_python_dlpack>"
+                "${Python3_EXECUTABLE}"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/python_dlpack_capsule.py")
+    endif()
     target_compile_definitions(mkvcodec PRIVATE MKVC_ENABLE_TEST_HOOKS=1)
     if(Python3_Interpreter_FOUND)
         add_test(NAME mkvc_compliance_source
