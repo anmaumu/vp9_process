@@ -223,9 +223,7 @@ std::unique_ptr<IntelWebmEncoder> IntelWebmEncoder::create(
         error = "libwebm failed to create the Intel video track";
         return nullptr;
     }
-    track->set_codec_id(config.codec == MKVC_CODEC_VP9
-                            ? mkvmuxer::Tracks::kVp9CodecId
-                            : mkvmuxer::Tracks::kAv1CodecId);
+    track->set_codec_id(config.codec == MKVC_CODEC_VP9 ? "V_VP9" : "V_AV1");
     if (config.codec == MKVC_CODEC_AV1) {
         const uint8_t av1_config[4] = {0x81, 19, 0x0c, 0x00};
         if (!track->SetCodecPrivate(av1_config, sizeof(av1_config))) {

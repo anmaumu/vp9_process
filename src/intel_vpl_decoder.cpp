@@ -1,6 +1,8 @@
 #include "intel_vpl_decoder.hpp"
 #include "gpu/gpu_frame_pool.hpp"
+#if defined(MKVC_HAS_INTEL_ONEVPL)
 #include "gpu/intel/intel_surface_factory.hpp"
+#endif
 
 #if defined(MKVC_HAS_INTEL_ONEVPL)
 #include <libyuv/convert.h>

@@ -499,7 +499,8 @@ mkvc_result mkvc_decoder_set_copy_policy(
         return fail(MKVC_ERROR_INVALID_ARGUMENT,
                     "require_gpu_resident conflicts with allow_cpu_copy");
     }
-    if (policy->require_gpu_resident != 0 && !decoder->intel_implementation) {
+    if (policy->require_gpu_resident != 0 &&
+        !decoder->intel_implementation && !decoder->nvidia_implementation) {
         return fail(MKVC_ERROR_NOT_SUPPORTED,
                     "GPU-resident decoding is unavailable for this backend");
     }
@@ -607,15 +608,16 @@ mkvc_result mkvc_decoder_read_gpu(mkvc_decoder* decoder,
         return fail(MKVC_ERROR_NOT_SUPPORTED,
                     "GPU read currently requires decoder prefetch=0");
     }
-    if (!decoder->intel_implementation) {
+    if (!decoder->intel_implementation && !decoder->nvidia_implementation) {
         return fail(MKVC_ERROR_NOT_SUPPORTED,
                     "GPU read is not implemented for this decoder backend");
     }
     try {
         std::string error;
         const auto started = std::chrono::steady_clock::now();
-        const mkvc_result result =
-            decoder->intel_implementation->read_gpu(out_frame, error);
+        const mkvc_result result = decoder->intel_implementation
+            ? decoder->intel_implementation->read_gpu(out_frame, error)
+            : decoder->nvidia_implementation->read_gpu(out_frame, error);
         {
             std::lock_guard<std::mutex> lock(decoder->mutex);
             decoder->backend_time_ns += elapsed_ns(started);

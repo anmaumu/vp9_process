@@ -176,7 +176,7 @@ NvidiaProbeResult probe_nvidia() {
                         if (functions.nvEncGetEncodeGUIDs(
                                 encoder, guids.data(), count_guids, &actual) ==
                             NV_ENC_SUCCESS) {
-                            actual = std::min(actual, count_guids);
+                            actual = (std::min)(actual, count_guids);
                             result.av1_encode = std::any_of(
                                 guids.begin(), guids.begin() + actual,
                                 [](const GUID& guid) {

@@ -392,7 +392,7 @@ NvidiaWebmEncoder::create(const mkvc_encoder_config &config,
     error = "failed to add NVIDIA AV1 track";
     return nullptr;
   }
-  track->set_codec_id(mkvmuxer::Tracks::kAv1CodecId);
+  track->set_codec_id("V_AV1");
   const uint8_t av1_config[4] = {0x81, 19, 0x0c, 0x00};
   if (!track->SetCodecPrivate(av1_config, sizeof(av1_config))) {
     error = "failed to set NVIDIA AV1 config";

@@ -84,6 +84,9 @@ if(MKVC_ENABLE_NVIDIA)
     target_include_directories(mkvcodec PRIVATE ${LIBWEBM_COMPAT_INCLUDE_DIR})
     target_link_libraries(mkvcodec PRIVATE unofficial::libwebm::libwebm)
     target_link_libraries(mkvcodec PRIVATE yuv)
+    if(WIN32)
+        target_compile_definitions(mkvcodec PRIVATE NOMINMAX)
+    endif()
 endif()
 
 if(MKVC_ENABLE_CPU_VP9)
@@ -219,6 +222,9 @@ if(MKVC_BUILD_TESTS)
             src ${nv_codec_headers_SOURCE_DIR}/include)
         target_compile_definitions(mkvc_nvidia_probe_test
             PRIVATE MKVC_HAS_NVIDIA=1)
+        if(WIN32)
+            target_compile_definitions(mkvc_nvidia_probe_test PRIVATE NOMINMAX)
+        endif()
         target_link_libraries(mkvc_nvidia_probe_test PRIVATE ${CMAKE_DL_LIBS})
         if(MSVC)
             target_compile_options(mkvc_nvidia_probe_test PRIVATE /W4 /permissive- /EHsc)
@@ -266,13 +272,20 @@ if(MKVC_BUILD_TESTS)
         if(MKVC_ENABLE_NVIDIA)
             add_executable(mkvc_nvidia_webm_decoder_test
                 tests/nvidia_webm_decoder_test.cpp
-                src/nvidia_webm_decoder.cpp src/nvidia_probe.cpp)
+                tests/nvidia_gpu_test_support.cpp
+                src/nvidia_webm_decoder.cpp src/nvidia_probe.cpp
+                src/gpu/gpu_frame.cpp src/gpu/gpu_frame_pool.cpp
+                src/gpu/nvidia/nvidia_native_handle.cpp)
             target_compile_features(mkvc_nvidia_webm_decoder_test PRIVATE cxx_std_17)
             target_include_directories(mkvc_nvidia_webm_decoder_test PRIVATE
                 src include ${nv_codec_headers_SOURCE_DIR}/include
                 ${LIBWEBM_COMPAT_INCLUDE_DIR})
             target_compile_definitions(mkvc_nvidia_webm_decoder_test
-                PRIVATE MKVC_HAS_NVIDIA=1)
+                PRIVATE MKVC_HAS_NVIDIA=1 MKVC_BUILDING_LIBRARY=1)
+            if(WIN32)
+                target_compile_definitions(mkvc_nvidia_webm_decoder_test
+                    PRIVATE NOMINMAX)
+            endif()
             target_link_libraries(mkvc_nvidia_webm_decoder_test PRIVATE
                 unofficial::libwebm::libwebm ${CMAKE_DL_LIBS})
             if(MSVC)

@@ -383,9 +383,9 @@ class VideoCapture(Iterator[U8Plane]):
     ) -> None:
         if codec not in ("vp9", "av1") or backend not in ("cpu", "intel", "nvidia"):
             raise ValueError("the Python capture supports VP9/AV1 on CPU, Intel, or NVIDIA")
-        if require_gpu_resident and backend != "intel":
+        if require_gpu_resident and backend not in ("intel", "nvidia"):
             raise ValueError(
-                "require_gpu_resident currently requires the Intel backend"
+                "require_gpu_resident requires the Intel or NVIDIA backend"
             )
         if require_gpu_resident and prefetch != 0:
             raise ValueError(

@@ -22,8 +22,9 @@ Intel oneVPLによるVP9/AV1 WebM encode/decodeはC ABIとPython Writer/Capture�
 C ABI/Pythonから選択でき、Windows RTX 2060でVP9を検証済みです。
 NVENC AV1 WriterはC ABI/Python共通経路へ実装済みで、runtime queryが対応を示すGPU
 だけに公開します。RTX 2060での非対応拒否とGPUなしLinuxでの退行は検証済みですが、
-AV1 NVENC対応GPUでのpositive encode検証は未完です。NVIDIA AV1 decodeの対応GPU検証、
-GPU surface zero-copy、10-bit public frame APIも未完です。
+AV1 NVENC対応GPUでのpositive encode検証は未完です。NVIDIA VP9 decodeはCUDA pointer
+surfaceを公開できますが、NVDEC→NVENC直結、CUDA event/DLPack、NVIDIA AV1対応GPU検証、
+10-bit public frame APIは未完です。
 .NET 8 bindingではABI version/capability query、型付きerror、SafeHandleに加え、
 `IDisposable`な`MkvVideoWriter`/`MkvVideoCapture`とowned I420 frameを実装済みです。
 利用可能と報告される機能は、実装済みbackendだけに限定します。

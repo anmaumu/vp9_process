@@ -280,7 +280,7 @@ std::unique_ptr<CpuAv1Encoder> CpuAv1Encoder::create(
         error = "libwebm failed to create the AV1 video track";
         return nullptr;
     }
-    track->set_codec_id(mkvmuxer::Tracks::kAv1CodecId);
+    track->set_codec_id("V_AV1");
     const uint8_t av1_codec_configuration[4] = {
         0x81,  // marker=1, version=1
         19,    // profile=0, level index 19 (AV1 level 6.3)

@@ -170,7 +170,7 @@ std::unique_ptr<CpuVp9Encoder> CpuVp9Encoder::create(
         error = "libwebm failed to create the video track";
         return nullptr;
     }
-    track->set_codec_id(mkvmuxer::Tracks::kVp9CodecId);
+    track->set_codec_id("V_VP9");
     track->set_frame_rate(static_cast<double>(config.fps_num) / config.fps_den);
     track->set_default_duration(
         static_cast<uint64_t>(config.fps_den) * 1000000000ULL / config.fps_num);

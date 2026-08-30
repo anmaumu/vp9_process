@@ -6,6 +6,8 @@
 #include <memory>
 #include <string>
 
+struct mkvc_gpu_frame;
+
 namespace mkvc {
 
 /** Incremental libwebm demuxer backed by NVIDIA NVDEC VP9/AV1 decode. */
@@ -18,12 +20,13 @@ public:
     NvidiaWebmDecoder(const NvidiaWebmDecoder&) = delete;
     NvidiaWebmDecoder& operator=(const NvidiaWebmDecoder&) = delete;
     mkvc_result read(std::unique_ptr<DecodedFrame>& frame, std::string& error);
+    mkvc_result read_gpu(mkvc_gpu_frame** frame, std::string& error);
     mkvc_result close(std::string& error);
     uint32_t max_pending_observed() const;
 
 private:
     NvidiaWebmDecoder();
-    std::unique_ptr<Impl> impl_;
+    std::shared_ptr<Impl> impl_;
 };
 
 }  // namespace mkvc

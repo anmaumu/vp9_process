@@ -86,7 +86,8 @@
 - [x] backend-neutral borrowed native-handle descriptor and lease validation
 - [x] connect Intel VA surface factory to real Linux decoder output
 - [ ] connect Intel D3D11 texture factory and VPP/encoder surfaces
-- [ ] connect NVIDIA CUdeviceptr/CUarray/context/stream/event factories to mapped NVDEC surfaces
+- [x] connect NVIDIA CUdeviceptr/context/pitch factory to mapped NVDEC surfaces
+- [ ] NVIDIA CUarray/stream/event export and asynchronous dependency factory
 - [ ] Intel safe USM path and NVIDIA CUDA DLPack adapters
 - [ ] NVIDIA NPP/CUDA mapping
 - [ ] Intel oneVPL VPP/D3D11/VA-API mapping
