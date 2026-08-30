@@ -205,7 +205,13 @@ void CpuSubmission::complete(mkvc_result result, std::string error) noexcept {
     terminal_ = true;
     result_ = result;
     error_ = std::move(error);
+    owner_.reset();
     changed_.notify_all();
+}
+
+void CpuSubmission::set_owner(std::shared_ptr<void> owner) noexcept {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (!terminal_) owner_ = std::move(owner);
 }
 
 mkvc_result CpuSubmission::query(uint32_t& status, std::string& error) const {

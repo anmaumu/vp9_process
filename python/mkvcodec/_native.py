@@ -85,6 +85,29 @@ class MutableFrameView(ct.Structure):
     ]
 
 
+class CpuFramePoolConfig(ct.Structure):
+    _fields_ = [
+        ("struct_size", ct.c_uint32),
+        ("struct_version", ct.c_uint32),
+        ("pixel_format", ct.c_uint32),
+        ("width", ct.c_uint32),
+        ("height", ct.c_uint32),
+        ("capacity", ct.c_uint32),
+    ]
+
+
+class CpuBufferDesc(ct.Structure):
+    _fields_ = [
+        ("struct_size", ct.c_uint32),
+        ("struct_version", ct.c_uint32),
+        ("pixel_format", ct.c_uint32),
+        ("width", ct.c_uint32),
+        ("height", ct.c_uint32),
+        ("plane_count", ct.c_uint32),
+        ("generation", ct.c_uint64),
+    ]
+
+
 class PipelineMetrics(ct.Structure):
     _fields_ = [
         ("struct_size", ct.c_uint32),
@@ -185,6 +208,8 @@ DecoderHandle = ct.c_void_p
 FrameHandle = ct.c_void_p
 GpuFrameHandle = ct.c_void_p
 SubmissionHandle = ct.c_void_p
+CpuFramePoolHandle = ct.c_void_p
+CpuBufferHandle = ct.c_void_p
 
 lib.mkvc_encoder_create.argtypes = [ct.POINTER(EncoderConfig), ct.POINTER(EncoderHandle)]
 lib.mkvc_encoder_create.restype = ct.c_int
@@ -220,6 +245,29 @@ lib.mkvc_submission_query.restype = ct.c_int
 lib.mkvc_submission_wait.argtypes = [SubmissionHandle, ct.c_uint32]
 lib.mkvc_submission_wait.restype = ct.c_int
 lib.mkvc_submission_release.argtypes = [SubmissionHandle]
+
+lib.mkvc_cpu_frame_pool_create.argtypes = [
+    ct.POINTER(CpuFramePoolConfig), ct.POINTER(CpuFramePoolHandle)
+]
+lib.mkvc_cpu_frame_pool_create.restype = ct.c_int
+lib.mkvc_cpu_frame_pool_destroy.argtypes = [CpuFramePoolHandle]
+lib.mkvc_cpu_frame_pool_acquire.argtypes = [
+    CpuFramePoolHandle, ct.c_uint32, ct.POINTER(CpuBufferHandle)
+]
+lib.mkvc_cpu_frame_pool_acquire.restype = ct.c_int
+lib.mkvc_cpu_buffer_get_desc.argtypes = [
+    CpuBufferHandle, ct.POINTER(CpuBufferDesc)
+]
+lib.mkvc_cpu_buffer_get_desc.restype = ct.c_int
+lib.mkvc_cpu_buffer_get_view.argtypes = [
+    CpuBufferHandle, ct.POINTER(MutableFrameView)
+]
+lib.mkvc_cpu_buffer_get_view.restype = ct.c_int
+lib.mkvc_cpu_buffer_release.argtypes = [CpuBufferHandle]
+lib.mkvc_encoder_submit_cpu_buffer.argtypes = [
+    EncoderHandle, CpuBufferHandle, ct.c_int64, ct.POINTER(SubmissionHandle)
+]
+lib.mkvc_encoder_submit_cpu_buffer.restype = ct.c_int
 
 lib.mkvc_decoder_create.argtypes = [ct.POINTER(DecoderConfig), ct.POINTER(DecoderHandle)]
 lib.mkvc_decoder_create.restype = ct.c_int

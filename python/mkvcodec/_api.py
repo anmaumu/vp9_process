@@ -43,7 +43,7 @@ class _CpuFrameLease:
 
 class _BorrowedArray(np.ndarray):
     """ndarray subclass that propagates the native frame lease to its views."""
-    _mkvc_lease: _CpuFrameLease | None
+    _mkvc_lease: object | None
 
     def __array_finalize__(self, source: object) -> None:
         self._mkvc_lease = getattr(source, "_mkvc_lease", None)
@@ -109,6 +109,190 @@ class BorrowedCpuFrame:
 
     release = close
     def __enter__(self) -> "BorrowedCpuFrame": return self
+    def __exit__(self, *args: object) -> None: self.close()
+    def __del__(self) -> None: self.close()
+
+
+class _CpuBufferLease:
+    """Native pool-slot owner retained by every exported ndarray view."""
+    def __init__(self, handle: native.CpuBufferHandle) -> None:
+        self._handle = handle
+
+    @property
+    def handle(self) -> native.CpuBufferHandle:
+        if not self._handle:
+            raise RuntimeError("native CPU buffer is released")
+        return self._handle
+
+    def release(self) -> None:
+        if self._handle:
+            native.lib.mkvc_cpu_buffer_release(self._handle)
+            self._handle = native.CpuBufferHandle()
+
+    def __del__(self) -> None:
+        self.release()
+
+
+class CpuBuffer:
+    """Writable NumPy views over one generation-checked native pool slot.
+
+    A retained plane or slice keeps the slot leased even after this wrapper is
+    closed. The slot is recycled only after the last Python/native owner exits.
+    """
+    def __init__(self, handle: native.CpuBufferHandle) -> None:
+        lease = _CpuBufferLease(handle)
+        desc = native.CpuBufferDesc()
+        desc.struct_size, desc.struct_version = ct.sizeof(desc), 1
+        view = native.MutableFrameView()
+        view.struct_size, view.struct_version = ct.sizeof(view), 1
+        try:
+            native.check(native.lib.mkvc_cpu_buffer_get_desc(
+                lease.handle, ct.byref(desc)
+            ))
+            native.check(native.lib.mkvc_cpu_buffer_get_view(
+                lease.handle, ct.byref(view)
+            ))
+            layouts = self._layouts(desc)
+            planes: list[_BorrowedArray] = []
+            for index, (shape, column_bytes) in enumerate(layouts):
+                stride = int(view.strides[index])
+                rows = shape[0]
+                if not view.planes[index] or stride < column_bytes:
+                    raise RuntimeError("native CPU pool returned an invalid plane")
+                raw = np.ctypeslib.as_array(
+                    view.planes[index], shape=(stride * rows,)
+                )
+                if len(shape) == 2:
+                    plane = raw.reshape(rows, stride)[:, :column_bytes]
+                else:
+                    plane = raw.reshape(rows, stride)[:, :column_bytes].reshape(shape)
+                borrowed = plane.view(_BorrowedArray)
+                borrowed._mkvc_lease = lease
+                planes.append(borrowed)
+        except Exception:
+            lease.release()
+            raise
+        self._lease: _CpuBufferLease | None = lease
+        self._planes: tuple[_BorrowedArray, ...] = tuple(planes)
+        self.format = {
+            native.MKVC_PIXEL_FORMAT_I420: "i420",
+            native.MKVC_PIXEL_FORMAT_NV12: "nv12",
+            native.MKVC_PIXEL_FORMAT_BGR24: "bgr",
+            native.MKVC_PIXEL_FORMAT_RGB24: "rgb",
+            native.MKVC_PIXEL_FORMAT_BGRA32: "bgra",
+        }[desc.pixel_format]
+        self.width = int(desc.width)
+        self.height = int(desc.height)
+        self.generation = int(desc.generation)
+
+    @staticmethod
+    def _layouts(desc: native.CpuBufferDesc) -> tuple[tuple[tuple[int, ...], int], ...]:
+        width, height = int(desc.width), int(desc.height)
+        if desc.pixel_format == native.MKVC_PIXEL_FORMAT_I420:
+            return (((height, width), width),
+                    ((height // 2, width // 2), width // 2),
+                    ((height // 2, width // 2), width // 2))
+        if desc.pixel_format == native.MKVC_PIXEL_FORMAT_NV12:
+            return (((height, width), width), ((height // 2, width), width))
+        channels = {
+            native.MKVC_PIXEL_FORMAT_BGR24: 3,
+            native.MKVC_PIXEL_FORMAT_RGB24: 3,
+            native.MKVC_PIXEL_FORMAT_BGRA32: 4,
+        }.get(desc.pixel_format)
+        if channels is None:
+            raise RuntimeError("native CPU pool returned an unsupported format")
+        return (((height, width, channels), width * channels),)
+
+    @property
+    def planes(self) -> tuple[U8Plane, ...]:
+        if self._lease is None:
+            raise RuntimeError("native CPU buffer is closed")
+        return self._planes
+
+    @property
+    def array(self) -> U8Plane:
+        if len(self.planes) != 1:
+            raise RuntimeError("planar CPU buffers do not have a single array")
+        return self.planes[0]
+
+    def _native_handle(self) -> native.CpuBufferHandle:
+        if self._lease is None:
+            raise RuntimeError("native CPU buffer is closed")
+        return self._lease.handle
+
+    def close(self) -> None:
+        if getattr(self, "_lease", None) is not None:
+            self._planes = ()
+            self._lease = None
+
+    release = close
+    def __enter__(self) -> "CpuBuffer": return self
+    def __exit__(self, *args: object) -> None: self.close()
+    def __del__(self) -> None: self.close()
+
+
+class CpuFramePool:
+    """Fixed-capacity reusable native CPU input buffer pool."""
+    def __init__(self, format: str, frame_size: tuple[int, int], capacity: int) -> None:
+        formats = {
+            "i420": native.MKVC_PIXEL_FORMAT_I420,
+            "nv12": native.MKVC_PIXEL_FORMAT_NV12,
+            "bgr": native.MKVC_PIXEL_FORMAT_BGR24,
+            "rgb": native.MKVC_PIXEL_FORMAT_RGB24,
+            "bgra": native.MKVC_PIXEL_FORMAT_BGRA32,
+        }
+        if format not in formats:
+            raise ValueError("format must be i420, nv12, bgr, rgb, or bgra")
+        width, height = frame_size
+        if (not isinstance(width, int) or not isinstance(height, int) or
+                width <= 0 or height <= 0 or width & 1 or height & 1 or
+                width > 0xFFFFFFFF or height > 0xFFFFFFFF):
+            raise ValueError("frame_size must contain positive even uint32 values")
+        if (not isinstance(capacity, int) or capacity <= 0 or
+                capacity > 0xFFFFFFFF):
+            raise ValueError("capacity must be a positive uint32 value")
+        config = native.CpuFramePoolConfig()
+        config.struct_size, config.struct_version = ct.sizeof(config), 1
+        config.pixel_format = formats[format]
+        config.width, config.height, config.capacity = width, height, capacity
+        self._handle = native.CpuFramePoolHandle()
+        native.check(native.lib.mkvc_cpu_frame_pool_create(
+            ct.byref(config), ct.byref(self._handle)
+        ))
+        self.format = format
+        self.frame_size = frame_size
+        self.capacity = capacity
+
+    def acquire(self, timeout_ms: int = 0xFFFFFFFF) -> CpuBuffer:
+        if not self._handle:
+            raise RuntimeError("native CPU frame pool is closed")
+        if timeout_ms < 0 or timeout_ms > 0xFFFFFFFF:
+            raise ValueError("timeout_ms is outside uint32 range")
+        handle = native.CpuBufferHandle()
+        native.check(native.lib.mkvc_cpu_frame_pool_acquire(
+            self._handle, timeout_ms, ct.byref(handle)
+        ))
+        return CpuBuffer(handle)
+
+    def try_acquire(self) -> CpuBuffer | None:
+        if not self._handle:
+            raise RuntimeError("native CPU frame pool is closed")
+        handle = native.CpuBufferHandle()
+        result = native.lib.mkvc_cpu_frame_pool_acquire(
+            self._handle, 0, ct.byref(handle)
+        )
+        if result == native.MKVC_WOULD_BLOCK:
+            return None
+        native.check(result)
+        return CpuBuffer(handle)
+
+    def close(self) -> None:
+        if getattr(self, "_handle", None):
+            native.lib.mkvc_cpu_frame_pool_destroy(self._handle)
+            self._handle = native.CpuFramePoolHandle()
+
+    release = close
+    def __enter__(self) -> "CpuFramePool": return self
     def __exit__(self, *args: object) -> None: self.close()
     def __del__(self) -> None: self.close()
 
@@ -632,6 +816,24 @@ class VideoWriter:
             self._handle, ct.byref(view), ct.byref(handle)
         ))
         return Submission(handle, owner)
+
+    def submit_buffer(self, buffer: CpuBuffer, *, pts: int = -1) -> Submission:
+        """Queue a native pool buffer and retain its slot through completion."""
+        if self._closed:
+            raise RuntimeError("writer is closed")
+        if self._require_gpu_resident:
+            raise RuntimeError(
+                "CPU frame submission is disabled by require_gpu_resident=True"
+            )
+        if not isinstance(buffer, CpuBuffer):
+            raise ValueError("buffer must be an open CpuBuffer")
+        if (buffer.width, buffer.height) != (self._width, self._height):
+            raise ValueError("CPU buffer dimensions do not match the writer")
+        handle = native.SubmissionHandle()
+        native.check(native.lib.mkvc_encoder_submit_cpu_buffer(
+            self._handle, buffer._native_handle(), pts, ct.byref(handle)
+        ))
+        return Submission(handle, buffer)
 
     def flush(self) -> None:
         if not self._closed:

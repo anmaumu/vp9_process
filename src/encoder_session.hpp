@@ -16,6 +16,7 @@ namespace gpu { class GpuFrameCore; }
 /** Thread-safe terminal state shared by an async borrowed input and its handle. */
 class CpuSubmission {
  public:
+    void set_owner(std::shared_ptr<void> owner) noexcept;
     void complete(mkvc_result result, std::string error) noexcept;
     mkvc_result query(uint32_t& status, std::string& error) const;
     mkvc_result wait(uint32_t timeout_ms, std::string& error) const;
@@ -26,6 +27,7 @@ class CpuSubmission {
     bool terminal_ = false;
     mkvc_result result_ = MKVC_OK;
     std::string error_;
+    std::shared_ptr<void> owner_;
 };
 
 /**

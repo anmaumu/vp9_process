@@ -84,7 +84,7 @@ profile: test-spec@1.0
 | `TEST-CPUINT-002` | frameを先にcloseしてもview lease中はslotを再利用せず、最後のview解放後にだけ再利用する | lifetime/concurrency | Python CPU CI |
 | `TEST-CPUINT-003` | sync borrowed encodeがreturnまでinputを読み終え、return後の再利用・mutationが安全である | integration/race | CPU CI |
 | `TEST-CPUINT-004` | async borrowed submissionが成功/失敗/cancelのcompletionまでownerを保持し、一度だけ解放する | concurrency/fault | Python/.NET/native CI |
-| `TEST-CPUINT-005` | native/pinned poolが固定容量、backpressure、generation規則を満たし、長時間.NET GC pinningとmemory増加がない | stress/performance | .NET/CPU CI |
+| `TEST-CPUINT-005` | native/pinned poolが固定容量、backpressure、generation規則を満たし、pool owner先行破棄・view/submission lease後も安全で、長時間.NET GC pinningとmemory増加がない | stress/performance | native/Python/.NET CPU CI |
 | `TEST-CPUINT-006` | GPU decode→NumPyは`cpu_readback`、CPU borrowed共有は`zero_copy`となり、形式変換allocationをedge別traceする | trace/hardware | CPU/Intel/NVIDIA |
 | `TEST-CPUINT-007` | plane count、dtype、shape、stride、alignment不一致がstrict時に失敗し、copy許可時だけcopyする | parameterized | CPU CI |
 

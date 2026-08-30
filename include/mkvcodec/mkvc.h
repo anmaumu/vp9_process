@@ -224,6 +224,27 @@ typedef struct mkvc_copy_policy {
     uint32_t allow_cpu_copy;       /**< Permit upload, download, or CPU fallback. */
 } mkvc_copy_policy;
 
+/** Fixed-capacity reusable native CPU frame pool configuration. */
+typedef struct mkvc_cpu_frame_pool_config {
+    uint32_t struct_size;
+    uint32_t struct_version; /**< Must be 1. */
+    uint32_t pixel_format;   /**< I420, NV12, BGR24, RGB24, or BGRA32. */
+    uint32_t width;
+    uint32_t height;
+    uint32_t capacity;       /**< Number of fixed native frame slots. */
+} mkvc_cpu_frame_pool_config;
+
+/** Immutable identity and layout summary for one native CPU buffer lease. */
+typedef struct mkvc_cpu_buffer_desc {
+    uint32_t struct_size;
+    uint32_t struct_version; /**< Must be 1. */
+    uint32_t pixel_format;
+    uint32_t width;
+    uint32_t height;
+    uint32_t plane_count;
+    uint64_t generation;
+} mkvc_cpu_buffer_desc;
+
 /** Encoder creation parameters, including optional bounded asynchronous submission. */
 typedef struct mkvc_encoder_config {
     uint32_t struct_size;              /**< Size of this struct. */
@@ -285,6 +306,10 @@ typedef struct mkvc_frame mkvc_frame;
 typedef struct mkvc_gpu_frame mkvc_gpu_frame;
 /** Completion lease for one asynchronously borrowed CPU frame. */
 typedef struct mkvc_submission mkvc_submission;
+/** Opaque fixed-capacity native CPU frame pool. */
+typedef struct mkvc_cpu_frame_pool mkvc_cpu_frame_pool;
+/** Generation-checked lease over one native CPU frame pool slot. */
+typedef struct mkvc_cpu_buffer mkvc_cpu_buffer;
 
 /** Synchronous decoder creation parameters. */
 typedef struct mkvc_decoder_config {
@@ -373,6 +398,34 @@ MKVC_API mkvc_result mkvc_submission_wait(
  * NULL is accepted.
  */
 MKVC_API void mkvc_submission_release(mkvc_submission* submission);
+
+/** Create a fixed-capacity native CPU frame pool. */
+MKVC_API mkvc_result mkvc_cpu_frame_pool_create(
+    const mkvc_cpu_frame_pool_config* config,
+    mkvc_cpu_frame_pool** out_pool);
+/** Destroy a pool owner; outstanding buffer leases remain valid. */
+MKVC_API void mkvc_cpu_frame_pool_destroy(mkvc_cpu_frame_pool* pool);
+/** Acquire one native slot; zero timeout is nonblocking. */
+MKVC_API mkvc_result mkvc_cpu_frame_pool_acquire(
+    mkvc_cpu_frame_pool* pool,
+    uint32_t timeout_ms,
+    mkvc_cpu_buffer** out_buffer);
+/** Query a live native CPU buffer lease descriptor. */
+MKVC_API mkvc_result mkvc_cpu_buffer_get_desc(
+    const mkvc_cpu_buffer* buffer,
+    mkvc_cpu_buffer_desc* out_desc);
+/** Obtain writable plane pointers valid while the CPU buffer lease is retained. */
+MKVC_API mkvc_result mkvc_cpu_buffer_get_view(
+    const mkvc_cpu_buffer* buffer,
+    mkvc_mutable_frame_view* out_view);
+/** Release a native CPU buffer lease; NULL is accepted. */
+MKVC_API void mkvc_cpu_buffer_release(mkvc_cpu_buffer* buffer);
+/** Submit a native pool buffer and retain its slot until encoder completion. */
+MKVC_API mkvc_result mkvc_encoder_submit_cpu_buffer(
+    mkvc_encoder* encoder,
+    const mkvc_cpu_buffer* buffer,
+    int64_t pts,
+    mkvc_submission** out_submission);
 
 /** Return thread-local error detail valid until the next API call on this thread. */
 MKVC_API const char* mkvc_get_last_error(void);

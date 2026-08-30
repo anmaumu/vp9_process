@@ -27,8 +27,9 @@ decode結果をNumPy/OpenCV、CuPy/DLPack、D3D11、VA-API等へexportし、外�
 - GPU zero-copy処理はDLPack/native handleで外部libraryへ渡し、処理済みresourceと
   producer event/fenceをencoderへimportします。
 - CPU owned NumPy APIと現在のCPU convenience processingは安全な既定機能として残します。
-- borrowed CPU decodeと同期encodeはC ABI/Pythonへ実装済みです。非同期submission
-  lease、native/pinned pool、GPU processed-resource importは未実装です。
+- borrowed CPU decode、同期/非同期encode、固定容量native input poolはC ABI/Pythonへ
+  実装済みです。OS page-lock付きpool、.NET非同期pool、GPU processed-resource importは
+  未実装です。
 
 ## 現在地
 
@@ -98,6 +99,24 @@ with mkvcodec.VideoWriter(
 ) as writer:
     submission = writer.submit_borrowed(external_result, format="i420")
     submission.wait()  # ここまでinput ownerを保持し、変更してはいけない
+```
+
+長時間のPython/.NET managed-memory pinningを避ける非同期入力には、固定容量の
+`CpuFramePool`を使えます。NumPy plane/sliceとsubmissionがnative slot leaseを保持し、
+全ownerの解放とencode完了までは同じslotを再取得できません。
+
+```python
+pool = mkvcodec.CpuFramePool("i420", (1920, 1080), capacity=4)
+with mkvcodec.VideoWriter(
+    "pooled.webm", fps=30, frame_size=(1920, 1080), queue_size=4,
+) as writer:
+    buffer = pool.acquire()
+    y, u, v = buffer.planes
+    process_into(y, u, v)
+    submission = writer.submit_buffer(buffer)
+    buffer.close()       # submissionが完了するまではslotをnative側で保持
+    submission.wait()
+pool.close()
 ```
 
 NVIDIA GPU surfaceはY/UV planeごとにDLPack consumerへ渡せます。consumerが

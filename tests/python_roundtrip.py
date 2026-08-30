@@ -129,6 +129,67 @@ def main() -> None:
             assert capture.read_i420() is not None
             assert capture.read_i420() is None
 
+        pool_path = os.path.join(directory, "native-pool.webm")
+        pool = mkvcodec.CpuFramePool("i420", (width, height), capacity=1)
+        buffer = pool.acquire()
+        first_generation = buffer.generation
+        y, u, v = buffer.planes
+        assert y.flags.writeable
+        y[:] = 96
+        u[:] = 128
+        v[:] = 128
+        assert pool.try_acquire() is None
+        with mkvcodec.VideoWriter(
+            pool_path, fps=30, frame_size=(width, height), queue_size=1,
+        ) as writer:
+            submission = writer.submit_buffer(buffer, pts=0)
+            buffer.close()
+            del y, u, v
+            gc.collect()
+            submission.wait(5000)
+            submission.close()
+        recycled = pool.acquire(5000)
+        assert recycled.generation > first_generation
+        retained = recycled.planes[0][:, 1:]
+        recycled.close()
+        gc.collect()
+        assert pool.try_acquire() is None
+        del retained
+        gc.collect()
+        after_view = pool.acquire(5000)
+        after_view.close()
+        del after_view
+        gc.collect()
+        survivor = pool.acquire()
+        survivor_y = survivor.planes[0]
+        pool.close()
+        assert survivor_y.shape == (height, width)
+        survivor.close()
+        del survivor_y
+        gc.collect()
+        with mkvcodec.VideoCapture(pool_path, prefetch=0) as capture:
+            assert capture.read_i420() is not None
+            assert capture.read_i420() is None
+
+        pool_layouts = {
+            "nv12": ((height, width), (height // 2, width)),
+            "bgr": ((height, width, 3),),
+            "rgb": ((height, width, 3),),
+            "bgra": ((height, width, 4),),
+        }
+        for format_name, expected_shapes in pool_layouts.items():
+            with mkvcodec.CpuFramePool(
+                format_name, (width, height), capacity=1
+            ) as layout_pool:
+                with layout_pool.acquire() as layout_buffer:
+                    assert layout_buffer.format == format_name
+                    assert tuple(
+                        plane.shape for plane in layout_buffer.planes
+                    ) == expected_shapes
+                    assert all(
+                        plane.flags.writeable for plane in layout_buffer.planes
+                    )
+
         with mkvcodec.VideoCapture(path, prefetch=0) as capture:
             processed = capture.read_processed(
                 crop=(8, 4, 48, 40),

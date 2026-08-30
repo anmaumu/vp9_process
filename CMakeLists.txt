@@ -49,6 +49,7 @@ add_library(mkvcodec SHARED
     src/backend_registry.cpp
     src/cpu_vp9_encoder.cpp
     src/cpu_vp9_decoder.cpp
+    src/cpu_frame_pool.cpp
     src/frame_conversion.cpp
     src/frame_processor.cpp
     src/gpu/gpu_frame.cpp
@@ -284,6 +285,13 @@ if(MKVC_BUILD_TESTS)
     endif()
 
     if(MKVC_ENABLE_CPU_VP9)
+        add_executable(mkvc_cpu_frame_pool_test tests/cpu_frame_pool_test.cpp)
+        target_compile_features(mkvc_cpu_frame_pool_test PRIVATE cxx_std_17)
+        target_link_libraries(mkvc_cpu_frame_pool_test PRIVATE mkvcodec)
+        add_test(NAME mkvc_cpu_frame_pool
+            COMMAND mkvc_cpu_frame_pool_test
+                "${CMAKE_CURRENT_BINARY_DIR}/cpu_frame_pool_test.webm")
+
         add_executable(mkvc_cpu_vp9_encode_test tests/cpu_vp9_encode_test.cpp)
         target_compile_features(mkvc_cpu_vp9_encode_test PRIVATE cxx_std_17)
         target_link_libraries(mkvc_cpu_vp9_encode_test PRIVATE mkvcodec)

@@ -108,7 +108,8 @@
 - [x] Python `read_borrowed()` read-only NumPy view with propagated native owner lease
 - [x] synchronous `write_borrowed()` for I420/NV12/packed layout (`queue_size=0` initial slice)
 - [x] asynchronous `submit_borrowed()` submission lease, query/wait and mutation contract
-- [ ] fixed-capacity native/pinned input pool with backpressure and generation checks
+- [x] fixed-capacity native input pool with backpressure, generation checks and Python NumPy views
+- [ ] optional OS page-locked/pinned allocation mode and pinning metrics
 - [ ] .NET synchronous short pin (implemented) and asynchronous unmanaged/pinned pool API
 - [ ] strict layout/stride/alignment validation and explicit copy-path fallback
 - [ ] GPU decode→NumPy download/conversion edge tracing
