@@ -98,7 +98,8 @@
 - [ ] Python GPU processing methods and CuPy hardware qualification
 - [x] .NET GPU Frame SafeHandle, descriptor/native handle/wait and Capture.ReadSurface source API
 - [x] .NET strict GPU-resident Capture/Writer and WriteSurface source API
-- [ ] .NET SDK-style build, Intel/NVIDIA hardware smoke and C++ RAII wrapper
+- [x] .NET 8 SDK-style build and Windows native-load/CPU round-trip smoke
+- [ ] .NET Intel/NVIDIA hardware smoke and C++ RAII wrapper
 - [ ] `TEST-GPU-001..014` lifetime, interop, fault, trace and soak qualification
 
 ## Phase 4: language bindings and distribution
