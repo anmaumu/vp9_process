@@ -58,6 +58,7 @@
 - [x] native aggregate backend/queue timing, high-water and copy-path metrics ABI
 - [ ] conversion/codec/mux/GPU-event別の詳細stage timing
 - [ ] approved 1080p/4K CPU/Intel/NVIDIA baseline and regression thresholds
+- [x] strict Intel GPU transcode JSON benchmark and initial 1080p VP9 development baseline
 
 ## Phase 3C: failure recovery
 

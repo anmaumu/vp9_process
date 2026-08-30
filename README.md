@@ -95,6 +95,14 @@ python -m pip install -r requirements-docs.txt
 python tools/docgen.py build
 ```
 
+Intel GPU-resident transcode benchmark:
+
+```bash
+python benchmarks/gpu_transcode_benchmark.py \
+  --input input.webm --media-output output.webm --codec vp9 \
+  --output gpu-result.json
+```
+
 Markdown中間生成物は`build/docgen-src`、HTMLは`build/docsite`へ出力されます。
 HTML siteにはDoxygenが生成するC/C++ source referenceとXMLも統合されます。
 GitHub Actionsはpushとpull requestごとに検証・HTML生成を実行し、artifactを30日保存します。

@@ -88,6 +88,13 @@ The same contract is exposed to C/C++ and future C# bindings through versioned
 `mkvc_copy_policy` encoder/decoder setters without changing existing create-config
 structure sizes.
 
+`benchmarks/gpu_transcode_benchmark.py` measures the strict public surface path.
+An initial Linux Intel VP9 run at 1920x1080, 120 frames reported 169.6 fps total,
+3.52 ms mean submission latency, 4.29 ms p95, and `zero_copy` from both native
+stages. This is a development baseline rather than an acceptance threshold: input
+was cached, initialization/finalization are included, the path is host-synchronous,
+and an OS/oneVPL trace has not yet independently proven zero host pixel transfer.
+
 | Specification | Implementation | Verification | Status |
 |---|---|---|---|
 | `EXT-CODEC-001` / `AC-CODEC-001` | libvpx VP9 CPU encode/decode | `mkvc_cpu_vp9_encode` | synchronous I420 round-trip passing with PSNR >= 28 dB |
