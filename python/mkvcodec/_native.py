@@ -10,6 +10,9 @@ MKVC_ERROR_INVALID_STATE = 5
 MKVC_ERROR_TIMEOUT = 10
 MKVC_END_OF_STREAM = 8
 MKVC_WOULD_BLOCK = 9
+MKVC_SUBMISSION_PENDING = 0
+MKVC_SUBMISSION_COMPLETE = 1
+MKVC_SUBMISSION_FAILED = 2
 MKVC_BACKEND_CPU = 1
 MKVC_BACKEND_NVIDIA = 2
 MKVC_BACKEND_INTEL = 3
@@ -181,6 +184,7 @@ EncoderHandle = ct.c_void_p
 DecoderHandle = ct.c_void_p
 FrameHandle = ct.c_void_p
 GpuFrameHandle = ct.c_void_p
+SubmissionHandle = ct.c_void_p
 
 lib.mkvc_encoder_create.argtypes = [ct.POINTER(EncoderConfig), ct.POINTER(EncoderHandle)]
 lib.mkvc_encoder_create.restype = ct.c_int
@@ -194,6 +198,10 @@ lib.mkvc_encoder_write_frame_borrowed.argtypes = [
     EncoderHandle, ct.POINTER(FrameView)
 ]
 lib.mkvc_encoder_write_frame_borrowed.restype = ct.c_int
+lib.mkvc_encoder_submit_frame_borrowed.argtypes = [
+    EncoderHandle, ct.POINTER(FrameView), ct.POINTER(SubmissionHandle)
+]
+lib.mkvc_encoder_submit_frame_borrowed.restype = ct.c_int
 lib.mkvc_encoder_write_gpu_frame.argtypes = [EncoderHandle, GpuFrameHandle]
 lib.mkvc_encoder_write_gpu_frame.restype = ct.c_int
 lib.mkvc_encoder_try_write_frame.argtypes = [EncoderHandle, ct.POINTER(FrameView)]
@@ -205,6 +213,13 @@ lib.mkvc_encoder_close.restype = ct.c_int
 lib.mkvc_encoder_get_metrics.argtypes = [EncoderHandle, ct.POINTER(PipelineMetrics)]
 lib.mkvc_encoder_get_metrics.restype = ct.c_int
 lib.mkvc_encoder_destroy.argtypes = [EncoderHandle]
+lib.mkvc_submission_query.argtypes = [
+    SubmissionHandle, ct.POINTER(ct.c_uint32)
+]
+lib.mkvc_submission_query.restype = ct.c_int
+lib.mkvc_submission_wait.argtypes = [SubmissionHandle, ct.c_uint32]
+lib.mkvc_submission_wait.restype = ct.c_int
+lib.mkvc_submission_release.argtypes = [SubmissionHandle]
 
 lib.mkvc_decoder_create.argtypes = [ct.POINTER(DecoderConfig), ct.POINTER(DecoderHandle)]
 lib.mkvc_decoder_create.restype = ct.c_int

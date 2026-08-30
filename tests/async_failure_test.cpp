@@ -95,6 +95,26 @@ int main() {
         metrics.peak_queue_depth > 1) return 5;
     mkvc_encoder_destroy(failed);
 
+    const std::string submission_failed_path =
+        (directory / "mkvc-async-submission-failure.webm").string();
+    std::filesystem::remove(submission_failed_path);
+    mkvc_encoder* submission_failed = nullptr;
+    auto submission_failed_config = config_for(submission_failed_path);
+    if (mkvc_encoder_create(&submission_failed_config, &submission_failed) !=
+        MKVC_OK) return 8;
+    mkvc_submission* failed_submission = nullptr;
+    if (mkvc_encoder_submit_frame_borrowed(
+            submission_failed, &frame, &failed_submission) != MKVC_OK ||
+        failed_submission == nullptr) return 9;
+    if (mkvc_submission_wait(failed_submission, 5000) != MKVC_ERROR_IO)
+        return 10;
+    uint32_t failed_status = MKVC_SUBMISSION_PENDING;
+    if (mkvc_submission_query(failed_submission, &failed_status) != MKVC_OK ||
+        failed_status != MKVC_SUBMISSION_FAILED) return 11;
+    mkvc_submission_release(failed_submission);
+    if (mkvc_encoder_close(submission_failed) != MKVC_ERROR_IO) return 12;
+    mkvc_encoder_destroy(submission_failed);
+
     set_failure_hook(nullptr);
     mkvc_encoder* recovered = nullptr;
     auto recovered_config = config_for(recovered_path);
@@ -106,5 +126,6 @@ int main() {
         std::filesystem::file_size(recovered_path) == 0) return 7;
     std::filesystem::remove(failed_path);
     std::filesystem::remove(recovered_path);
+    std::filesystem::remove(submission_failed_path);
     return 0;
 }

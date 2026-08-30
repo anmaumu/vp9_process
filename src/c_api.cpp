@@ -58,6 +58,10 @@ struct mkvc_frame {
     std::unique_ptr<mkvc::DecodedFrame> implementation;
 };
 
+struct mkvc_submission {
+    std::shared_ptr<mkvc::CpuSubmission> implementation;
+};
+
 thread_local std::string mkvc_last_error;
 
 namespace {
@@ -328,6 +332,35 @@ mkvc_result mkvc_encoder_write_frame_borrowed(
     }
 }
 
+mkvc_result mkvc_encoder_submit_frame_borrowed(
+    mkvc_encoder* encoder, const mkvc_frame_view* frame,
+    mkvc_submission** out_submission) {
+    last_error.clear();
+    if (encoder == nullptr || frame == nullptr || out_submission == nullptr ||
+        frame->struct_size < sizeof(mkvc_frame_view) ||
+        frame->struct_version != 1) {
+        return fail(MKVC_ERROR_INVALID_ARGUMENT,
+                    "invalid encoder, borrowed frame, or submission output");
+    }
+    *out_submission = nullptr;
+    try {
+        auto handle = std::make_unique<mkvc_submission>();
+        std::shared_ptr<mkvc::CpuSubmission> state;
+        std::string error;
+        const mkvc_result result =
+            encoder->implementation->submit_borrowed(*frame, state, error);
+        if (result != MKVC_OK) return fail(result, std::move(error));
+        handle->implementation = std::move(state);
+        *out_submission = handle.release();
+        return MKVC_OK;
+    } catch (const std::exception& exception) {
+        return fail(MKVC_ERROR_INTERNAL, exception.what());
+    } catch (...) {
+        return fail(MKVC_ERROR_INTERNAL,
+                    "unknown borrowed submission failure");
+    }
+}
+
 mkvc_result mkvc_encoder_write_gpu_frame(mkvc_encoder* encoder,
                                          const mkvc_gpu_frame* frame) {
     last_error.clear();
@@ -428,6 +461,41 @@ void mkvc_encoder_destroy(mkvc_encoder* encoder) {
         delete encoder;
     } catch (...) {
     }
+}
+
+mkvc_result mkvc_submission_query(
+    const mkvc_submission* submission, uint32_t* out_status) {
+    last_error.clear();
+    if (submission == nullptr || !submission->implementation ||
+        out_status == nullptr) {
+        return fail(MKVC_ERROR_INVALID_ARGUMENT, "invalid submission query");
+    }
+    std::string error;
+    const mkvc_result result =
+        submission->implementation->query(*out_status, error);
+    return result == MKVC_OK ? result : fail(result, std::move(error));
+}
+
+mkvc_result mkvc_submission_wait(
+    const mkvc_submission* submission, uint32_t timeout_ms) {
+    last_error.clear();
+    if (submission == nullptr || !submission->implementation) {
+        return fail(MKVC_ERROR_INVALID_ARGUMENT, "invalid submission wait");
+    }
+    std::string error;
+    const mkvc_result result =
+        submission->implementation->wait(timeout_ms, error);
+    return result == MKVC_OK ? result : fail(result, std::move(error));
+}
+
+void mkvc_submission_release(mkvc_submission* submission) {
+    if (submission == nullptr) return;
+    if (submission->implementation) {
+        std::string ignored;
+        submission->implementation->wait(
+            std::numeric_limits<uint32_t>::max(), ignored);
+    }
+    delete submission;
 }
 
 const char* mkvc_get_last_error(void) {

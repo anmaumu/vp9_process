@@ -68,6 +68,18 @@ int main(int argc, char** argv) {
     assert(mkvc_encoder_get_metrics(encoder, &invalid_metrics) ==
            MKVC_ERROR_INVALID_ARGUMENT);
 
+    mkvc_submission* async_borrowed = nullptr;
+    mkvc_frame_view invalid_borrowed{};
+    invalid_borrowed.struct_size = sizeof(invalid_borrowed);
+    invalid_borrowed.struct_version = 1;
+    invalid_borrowed.pixel_format = MKVC_PIXEL_FORMAT_I420;
+    invalid_borrowed.width = width;
+    invalid_borrowed.height = height;
+    assert(mkvc_encoder_submit_frame_borrowed(
+               encoder, &invalid_borrowed, &async_borrowed) ==
+           MKVC_ERROR_INVALID_ARGUMENT);
+    assert(async_borrowed == nullptr);
+
     mkvc_frame_view borrowed_probe{};
     borrowed_probe.struct_size = sizeof(borrowed_probe);
     borrowed_probe.struct_version = 1;
@@ -108,12 +120,29 @@ int main(int argc, char** argv) {
         frame.strides[1] = width / 2;
         frame.strides[2] = width / 2;
         frame.pts = -1;
-        const mkvc_result try_result =
-            mkvc_encoder_try_write_frame(encoder, &frame);
-        if (try_result == MKVC_WOULD_BLOCK) {
-            require_ok(mkvc_encoder_write_frame(encoder, &frame));
+        if (index == frame_count - 1) {
+            require_ok(mkvc_encoder_submit_frame_borrowed(
+                encoder, &frame, &async_borrowed));
+            assert(async_borrowed != nullptr);
+            uint32_t submission_status = 99;
+            require_ok(mkvc_submission_query(
+                async_borrowed, &submission_status));
+            assert(submission_status == MKVC_SUBMISSION_PENDING ||
+                   submission_status == MKVC_SUBMISSION_COMPLETE);
+            require_ok(mkvc_submission_wait(async_borrowed, 5000));
+            require_ok(mkvc_submission_query(
+                async_borrowed, &submission_status));
+            assert(submission_status == MKVC_SUBMISSION_COMPLETE);
+            mkvc_submission_release(async_borrowed);
+            async_borrowed = nullptr;
         } else {
-            require_ok(try_result);
+            const mkvc_result try_result =
+                mkvc_encoder_try_write_frame(encoder, &frame);
+            if (try_result == MKVC_WOULD_BLOCK) {
+                require_ok(mkvc_encoder_write_frame(encoder, &frame));
+            } else {
+                require_ok(try_result);
+            }
         }
         if (index == 0) {
             assert(mkvc_encoder_set_copy_policy(encoder, &copy_policy) ==

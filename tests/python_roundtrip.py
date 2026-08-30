@@ -1,6 +1,7 @@
 import os
 import tempfile
 import gc
+import weakref
 
 import numpy as np
 
@@ -104,6 +105,29 @@ def main() -> None:
                 )
             )
             writer.write((frames[0].y, frames[0].u, frames[0].v))
+
+        async_borrowed_path = os.path.join(directory, "borrowed-async.webm")
+        async_y = np.full((height, width), 96, np.uint8)
+        async_u = np.full((height // 2, width // 2), 128, np.uint8)
+        async_v = np.full((height // 2, width // 2), 128, np.uint8)
+        async_y_ref = weakref.ref(async_y)
+        with mkvcodec.VideoWriter(
+            async_borrowed_path, fps=30, frame_size=(width, height), queue_size=1,
+        ) as writer:
+            submission = writer.submit_borrowed(
+                (async_y, async_u, async_v), format="i420", pts=0
+            )
+            del async_y, async_u, async_v
+            gc.collect()
+            assert async_y_ref() is not None
+            submission.wait(5000)
+            assert submission.done
+            gc.collect()
+            assert async_y_ref() is None
+            submission.close()
+        with mkvcodec.VideoCapture(async_borrowed_path, prefetch=0) as capture:
+            assert capture.read_i420() is not None
+            assert capture.read_i420() is None
 
         with mkvcodec.VideoCapture(path, prefetch=0) as capture:
             processed = capture.read_processed(

@@ -4,11 +4,29 @@
 #include "mkvcodec/mkvc.h"
 
 #include <memory>
+#include <mutex>
+#include <condition_variable>
+#include <cstdint>
 #include <string>
 
 namespace mkvc {
 
 namespace gpu { class GpuFrameCore; }
+
+/** Thread-safe terminal state shared by an async borrowed input and its handle. */
+class CpuSubmission {
+ public:
+    void complete(mkvc_result result, std::string error) noexcept;
+    mkvc_result query(uint32_t& status, std::string& error) const;
+    mkvc_result wait(uint32_t timeout_ms, std::string& error) const;
+
+ private:
+    mutable std::mutex mutex_;
+    mutable std::condition_variable changed_;
+    bool terminal_ = false;
+    mkvc_result result_ = MKVC_OK;
+    std::string error_;
+};
 
 /**
  * @brief Owns synchronous or bounded asynchronous encoder execution.
@@ -33,6 +51,11 @@ class EncoderSession {
     /** Borrow caller memory synchronously; initially requires queue_size=0. */
     mkvc_result write_borrowed(const mkvc_frame_view& frame,
                                std::string& error);
+    /** Queue borrowed caller memory and return its completion lease. */
+    mkvc_result submit_borrowed(
+        const mkvc_frame_view& frame,
+        std::shared_ptr<CpuSubmission>& submission,
+        std::string& error);
     /** Synchronously submit a GPU-resident frame to a compatible backend. */
     mkvc_result write_gpu(const std::shared_ptr<gpu::GpuFrameCore>& frame,
                           std::string& error);

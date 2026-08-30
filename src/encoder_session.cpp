@@ -60,6 +60,46 @@ bool copy_plane(const uint8_t* source, int32_t source_stride,
     return true;
 }
 
+mkvc_result validate_borrowed_frame(const mkvc_frame_view& frame,
+                                    std::string& error) {
+    if (frame.width == 0 || frame.height == 0 ||
+        (frame.width & 1u) != 0 || (frame.height & 1u) != 0) {
+        error = "borrowed input dimensions must be positive and even";
+        return MKVC_ERROR_INVALID_ARGUMENT;
+    }
+    const auto valid_plane = [&frame](size_t index, uint32_t row_bytes) {
+        return frame.planes[index] != nullptr &&
+               frame.strides[index] >= static_cast<int32_t>(row_bytes);
+    };
+    bool valid = false;
+    switch (frame.pixel_format) {
+        case MKVC_PIXEL_FORMAT_I420:
+            valid = valid_plane(0, frame.width) &&
+                    valid_plane(1, frame.width / 2) &&
+                    valid_plane(2, frame.width / 2);
+            break;
+        case MKVC_PIXEL_FORMAT_NV12:
+            valid = valid_plane(0, frame.width) &&
+                    valid_plane(1, frame.width);
+            break;
+        case MKVC_PIXEL_FORMAT_BGR24:
+        case MKVC_PIXEL_FORMAT_RGB24:
+            valid = valid_plane(0, frame.width * 3);
+            break;
+        case MKVC_PIXEL_FORMAT_BGRA32:
+            valid = valid_plane(0, frame.width * 4);
+            break;
+        default:
+            error = "unsupported borrowed input pixel format";
+            return MKVC_ERROR_NOT_SUPPORTED;
+    }
+    if (!valid) {
+        error = "borrowed input has an invalid plane or stride";
+        return MKVC_ERROR_INVALID_ARGUMENT;
+    }
+    return MKVC_OK;
+}
+
 mkvc_result own_frame(const mkvc_frame_view& source, OwnedFrame& destination,
                       std::string& error) {
     destination.pixel_format = source.pixel_format;
@@ -116,6 +156,8 @@ struct EncoderSession::Impl {
     struct Item {
         ItemType type = ItemType::kFrame;
         std::unique_ptr<OwnedFrame> frame;
+        mkvc_frame_view borrowed{};
+        std::shared_ptr<CpuSubmission> submission;
         uint64_t flush_token = 0;
     };
 
@@ -157,7 +199,50 @@ struct EncoderSession::Impl {
 #endif
 };
 
+void CpuSubmission::complete(mkvc_result result, std::string error) noexcept {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (terminal_) return;
+    terminal_ = true;
+    result_ = result;
+    error_ = std::move(error);
+    changed_.notify_all();
+}
+
+mkvc_result CpuSubmission::query(uint32_t& status, std::string& error) const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (!terminal_) {
+        status = MKVC_SUBMISSION_PENDING;
+        return MKVC_OK;
+    }
+    status = result_ == MKVC_OK ? MKVC_SUBMISSION_COMPLETE
+                                : MKVC_SUBMISSION_FAILED;
+    error = error_;
+    return MKVC_OK;
+}
+
+mkvc_result CpuSubmission::wait(uint32_t timeout_ms, std::string& error) const {
+    std::unique_lock<std::mutex> lock(mutex_);
+    if (timeout_ms == std::numeric_limits<uint32_t>::max()) {
+        changed_.wait(lock, [this] { return terminal_; });
+    } else if (!changed_.wait_for(
+                   lock, std::chrono::milliseconds(timeout_ms),
+                   [this] { return terminal_; })) {
+        error = "borrowed submission wait timed out";
+        return MKVC_ERROR_TIMEOUT;
+    }
+    error = error_;
+    return result_;
+}
+
 namespace {
+
+void fail_queued_submissions(EncoderSession::Impl& impl,
+                             mkvc_result result,
+                             const std::string& error) noexcept {
+    for (auto& queued : impl.queue) {
+        if (queued.submission) queued.submission->complete(result, error);
+    }
+}
 
 mkvc_result backend_write(EncoderSession::Impl& impl,
                           const mkvc_frame_view& frame, std::string& error) {
@@ -197,6 +282,7 @@ void observe_copy_path(EncoderSession::Impl& impl, uint32_t path) {
 }
 
 void encoder_worker(EncoderSession::Impl* impl) noexcept {
+    std::shared_ptr<CpuSubmission> active_submission;
     try {
         while (true) {
             EncoderSession::Impl::Item item;
@@ -211,6 +297,7 @@ void encoder_worker(EncoderSession::Impl* impl) noexcept {
                 }
                 item = std::move(impl->queue.front());
                 impl->queue.pop_front();
+                active_submission = item.submission;
 #if defined(MKVC_ENABLE_TEST_HOOKS)
                 inject_failure = item.type == EncoderSession::Impl::ItemType::kFrame &&
                     impl->completed_frames >= impl->test_fail_after;
@@ -226,7 +313,8 @@ void encoder_worker(EncoderSession::Impl* impl) noexcept {
                     result = MKVC_ERROR_IO;
                     error = "injected asynchronous backend device loss";
                 } else {
-                    const mkvc_frame_view view = item.frame->view();
+                    const mkvc_frame_view view = item.submission
+                        ? item.borrowed : item.frame->view();
                     result = backend_write(*impl, view, error);
                 }
             } else {
@@ -244,6 +332,10 @@ void encoder_worker(EncoderSession::Impl* impl) noexcept {
                     impl->has_space.notify_all();
                 }
                 if (result != MKVC_OK) {
+                    if (item.submission) {
+                        item.submission->complete(result, error);
+                    }
+                    fail_queued_submissions(*impl, result, error);
                     impl->failed = true;
                     impl->accepting = false;
                     impl->terminal_result = result;
@@ -257,9 +349,13 @@ void encoder_worker(EncoderSession::Impl* impl) noexcept {
                     impl->completed_flush_token = item.flush_token;
                     impl->state_changed.notify_all();
                 } else {
+                    if (item.submission) {
+                        item.submission->complete(MKVC_OK, {});
+                    }
                     ++impl->completed_frames;
                     observe_copy_path(*impl, MKVC_COPY_PATH_CPU);
                 }
+                active_submission.reset();
             }
         }
 
@@ -283,6 +379,10 @@ void encoder_worker(EncoderSession::Impl* impl) noexcept {
         impl->has_space.notify_all();
     } catch (const std::exception& exception) {
         std::lock_guard<std::mutex> lock(impl->mutex);
+        if (active_submission) {
+            active_submission->complete(MKVC_ERROR_INTERNAL, exception.what());
+        }
+        fail_queued_submissions(*impl, MKVC_ERROR_INTERNAL, exception.what());
         impl->failed = true;
         impl->closed = true;
         impl->accepting = false;
@@ -292,6 +392,13 @@ void encoder_worker(EncoderSession::Impl* impl) noexcept {
         impl->has_space.notify_all();
     } catch (...) {
         std::lock_guard<std::mutex> lock(impl->mutex);
+        if (active_submission) {
+            active_submission->complete(
+                MKVC_ERROR_INTERNAL, "unknown asynchronous encoder failure");
+        }
+        fail_queued_submissions(
+            *impl, MKVC_ERROR_INTERNAL,
+            "unknown asynchronous encoder failure");
         impl->failed = true;
         impl->closed = true;
         impl->accepting = false;
@@ -483,6 +590,52 @@ mkvc_result EncoderSession::write_borrowed(const mkvc_frame_view& frame,
         }
     }
     return write(frame, true, error);
+}
+
+mkvc_result EncoderSession::submit_borrowed(
+    const mkvc_frame_view& frame,
+    std::shared_ptr<CpuSubmission>& submission,
+    std::string& error) {
+    if (frame.width != impl_->width || frame.height != impl_->height) {
+        error = "frame dimensions do not match encoder configuration";
+        return MKVC_ERROR_INVALID_ARGUMENT;
+    }
+    const mkvc_result validation = validate_borrowed_frame(frame, error);
+    if (validation != MKVC_OK) return validation;
+    auto state = std::make_shared<CpuSubmission>();
+    std::unique_lock<std::mutex> lock(impl_->mutex);
+    if (impl_->capacity == 0) {
+        error = "async borrowed submission requires queue_size greater than zero";
+        return MKVC_ERROR_NOT_SUPPORTED;
+    }
+    if (impl_->require_gpu_resident || !impl_->allow_cpu_copy) {
+        error = "CPU frame submission is prohibited by copy policy";
+        return MKVC_ERROR_NOT_SUPPORTED;
+    }
+    const auto wait_started = std::chrono::steady_clock::now();
+    impl_->has_space.wait(lock, [this] {
+        return impl_->queue.size() < impl_->capacity ||
+               !impl_->accepting || impl_->failed;
+    });
+    impl_->queue_wait_ns += elapsed_ns(wait_started);
+    if (impl_->failed) {
+        error = impl_->terminal_error;
+        return impl_->terminal_result;
+    }
+    if (!impl_->accepting) {
+        error = "encoder is closing or closed";
+        return MKVC_ERROR_INVALID_STATE;
+    }
+    Impl::Item item;
+    item.borrowed = frame;
+    item.submission = state;
+    impl_->queue.push_back(std::move(item));
+    ++impl_->accepted_frames;
+    impl_->peak_queue_depth = std::max<uint32_t>(
+        impl_->peak_queue_depth, static_cast<uint32_t>(impl_->queue.size()));
+    submission = std::move(state);
+    impl_->has_items.notify_one();
+    return MKVC_OK;
 }
 
 mkvc_result EncoderSession::set_copy_policy(

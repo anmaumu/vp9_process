@@ -107,7 +107,7 @@
 - [x] C ABI CPU plane export descriptor and retained frame owner lease
 - [x] Python `read_borrowed()` read-only NumPy view with propagated native owner lease
 - [x] synchronous `write_borrowed()` for I420/NV12/packed layout (`queue_size=0` initial slice)
-- [ ] asynchronous `submit_borrowed()` submission lease and mutation contract
+- [x] asynchronous `submit_borrowed()` submission lease, query/wait and mutation contract
 - [ ] fixed-capacity native/pinned input pool with backpressure and generation checks
 - [ ] .NET synchronous short pin and asynchronous unmanaged/pinned pool API
 - [ ] strict layout/stride/alignment validation and explicit copy-path fallback

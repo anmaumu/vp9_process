@@ -145,6 +145,13 @@ typedef enum mkvc_gpu_completion_status {
     MKVC_GPU_COMPLETION_FAILED = 2
 } mkvc_gpu_completion_status;
 
+/** Completion state for an asynchronous borrowed CPU submission. */
+typedef enum mkvc_submission_status {
+    MKVC_SUBMISSION_PENDING = 0,
+    MKVC_SUBMISSION_COMPLETE = 1,
+    MKVC_SUBMISSION_FAILED = 2
+} mkvc_submission_status;
+
 /** Backend-neutral immutable GPU frame metadata. */
 typedef struct mkvc_gpu_frame_desc {
     uint32_t struct_size;
@@ -276,6 +283,8 @@ typedef struct mkvc_decoder mkvc_decoder;
 typedef struct mkvc_frame mkvc_frame;
 /** Reference-counted lease over one backend-owned GPU frame resource. */
 typedef struct mkvc_gpu_frame mkvc_gpu_frame;
+/** Completion lease for one asynchronously borrowed CPU frame. */
+typedef struct mkvc_submission mkvc_submission;
 
 /** Synchronous decoder creation parameters. */
 typedef struct mkvc_decoder_config {
@@ -321,6 +330,17 @@ MKVC_API mkvc_result mkvc_encoder_write_frame(
 MKVC_API mkvc_result mkvc_encoder_write_frame_borrowed(
     mkvc_encoder* encoder,
     const mkvc_frame_view* frame);
+/**
+ * @brief Asynchronously borrow a CPU frame until the returned submission completes.
+ *
+ * The encoder must have a positive queue_size. The caller must not modify or
+ * free input pixels until completion. Releasing a pending submission blocks
+ * until it reaches a terminal state, making the handle a lifetime lease.
+ */
+MKVC_API mkvc_result mkvc_encoder_submit_frame_borrowed(
+    mkvc_encoder* encoder,
+    const mkvc_frame_view* frame,
+    mkvc_submission** out_submission);
 /** Submit a compatible GPU frame without copying its pixels to CPU memory. */
 MKVC_API mkvc_result mkvc_encoder_write_gpu_frame(
     mkvc_encoder* encoder,
@@ -339,6 +359,20 @@ MKVC_API mkvc_result mkvc_encoder_get_metrics(
     mkvc_pipeline_metrics* out_metrics);
 /** Destroy an encoder handle; NULL is accepted. */
 MKVC_API void mkvc_encoder_destroy(mkvc_encoder* encoder);
+
+/** Query asynchronous borrowed submission completion without blocking. */
+MKVC_API mkvc_result mkvc_submission_query(
+    const mkvc_submission* submission,
+    uint32_t* out_status);
+/** Wait for submission completion; UINT32_MAX means an unbounded wait. */
+MKVC_API mkvc_result mkvc_submission_wait(
+    const mkvc_submission* submission,
+    uint32_t timeout_ms);
+/**
+ * Release a submission lease; a pending submission is waited before release.
+ * NULL is accepted.
+ */
+MKVC_API void mkvc_submission_release(mkvc_submission* submission);
 
 /** Return thread-local error detail valid until the next API call on this thread. */
 MKVC_API const char* mkvc_get_last_error(void);

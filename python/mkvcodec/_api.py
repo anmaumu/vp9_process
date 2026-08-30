@@ -126,6 +126,49 @@ class PipelineMetrics:
     copy_path: str
 
 
+class Submission:
+    """Completion lease retaining asynchronously borrowed Python input."""
+    def __init__(self, handle: native.SubmissionHandle, owner: object) -> None:
+        self._handle = handle
+        self._owner: object | None = owner
+
+    @property
+    def done(self) -> bool:
+        if not self._handle:
+            return True
+        status = ct.c_uint32()
+        native.check(native.lib.mkvc_submission_query(
+            self._handle, ct.byref(status)
+        ))
+        if status.value != native.MKVC_SUBMISSION_PENDING:
+            self._owner = None
+            return True
+        return False
+
+    def wait(self, timeout_ms: int = 0xFFFFFFFF) -> None:
+        if not self._handle:
+            return
+        if timeout_ms < 0 or timeout_ms > 0xFFFFFFFF:
+            raise ValueError("timeout_ms is outside uint32 range")
+        result = native.lib.mkvc_submission_wait(self._handle, timeout_ms)
+        if result != native.MKVC_ERROR_TIMEOUT:
+            self._owner = None
+        native.check(result)
+
+    def close(self) -> None:
+        if self._handle:
+            native.lib.mkvc_submission_release(self._handle)
+            self._handle = native.SubmissionHandle()
+            self._owner = None
+
+    release = close
+    def __enter__(self) -> "Submission": return self
+    def __exit__(self, *args: object) -> None: self.close()
+    def __del__(self) -> None:
+        if getattr(self, "_handle", None):
+            self.close()
+
+
 class GpuFrame:
     """Lease over a backend-owned GPU frame and its borrowed native handle."""
     def __init__(self, handle: native.GpuFrameHandle) -> None:
@@ -497,19 +540,14 @@ class VideoWriter:
             frame, 3, native.MKVC_PIXEL_FORMAT_BGR24, pts=pts, block=False
         )
 
-    def write_borrowed(
+    def _make_borrowed_view(
         self,
         frame: U8Plane | tuple[U8Plane, U8Plane] |
                tuple[U8Plane, U8Plane, U8Plane],
         *,
         format: str = "bgr",
         pts: int = -1,
-    ) -> None:
-        """Synchronously borrow CPU memory until the codec has read the frame.
-
-        The initial implementation requires ``queue_size=0``. No copy is made
-        at the C ABI boundary; codec-required color conversion may still copy.
-        """
+    ) -> tuple[native.FrameView, tuple[U8Plane, ...]]:
         if self._closed:
             raise RuntimeError("writer is closed")
         if format == "i420":
@@ -557,7 +595,43 @@ class VideoWriter:
         for index, plane in enumerate(planes):
             view.planes[index] = _plane_pointer(plane)
             view.strides[index] = plane.strides[0]
+        return view, planes
+
+    def write_borrowed(
+        self,
+        frame: U8Plane | tuple[U8Plane, U8Plane] |
+               tuple[U8Plane, U8Plane, U8Plane],
+        *,
+        format: str = "bgr",
+        pts: int = -1,
+    ) -> None:
+        """Synchronously borrow CPU memory until the codec has read the frame.
+
+        The initial implementation requires ``queue_size=0``. No copy is made
+        at the C ABI boundary; codec-required color conversion may still copy.
+        """
+        view, _ = self._make_borrowed_view(frame, format=format, pts=pts)
         self._submit_borrowed(view)
+
+    def submit_borrowed(
+        self,
+        frame: U8Plane | tuple[U8Plane, U8Plane] |
+               tuple[U8Plane, U8Plane, U8Plane],
+        *,
+        format: str = "bgr",
+        pts: int = -1,
+    ) -> Submission:
+        """Queue borrowed input and retain its owner until completion."""
+        if self._require_gpu_resident:
+            raise RuntimeError(
+                "CPU frame submission is disabled by require_gpu_resident=True"
+            )
+        view, owner = self._make_borrowed_view(frame, format=format, pts=pts)
+        handle = native.SubmissionHandle()
+        native.check(native.lib.mkvc_encoder_submit_frame_borrowed(
+            self._handle, ct.byref(view), ct.byref(handle)
+        ))
+        return Submission(handle, owner)
 
     def flush(self) -> None:
         if not self._closed:

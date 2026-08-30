@@ -80,7 +80,8 @@ with mkvcodec.VideoCapture("output.webm", prefetch=4) as capture:
 
 CPU native I420をcopyせずNumPy viewとして借用する場合は`read_borrowed()`を使います。
 返却planeはread-onlyで、frame wrapperを閉じても保持中のplane/sliceがnative leaseを
-維持します。同期borrowed encodeは現在`queue_size=0`が必要です。
+維持します。同期borrowed encodeは`queue_size=0`、completion付き非同期borrowed
+encodeは正数の`queue_size`を使用します。
 
 ```python
 with mkvcodec.VideoCapture("input.webm", prefetch=0) as capture:
@@ -91,6 +92,12 @@ with mkvcodec.VideoWriter(
     "output.webm", fps=30, frame_size=(1920, 1080), queue_size=0,
 ) as writer:
     writer.write_borrowed(external_result, format="i420")
+
+with mkvcodec.VideoWriter(
+    "async.webm", fps=30, frame_size=(1920, 1080), queue_size=4,
+) as writer:
+    submission = writer.submit_borrowed(external_result, format="i420")
+    submission.wait()  # ここまでinput ownerを保持し、変更してはいけない
 ```
 
 NVIDIA GPU surfaceはY/UV planeごとにDLPack consumerへ渡せます。consumerが
