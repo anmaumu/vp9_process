@@ -135,7 +135,7 @@ install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
 find_package(Python3 QUIET COMPONENTS Interpreter)
 if(MKVC_BUILD_PYTHON_DLPACK)
-    find_package(Python3 QUIET COMPONENTS Development.SABIModule)
+    find_package(Python3 QUIET COMPONENTS Interpreter Development.SABIModule)
     if(TARGET Python3::SABIModule)
         Python3_add_library(mkvc_python_dlpack MODULE USE_SABI 3.9 WITH_SOABI
             python/mkvcodec/_dlpack_module.c)
