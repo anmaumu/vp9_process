@@ -24,4 +24,9 @@ mkvc_result load_cuda_event_completion(
     uint64_t context, uint64_t event,
     std::shared_ptr<Completion>& completion, std::string& error);
 
+/** Insert a producer-event dependency into a CUDA consumer stream. */
+mkvc_result cuda_stream_wait_event(
+    uint64_t context, uint64_t event, uint64_t consumer_stream,
+    std::string& error);
+
 }  // namespace mkvc::gpu::nvidia

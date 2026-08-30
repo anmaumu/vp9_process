@@ -430,6 +430,44 @@ class GpuFrame:
             raise
         return cls(result_handle)
 
+    @classmethod
+    def import_dlpack_nv12(
+        cls, tensor: object, *, context: int,
+        frame_size: tuple[int, int], pts_ns: int = -1,
+        stream: int = 0, event: int = 0,
+        producer_synchronized: bool = False,
+    ) -> "GpuFrame":
+        """Consume one contiguous CUDA NV12 DLPack tensor.
+
+        The tensor must be a CUDA ``uint8`` matrix shaped
+        ``(height * 3 // 2, width)``. Its first-axis stride is used as the NV12
+        pitch and the UV plane begins at ``pitch * height``. DLPack does not
+        carry a CUDA context or producer event, so both synchronization and
+        context identity remain explicit arguments.
+        """
+        if _dlpack is None:
+            raise RuntimeError(
+                "DLPack import requires the mkvcodec stable-ABI extension"
+            )
+        if (not isinstance(context, int) or context <= 0 or
+                context > 0xFFFFFFFFFFFFFFFF):
+            raise ValueError("context must be a nonzero CUDA context pointer")
+        if (not isinstance(frame_size, tuple) or len(frame_size) != 2 or
+                any(not isinstance(value, int) for value in frame_size)):
+            raise ValueError("frame_size must contain integer width and height")
+        width, height = frame_size
+        if width <= 0 or height <= 0 or width & 1 or height & 1:
+            raise ValueError("NV12 dimensions must be positive and even")
+        pointer, device_id, pitch, owner = _dlpack.consume_nv12(
+            tensor, width, height
+        )
+        return cls.import_cuda_pointer(
+            pointer=pointer, context=context, device_id=device_id,
+            frame_size=frame_size, pitch=pitch, owner=owner, pts_ns=pts_ns,
+            stream=stream, event=event,
+            producer_synchronized=producer_synchronized,
+        )
+
     @property
     def descriptor(self) -> dict[str, object]:
         if self._closed:

@@ -322,6 +322,8 @@ export descriptorはmemoryを所有せず、対応するframe leaseがdescriptor
 NVIDIA CUDA pointerの非同期importでは`native_handle.handles[1]`を`CUcontext`、
 `handles[3]`をproducerが記録した`CUevent`として渡す。event/contextは最終lease release
 まで有効でなければならず、libraryはdevice-wide synchronizeを行わずeventをpollする。
+Pythonの連続NV12 DLPack importはCUDA `uint8[height*3/2,width]`だけを受理し、row strideを
+pitchとして使用する。DLPackに含まれないCUDA contextとproducer eventは別途明示する。
 
 ### 6.4 C#
 

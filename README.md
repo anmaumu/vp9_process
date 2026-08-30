@@ -148,7 +148,10 @@ callbackは必須の寿命契約で、CUDA-pointer NV12は対応NVENCへ直接su
 Pythonはstable-ABI extension経由の`GpuFrame.import_cuda_pointer()`を利用できます。
 完了済みresourceは`producer_synchronized=True`、非同期producerは同じCUDA contextで
 記録した`event`を指定します。native側は`cuEventQuery`をpollし、device-wide synchronize
-なしで完了後だけconsumerへ渡します。DLPackからの直接importは今後の実装です。
+なしで完了後だけconsumerへ渡します。連続NV12 CUDA tensorは
+`GpuFrame.import_dlpack_nv12()`でDLPack capsuleをconsumeでき、tensor deleterは最終frame
+leaseまで保持されます。producer event付きDLPack exportではconsumer streamへ
+`cuStreamWaitEvent`を挿入します。CuPy実E2E検証とCUarray importは今後の作業です。
 
 ```python
 import cupy as cp

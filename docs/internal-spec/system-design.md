@@ -291,7 +291,7 @@ Source layoutは共通所有権・同期を`src/gpu/`、将来のvendor実装を
 - `INT-GPU-007`: Intel external consumerとの同期はD3D11 fence/keyed mutexまたはoneVPL/VA completionを明示し、暗黙の同時accessを許可しない。
 - `INT-GPU-008`: NVIDIA pipelineはmapped NVDEC CUarray/device viewをcompletion付きslotとしてexportし、外部処理済みCUDA resourceをNVENC registered resourceへ登録する。unmap/unregisterは全consumer完了後に行う。
 - `INT-GPU-009`: NVIDIA exportはCUDA primary/owned context identity、device ordinal、CUdeviceptr/CUarray、pitch、plane offset、producer CUDA eventを返し、別context pointerの誤使用を拒否する。
-- `INT-GPU-010`: DLPack producerはmanaged tensorのdeleterへGPU frame leaseを保持させ、`__dlpack__(stream=...)`でconsumer streamがproducer completionを待つdependencyを挿入する。
+- `INT-GPU-010`: DLPack producerはmanaged tensorのdeleterへGPU frame leaseを保持させ、`__dlpack__(stream=...)`でconsumer streamがproducer completionを待つdependencyを挿入する。CUDA eventがあるlinear pointerでは指定contextを一時pushし、`cuStreamWaitEvent`でhost/device-wide waitなしにdependencyを設定する。DLPack importはcapsuleを一度だけconsumeし、元deleterをimport frameの最終leaseまで保持する。
 - `INT-GPU-011`: Intel USM/DLPackは実memoryがUSM pointerとして安全に表現できる経路だけを公開し、D3D11 texture/VA surfaceを偽のlinear pointerとして公開しない。非対応時はnative surface APIを使用させる。
 - `INT-GPU-012`: Python wrapperはGPU待機中GILを解放し、GC/finalizerは例外を出さず、interpreter shutdown後にPython APIへcallbackしない。
 - `INT-GPU-013`: copy-path recorderは各edgeを`shared_surface/zero_copy/gpu_copy/cpu_upload/cpu_readback`として実測記録し、要求値から推測しない。

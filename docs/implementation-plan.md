@@ -91,13 +91,13 @@
 - [ ] NVIDIA CUarray/stream export（外部CUDA event import/dependency factoryは完了）
 - [x] native NVIDIA linear CUDA-pointer DLPack plane adapter and native lease deleter
 - [x] Python stable-ABI DLPack capsule and `GpuFrame.plane()` protocol source API
-- [ ] CuPy hardware qualification, consumer CUDA event dependency and Intel safe USM adapter
+- [ ] CuPy hardware qualification and Intel safe USM adapter（native CUDA consumer-stream event dependencyは完了）
 - [x] backend-neutral external GPU frame wrapper with producer-query and single-shot release callbacks; CUDA-pointer NV12 is NVIDIA-encode compatible
 - [x] Python stable-ABI owner holder and synchronized/CUDA-event CUDA-pointer NV12 import adapter
-- [ ] external CUDA CUarray/DLPack import with native producer event/deleter ownership
+- [ ] external CUDA CUarray import（連続NV12 DLPack importとproducer event/deleter ownershipは完了）
 - [ ] external D3D11 texture and VA surface oneVPL import adapter with producer fence/sync ownership
 - [ ] strict GPU-resident policy and export/import edge copy-path trace
-- [ ] Python CuPy/DLPack processed-resource import and hardware qualification
+- [ ] Python CuPy hardware qualification（generic contiguous-NV12 DLPack processed-resource importは完了）
 - [x] .NET GPU Frame SafeHandle, descriptor/native handle/wait and Capture.ReadSurface source API
 - [x] .NET strict GPU-resident Capture/Writer and WriteSurface source API
 - [x] .NET external GPU frame owner/query/release adapter

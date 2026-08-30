@@ -1,5 +1,9 @@
 #include "gpu_frame.hpp"
 
+#if defined(MKVC_HAS_NVIDIA)
+#include "nvidia/cuda_completion.hpp"
+#endif
+
 #include <cstdint>
 #include <limits>
 #include <memory>
@@ -75,12 +79,23 @@ extern "C" mkvc_result mkvc_gpu_frame_export_dlpack(
         desc.plane_offsets[plane_index] >
             std::numeric_limits<uint64_t>::max() - native.handles[0])
         return fail(MKVC_ERROR_INVALID_ARGUMENT, "DLPack metadata exceeds its ABI range");
-    // NVDEC frames currently publish no asynchronous event. A completed mapped
-    // output is safe for any consumer stream after the producer wait below.
-    if (consumer_stream != 0 && native.handles[3] != 0)
-        return fail(MKVC_ERROR_NOT_SUPPORTED, "CUDA event stream dependency is not implemented");
-    result = mkvc_gpu_frame_wait(frame, std::numeric_limits<uint32_t>::max());
-    if (result != MKVC_OK) return result;
+    if (consumer_stream != 0 && native.handles[3] != 0) {
+#if defined(MKVC_HAS_NVIDIA)
+        std::string error;
+        result = mkvc::gpu::nvidia::cuda_stream_wait_event(
+            native.handles[1], native.handles[3], consumer_stream, error);
+        if (result != MKVC_OK) {
+            mkvc_last_error = error;
+            return result;
+        }
+#else
+        return fail(MKVC_ERROR_NOT_SUPPORTED,
+                    "CUDA stream dependencies are disabled in this build");
+#endif
+    } else {
+        result = mkvc_gpu_frame_wait(frame, std::numeric_limits<uint32_t>::max());
+        if (result != MKVC_OK) return result;
+    }
     result = mkvc_gpu_frame_retain(frame);
     if (result != MKVC_OK) return result;
     std::unique_ptr<ManagedPlane> state(new (std::nothrow) ManagedPlane());
