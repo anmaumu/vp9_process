@@ -6,6 +6,12 @@
 #include <string>
 #include <utility>
 
+namespace {
+void release_external(void* opaque) {
+    ++*static_cast<unsigned*>(opaque);
+}
+}
+
 int main(int argc, char** argv) {
     assert(argc == 2);
     constexpr uint32_t width = 64;
@@ -77,5 +83,38 @@ int main(int argc, char** argv) {
     assert(!decoder.read().has_value());
     decoder.close();
     assert(decoder.metrics().completed_frames == 1);
+
+    unsigned external_releases = 0;
+    mkvc_gpu_external_frame_config external{};
+    external.struct_size = sizeof(external);
+    external.struct_version = 1;
+    external.frame.struct_size = sizeof(external.frame);
+    external.frame.struct_version = 1;
+    external.frame.backend = MKVC_BACKEND_NVIDIA;
+    external.frame.memory_type = MKVC_GPU_MEMORY_CUDA_POINTER;
+    external.frame.device_id = 1;
+    external.frame.generation = 1;
+    external.frame.pixel_format = MKVC_PIXEL_FORMAT_NV12;
+    external.frame.width = width;
+    external.frame.height = height;
+    external.frame.plane_count = 2;
+    external.frame.pitches[0] = width;
+    external.frame.pitches[1] = width;
+    external.frame.plane_offsets[1] = width * height;
+    external.native_handle.struct_size = sizeof(external.native_handle);
+    external.native_handle.struct_version = 1;
+    external.native_handle.type = MKVC_GPU_NATIVE_CUDA_POINTER;
+    external.native_handle.borrowed = 1;
+    external.native_handle.device_id = 1;
+    external.native_handle.generation = 1;
+    external.native_handle.handles[0] = 0x1000;
+    external.native_handle.handles[1] = 0x2000;
+    external.release = release_external;
+    external.user_data = &external_releases;
+    auto external_frame = mkvcodec::GpuFrame::import_external(external);
+    assert(external_frame.descriptor().width == width);
+    assert(external_frame.completion_status() == MKVC_GPU_COMPLETION_COMPLETE);
+    external_frame.reset();
+    assert(external_releases == 1);
     return 0;
 }

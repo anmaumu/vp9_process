@@ -310,6 +310,7 @@ mkvc_encoder_submit_cpu_buffer();
 mkvc_cpu_buffer_release();
 mkvc_encoder_cancel();
 mkvc_gpu_frame_get_native_handle();
+mkvc_gpu_frame_import_external();
 mkvc_encoder_write_gpu_frame();
 mkvc_gpu_frame_query_completion();
 mkvc_gpu_frame_wait();

@@ -92,8 +92,9 @@
 - [x] native NVIDIA linear CUDA-pointer DLPack plane adapter and native lease deleter
 - [x] Python stable-ABI DLPack capsule and `GpuFrame.plane()` protocol source API
 - [ ] CuPy hardware qualification, consumer CUDA event dependency and Intel safe USM adapter
-- [ ] external CUDA pointer/CUarray and DLPack import with producer event/deleter ownership
-- [ ] external D3D11 texture and VA surface import with producer fence/sync ownership
+- [x] backend-neutral external GPU frame wrapper with producer-query and single-shot release callbacks; CUDA-pointer NV12 is NVIDIA-encode compatible
+- [ ] external CUDA CUarray/DLPack import with native producer event/deleter ownership
+- [ ] external D3D11 texture and VA surface oneVPL import adapter with producer fence/sync ownership
 - [ ] strict GPU-resident policy and export/import edge copy-path trace
 - [ ] Python CuPy/DLPack processed-resource import and hardware qualification
 - [x] .NET GPU Frame SafeHandle, descriptor/native handle/wait and Capture.ReadSurface source API

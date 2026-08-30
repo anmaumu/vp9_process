@@ -22,6 +22,19 @@ struct TestDLManagedTensor {
     TestDLTensor dl_tensor; void* manager_ctx;
     void (*deleter)(TestDLManagedTensor*);
 };
+struct ExternalState {
+    std::atomic<bool> complete{false};
+    std::atomic<unsigned> releases{0};
+};
+mkvc_result query_external(void* opaque, uint32_t* complete) {
+    auto* state = static_cast<ExternalState*>(opaque);
+    if (state == nullptr || complete == nullptr) return MKVC_ERROR_INVALID_ARGUMENT;
+    *complete = state->complete.load() ? 1u : 0u;
+    return MKVC_OK;
+}
+void release_external(void* opaque) {
+    static_cast<ExternalState*>(opaque)->releases.fetch_add(1);
+}
 }
 
 int main() {
@@ -149,6 +162,36 @@ int main() {
     mkvc::gpu::CallbackCompletion never(
         [](bool& complete, std::string&) { complete = false; return MKVC_OK; });
     assert(never.wait(0, error) == MKVC_ERROR_TIMEOUT);
+
+    ExternalState external_state;
+    mkvc_gpu_external_frame_config external_config{};
+    external_config.struct_size = sizeof(external_config);
+    external_config.struct_version = 1;
+    external_config.frame = desc;
+    external_config.native_handle = native;
+    external_config.query = query_external;
+    external_config.release = release_external;
+    external_config.user_data = &external_state;
+    mkvc_gpu_frame* external_frame = nullptr;
+    assert(mkvc_gpu_frame_import_external(
+        &external_config, &external_frame) == MKVC_OK);
+    assert(external_frame != nullptr);
+    status = 99;
+    assert(mkvc_gpu_frame_query_completion(external_frame, &status) == MKVC_OK);
+    assert(status == MKVC_GPU_COMPLETION_PENDING);
+    mkvc_gpu_frame_desc external_desc{};
+    external_desc.struct_size = sizeof(external_desc);
+    external_desc.struct_version = 1;
+    assert(mkvc_gpu_frame_get_desc(external_frame, &external_desc) == MKVC_OK);
+    assert(external_desc.generation == desc.generation);
+    external_state.complete.store(true);
+    assert(mkvc_gpu_frame_wait(external_frame, 50) == MKVC_OK);
+    mkvc_gpu_frame_release(external_frame);
+    assert(external_state.releases.load() == 1);
+    external_config.release = nullptr;
+    assert(mkvc_gpu_frame_import_external(
+        &external_config, &external_frame) == MKVC_ERROR_INVALID_ARGUMENT);
+    assert(external_frame == nullptr);
 
     auto pool = std::make_shared<mkvc::gpu::GpuFramePool>(2);
     auto pool_done_a = std::make_shared<mkvc::gpu::ManualCompletion>();

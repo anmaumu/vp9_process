@@ -197,6 +197,58 @@ bool valid(const mkvc_gpu_frame* frame) {
            frame->generation == frame->core->desc().generation &&
            !frame->core->recycled();
 }
+
+bool valid_external_layout(const mkvc_gpu_external_frame_config& config,
+                           std::string& error) {
+    const auto& desc = config.frame;
+    const auto& native = config.native_handle;
+    if (desc.struct_size < sizeof(desc) || desc.struct_version != 1 ||
+        native.struct_size < sizeof(native) || native.struct_version != 1) {
+        error = "invalid external GPU descriptor version";
+        return false;
+    }
+    if (config.release == nullptr) {
+        error = "external GPU import requires a release callback";
+        return false;
+    }
+    if (desc.width == 0 || desc.height == 0 ||
+        (desc.width & 1u) != 0 || (desc.height & 1u) != 0 ||
+        desc.plane_count == 0 ||
+        desc.plane_count > 4 || desc.generation != native.generation ||
+        desc.device_id != native.device_id || native.borrowed == 0) {
+        error = "external GPU descriptor identity or dimensions are invalid";
+        return false;
+    }
+    if (desc.backend == MKVC_BACKEND_NVIDIA) {
+        if (desc.memory_type != MKVC_GPU_MEMORY_CUDA_POINTER ||
+            native.type != MKVC_GPU_NATIVE_CUDA_POINTER ||
+            native.handles[0] == 0 || native.handles[1] == 0 ||
+            desc.pixel_format != MKVC_PIXEL_FORMAT_NV12 ||
+            desc.plane_count != 2 || desc.pitches[0] < desc.width ||
+            desc.pitches[0] != desc.pitches[1] ||
+            desc.pitches[0] > std::numeric_limits<uint32_t>::max() ||
+            desc.plane_offsets[0] != 0 ||
+            desc.plane_offsets[1] != desc.pitches[0] * desc.height) {
+            error = "external NVIDIA import requires CUDA-pointer NV12 layout";
+            return false;
+        }
+        return true;
+    }
+    if (desc.backend == MKVC_BACKEND_INTEL) {
+        const bool d3d11 =
+            desc.memory_type == MKVC_GPU_MEMORY_D3D11_TEXTURE &&
+            native.type == MKVC_GPU_NATIVE_D3D11_TEXTURE;
+        const bool va = desc.memory_type == MKVC_GPU_MEMORY_VA_SURFACE &&
+                        native.type == MKVC_GPU_NATIVE_VA_SURFACE;
+        if ((!d3d11 && !va) || native.handles[0] == 0) {
+            error = "external Intel import requires a D3D11 or VA resource";
+            return false;
+        }
+        return true;
+    }
+    error = "external GPU import backend is unsupported";
+    return false;
+}
 }  // namespace
 
 extern "C" {
@@ -257,6 +309,75 @@ mkvc_result mkvc_gpu_frame_get_native_handle(
     if (result != MKVC_OK) return gpu_fail(result, std::move(error));
     *out_handle = value;
     return MKVC_OK;
+}
+
+mkvc_result mkvc_gpu_frame_import_external(
+    const mkvc_gpu_external_frame_config* config,
+    mkvc_gpu_frame** out_frame) {
+    mkvc_last_error.clear();
+    if (config == nullptr || out_frame == nullptr ||
+        config->struct_size < sizeof(*config) || config->struct_version != 1) {
+        return gpu_fail(MKVC_ERROR_INVALID_ARGUMENT,
+                        "invalid external GPU frame configuration");
+    }
+    *out_frame = nullptr;
+    std::string error;
+    if (!valid_external_layout(*config, error)) {
+        return gpu_fail(MKVC_ERROR_INVALID_ARGUMENT, std::move(error));
+    }
+    try {
+        std::shared_ptr<mkvc::gpu::Completion> producer;
+        if (config->query == nullptr) {
+            auto complete = std::make_shared<mkvc::gpu::ManualCompletion>();
+            complete->complete();
+            producer = std::move(complete);
+        } else {
+            const auto query = config->query;
+            void* const user_data = config->user_data;
+            producer = std::make_shared<mkvc::gpu::CallbackCompletion>(
+                [query, user_data](bool& complete, std::string& callback_error) {
+                    uint32_t value = 0;
+                    try {
+                        const mkvc_result result = query(user_data, &value);
+                        if (result != MKVC_OK) {
+                            callback_error = "external GPU producer query failed";
+                            return result;
+                        }
+                    } catch (...) {
+                        callback_error = "external GPU producer query threw";
+                        return MKVC_ERROR_INTERNAL;
+                    }
+                    complete = value != 0;
+                    return MKVC_OK;
+                });
+        }
+        const auto release = config->release;
+        void* const user_data = config->user_data;
+        auto recycle = [release, user_data](uint64_t) noexcept {
+            if (release == nullptr) return;
+            try { release(user_data); } catch (...) {}
+        };
+        mkvc::gpu::BackendResource resource{};
+        if (config->frame.backend == MKVC_BACKEND_NVIDIA) {
+            resource.kind = mkvc::gpu::BackendResourceKind::kNvidiaCudaFrame;
+            resource.object = reinterpret_cast<void*>(static_cast<uintptr_t>(
+                config->native_handle.handles[0]));
+        }
+        auto core = std::make_shared<mkvc::gpu::GpuFrameCore>(
+            config->frame, std::move(producer), std::move(recycle),
+            config->native_handle, resource);
+        *out_frame = mkvc::gpu::make_handle(core);
+        if (*out_frame == nullptr) {
+            return gpu_fail(MKVC_ERROR_INTERNAL,
+                            "failed to allocate external GPU frame handle");
+        }
+        return MKVC_OK;
+    } catch (const std::exception& exception) {
+        return gpu_fail(MKVC_ERROR_INTERNAL, exception.what());
+    } catch (...) {
+        return gpu_fail(MKVC_ERROR_INTERNAL,
+                        "unknown external GPU frame import failure");
+    }
 }
 
 }  // extern "C"

@@ -202,6 +202,30 @@ typedef struct mkvc_gpu_native_handle_desc {
     uint64_t handles[4];
 } mkvc_gpu_native_handle_desc;
 
+/** Query an external GPU producer; set complete nonzero when pixels are ready. */
+typedef mkvc_result (*mkvc_gpu_external_query_callback)(
+    void* user_data, uint32_t* complete);
+
+/** Release callback invoked exactly once after all GPU frame leases complete. */
+typedef void (*mkvc_gpu_external_release_callback)(void* user_data);
+
+/**
+ * External GPU resource import contract. Descriptor generations must match.
+ * A null query callback declares the producer already complete. The release
+ * callback and user_data remain valid until release is invoked exactly once.
+ * Callbacks may run on any library/caller thread, must not throw across the C
+ * boundary, and must not re-enter the same frame while it is being released.
+ */
+typedef struct mkvc_gpu_external_frame_config {
+    uint32_t struct_size;
+    uint32_t struct_version; /**< Must be 1. */
+    mkvc_gpu_frame_desc frame;
+    mkvc_gpu_native_handle_desc native_handle;
+    mkvc_gpu_external_query_callback query;
+    mkvc_gpu_external_release_callback release;
+    void* user_data;
+} mkvc_gpu_external_frame_config;
+
 /** Thread-safe cumulative pipeline observations; initialize size and version. */
 typedef struct mkvc_pipeline_metrics {
     uint32_t struct_size;           /**< Size of this struct. */
@@ -493,6 +517,16 @@ MKVC_API mkvc_result mkvc_gpu_frame_wait(
 /** Export a borrowed process-local native resource descriptor. */
 MKVC_API mkvc_result mkvc_gpu_frame_get_native_handle(
     const mkvc_gpu_frame* frame, mkvc_gpu_native_handle_desc* out_handle);
+
+/**
+ * Import a process-local external GPU resource as a normal frame lease.
+ * CUDA-pointer NV12 imports can be submitted to a compatible NVIDIA encoder.
+ * D3D11/VA imports are exposed uniformly but require a future oneVPL adapter
+ * before direct Intel encoding.
+ */
+MKVC_API mkvc_result mkvc_gpu_frame_import_external(
+    const mkvc_gpu_external_frame_config* config,
+    mkvc_gpu_frame** out_frame);
 
 /**
  * @brief Export one linear GPU plane as a standard DLPack DLManagedTensor.
