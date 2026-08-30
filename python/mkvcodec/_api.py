@@ -181,9 +181,13 @@ class VideoWriter:
             policy.require_gpu_resident = 1
             policy.allow_gpu_copy = 1
             policy.allow_cpu_copy = 0
-            native.check(native.lib.mkvc_encoder_set_copy_policy(
+            result = native.lib.mkvc_encoder_set_copy_policy(
                 self._handle, ct.byref(policy)
-            ))
+            )
+            if result != native.MKVC_OK:
+                native.lib.mkvc_encoder_destroy(self._handle)
+                self._handle = native.EncoderHandle()
+                native.check(result)
         self._width = width
         self._height = height
         self._closed = False
@@ -410,9 +414,13 @@ class VideoCapture(Iterator[U8Plane]):
             policy.require_gpu_resident = 1
             policy.allow_gpu_copy = 1
             policy.allow_cpu_copy = 0
-            native.check(native.lib.mkvc_decoder_set_copy_policy(
+            result = native.lib.mkvc_decoder_set_copy_policy(
                 self._handle, ct.byref(policy)
-            ))
+            )
+            if result != native.MKVC_OK:
+                native.lib.mkvc_decoder_destroy(self._handle)
+                self._handle = native.DecoderHandle()
+                native.check(result)
         self._closed = False
         self._require_gpu_resident = bool(require_gpu_resident)
         self._last_metrics: PipelineMetrics | None = None

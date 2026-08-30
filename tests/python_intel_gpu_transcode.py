@@ -5,12 +5,13 @@ import mkvcodec
 import numpy as np
 
 
-def main(input_path: str, output_path: str) -> None:
+def main(input_path: str, output_path: str, codec: str) -> None:
+    assert codec in ("vp9", "av1")
     output = Path(output_path)
     output.unlink(missing_ok=True)
     count = 0
     with mkvcodec.VideoCapture(
-        input_path, codec="vp9", backend="intel", prefetch=0,
+        input_path, codec=codec, backend="intel", prefetch=0,
         require_gpu_resident=True,
     ) as capture:
         first = capture.read_surface()
@@ -22,7 +23,7 @@ def main(input_path: str, output_path: str) -> None:
             assert "require_gpu_resident" in str(exc)
         descriptor = first.descriptor
         with mkvcodec.VideoWriter(
-            output, codec="vp9", backend="intel", fps=30,
+            output, codec=codec, backend="intel", fps=30,
             frame_size=(descriptor["width"], descriptor["height"]),
             queue_size=0,
             require_gpu_resident=True,
@@ -46,7 +47,7 @@ def main(input_path: str, output_path: str) -> None:
 
     decoded = 0
     with mkvcodec.VideoCapture(
-        output, codec="vp9", backend="intel", prefetch=0
+        output, codec=codec, backend="intel", prefetch=0
     ) as verification:
         while True:
             surface = verification.read_surface()
@@ -58,4 +59,4 @@ def main(input_path: str, output_path: str) -> None:
 
 
 if __name__ == "__main__":
-    main(sys.argv[1], sys.argv[2])
+    main(sys.argv[1], sys.argv[2], sys.argv[3] if len(sys.argv) > 3 else "vp9")

@@ -75,11 +75,11 @@ Linux Intel VP9 decode surfaces can now be submitted through
 `mkvc_encoder_write_gpu_frame` / Python `VideoWriter.write_surface`. The internal
 oneVPL surface is retained by the common lease, encode completion is registered as
 a consumer dependency, and the VA surface is never CPU-mapped or read back. A
-12-frame 320x240 VP9 decode→encode→decode test passes on `linux-machine`, including
+12-frame 320x240 VP9 and AV1 decode→encode→decode tests pass on `linux-machine`, including
 immediate Python lease release after submission. The current implementation waits
 the producer and oldest encode SyncPoint on the calling thread for bounded pool
-progress; VPP, asynchronous cross-stage overlap, Windows D3D11, AV1 direct
-transcode qualification, and trace-based proof of zero CPU transfer remain pending.
+progress; VPP, asynchronous cross-stage overlap, Windows D3D11, and trace-based
+proof of zero CPU transfer remain pending.
 Encoder metrics now distinguish CPU-only, GPU-resident, and mixed input paths.
 Python Writer/Capture accept `require_gpu_resident=True`; CPU submission/read APIs
 then fail instead of silently crossing host memory. The first supported strict

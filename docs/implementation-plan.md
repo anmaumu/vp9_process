@@ -77,6 +77,7 @@
 - [x] oneVPL video-memory surface wrapper with SyncPoint, native handle, pool lease and deferred Surface Release
 - [ ] Intel decode→VPP→encode shared-session pipeline (direct decode→encode is implemented on Linux)
 - [x] Linux Intel oneVPL video-memory decode→`mkvc_decoder_read_gpu`→VA surface lease
+- [x] Linux Intel VP9/AV1 direct decode-surface→encode transcode qualification
 - [x] Python Intel `VideoCapture.read_surface()` descriptor/native-handle lease
 - [x] Python Intel strict `require_gpu_resident` Capture/Writer path and actual copy-path metrics
 - [ ] Windows Intel D3D11 `read_surface` hardware qualification
