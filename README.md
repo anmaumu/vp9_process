@@ -74,6 +74,7 @@ with mkvcodec.VideoWriter(
     writer.write(bgr_ndarray)                 # OpenCV-style BGR
     writer.write((y_plane, u_plane, v_plane)) # I420
     accepted = writer.try_write(bgr_ndarray)  # queue満杯ならFalse
+    # writer.cancel()                          # queueを破棄し待機callerを起床
 
 with mkvcodec.VideoCapture("output.webm", prefetch=4) as capture:
     bgr_frame = capture.read()       # or read_bgr()

@@ -22,6 +22,18 @@ void set_failure_hook(const char* value) {
 #endif
 }
 
+void set_delay_hook(const char* value) {
+#if defined(_WIN32)
+    _putenv_s("MKVC_TEST_ENCODER_DELAY_MS", value == nullptr ? "" : value);
+#else
+    if (value == nullptr) {
+        unsetenv("MKVC_TEST_ENCODER_DELAY_MS");
+    } else {
+        setenv("MKVC_TEST_ENCODER_DELAY_MS", value, 1);
+    }
+#endif
+}
+
 mkvc_encoder_config config_for(const std::string& path) {
     mkvc_encoder_config config{};
     config.struct_size = sizeof(config);
@@ -46,8 +58,11 @@ int main() {
         (directory / "mkvc-async-injected-failure.webm").string();
     const std::string recovered_path =
         (directory / "mkvc-async-recovered.webm").string();
+    const std::string canceled_path =
+        (directory / "mkvc-async-canceled.webm").string();
     std::filesystem::remove(failed_path);
     std::filesystem::remove(recovered_path);
+    std::filesystem::remove(canceled_path);
 
     constexpr uint32_t width = 64;
     constexpr uint32_t height = 48;
@@ -116,6 +131,35 @@ int main() {
     mkvc_encoder_destroy(submission_failed);
 
     set_failure_hook(nullptr);
+    set_delay_hook("250");
+    mkvc_encoder* canceled = nullptr;
+    auto canceled_config = config_for(canceled_path);
+    canceled_config.queue_size = 2;
+    if (mkvc_encoder_create(&canceled_config, &canceled) != MKVC_OK) return 13;
+    std::vector<mkvc_submission*> canceled_submissions(3, nullptr);
+    for (auto& submission : canceled_submissions) {
+        if (mkvc_encoder_submit_frame_borrowed(
+                canceled, &frame, &submission) != MKVC_OK) return 14;
+    }
+    if (mkvc_encoder_cancel(canceled) != MKVC_OK ||
+        mkvc_encoder_write_frame(canceled, &frame) != MKVC_ERROR_CANCELLED ||
+        mkvc_encoder_flush(canceled) != MKVC_ERROR_CANCELLED) return 15;
+    uint32_t canceled_count = 0;
+    for (auto* submission : canceled_submissions) {
+        const mkvc_result result = mkvc_submission_wait(submission, 5000);
+        if (result == MKVC_ERROR_CANCELLED) ++canceled_count;
+        else if (result != MKVC_OK) return 16;
+        uint32_t status = MKVC_SUBMISSION_PENDING;
+        if (mkvc_submission_query(submission, &status) != MKVC_OK) return 17;
+        if (result == MKVC_ERROR_CANCELLED &&
+            status != MKVC_SUBMISSION_CANCELLED) return 18;
+        mkvc_submission_release(submission);
+    }
+    if (canceled_count == 0 || mkvc_encoder_cancel(canceled) != MKVC_OK ||
+        mkvc_encoder_close(canceled) != MKVC_OK) return 19;
+    mkvc_encoder_destroy(canceled);
+    set_delay_hook(nullptr);
+
     mkvc_encoder* recovered = nullptr;
     auto recovered_config = config_for(recovered_path);
     if (mkvc_encoder_create(&recovered_config, &recovered) != MKVC_OK ||
@@ -127,5 +171,6 @@ int main() {
     std::filesystem::remove(failed_path);
     std::filesystem::remove(recovered_path);
     std::filesystem::remove(submission_failed_path);
+    std::filesystem::remove(canceled_path);
     return 0;
 }

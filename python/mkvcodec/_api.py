@@ -839,6 +839,11 @@ class VideoWriter:
         if not self._closed:
             native.check(native.lib.mkvc_encoder_flush(self._handle))
 
+    def cancel(self) -> None:
+        """Discard queued work and wake blocked producers/submissions."""
+        if not self._closed:
+            native.check(native.lib.mkvc_encoder_cancel(self._handle))
+
     def close(self) -> None:
         if self._closed:
             return

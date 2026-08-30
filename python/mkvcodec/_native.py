@@ -8,11 +8,13 @@ from pathlib import Path
 MKVC_OK = 0
 MKVC_ERROR_INVALID_STATE = 5
 MKVC_ERROR_TIMEOUT = 10
+MKVC_ERROR_CANCELLED = 11
 MKVC_END_OF_STREAM = 8
 MKVC_WOULD_BLOCK = 9
 MKVC_SUBMISSION_PENDING = 0
 MKVC_SUBMISSION_COMPLETE = 1
 MKVC_SUBMISSION_FAILED = 2
+MKVC_SUBMISSION_CANCELLED = 3
 MKVC_BACKEND_CPU = 1
 MKVC_BACKEND_NVIDIA = 2
 MKVC_BACKEND_INTEL = 3
@@ -233,6 +235,8 @@ lib.mkvc_encoder_try_write_frame.argtypes = [EncoderHandle, ct.POINTER(FrameView
 lib.mkvc_encoder_try_write_frame.restype = ct.c_int
 lib.mkvc_encoder_flush.argtypes = [EncoderHandle]
 lib.mkvc_encoder_flush.restype = ct.c_int
+lib.mkvc_encoder_cancel.argtypes = [EncoderHandle]
+lib.mkvc_encoder_cancel.restype = ct.c_int
 lib.mkvc_encoder_close.argtypes = [EncoderHandle]
 lib.mkvc_encoder_close.restype = ct.c_int
 lib.mkvc_encoder_get_metrics.argtypes = [EncoderHandle, ct.POINTER(PipelineMetrics)]
@@ -322,4 +326,6 @@ def check(result: int) -> None:
         raise RuntimeError(message)
     if result == MKVC_ERROR_TIMEOUT:
         raise TimeoutError(message)
+    if result == MKVC_ERROR_CANCELLED:
+        raise RuntimeError(message)
     raise ValueError(message)

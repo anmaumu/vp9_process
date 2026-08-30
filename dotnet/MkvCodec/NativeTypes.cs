@@ -15,6 +15,7 @@ public enum MkvResult : uint
     EndOfStream = 8,
     WouldBlock = 9,
     Timeout = 10,
+    Cancelled = 11,
 }
 
 public enum MkvBackend : uint { Cpu = 1, Nvidia = 2, Intel = 3 }
@@ -22,7 +23,7 @@ public enum MkvCodecKind : uint { Vp9 = 1, Av1 = 2 }
 public enum MkvPixelFormat : uint { I420 = 1, Nv12 = 2, Bgr24 = 3, Rgb24 = 4, Bgra32 = 5, P010 = 6 }
 public enum MkvGpuMemoryType : uint { D3D11Texture = 1, VaSurface = 2, CudaPointer = 3, CudaArray = 4, Usm = 5 }
 public enum MkvGpuNativeHandleType : uint { D3D11Texture = 1, VaSurface = 2, CudaPointer = 3, CudaArray = 4, UsmPointer = 5 }
-public enum MkvSubmissionStatus : uint { Pending = 0, Complete = 1, Failed = 2 }
+public enum MkvSubmissionStatus : uint { Pending = 0, Complete = 1, Failed = 2, Cancelled = 3 }
 
 [StructLayout(LayoutKind.Sequential)]
 internal struct NativeCpuFramePoolConfig

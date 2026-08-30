@@ -61,6 +61,9 @@ internal static class NativeMethods
     internal static extern MkvResult mkvc_encoder_flush(MkvEncoderHandle encoder);
 
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern MkvResult mkvc_encoder_cancel(MkvEncoderHandle encoder);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
     internal static extern MkvResult mkvc_encoder_close(nint encoder);
 
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]

@@ -32,7 +32,7 @@ profile: test-spec@1.0
 | `TEST-DEC-004` | prefetch 0/1/4/16、queue上限、hit/miss | performance | CPU/GPU CI |
 | `TEST-ENC-001` | BGR/RGB/BGRA/I420/NV12 shape/dtype/stride | unit/integration | CPU CI |
 | `TEST-ENC-002` | write_batch、flush、遅延packet全回収 | integration | CPU/GPU CI |
-| `TEST-ENC-003` | queue満杯block、try_write WOULD_BLOCK、cancel wakeup | concurrency | CPU CI |
+| `TEST-ENC-003` | queue満杯block、try_write WOULD_BLOCK、cancelがproducer/flush/submissionを起床しqueued workだけをcancel terminalへ遷移する | concurrency | CPU CI |
 | `TEST-ENC-004` | quality/vbr/cbr validationとbackend mapping | unit/integration | backend CI |
 | `TEST-ENC-005` | odd size、unsupported format、non-contiguous/negative stride | unit | CPU CI |
 

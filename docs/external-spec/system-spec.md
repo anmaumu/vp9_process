@@ -308,6 +308,7 @@ mkvc_cpu_buffer_get_desc();
 mkvc_cpu_buffer_get_view();
 mkvc_encoder_submit_cpu_buffer();
 mkvc_cpu_buffer_release();
+mkvc_encoder_cancel();
 mkvc_gpu_frame_get_native_handle();
 mkvc_encoder_write_gpu_frame();
 mkvc_gpu_frame_query_completion();

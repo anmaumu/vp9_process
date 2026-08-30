@@ -151,6 +151,13 @@ public sealed class MkvVideoWriter : IDisposable
         MkvCodecInfo.ThrowIfFailed(NativeMethods.mkvc_encoder_flush(handle));
     }
 
+    /// <summary>Discard queued frames and wake blocked submissions.</summary>
+    public void Cancel()
+    {
+        ObjectDisposedException.ThrowIf(handle is null || handle.IsClosed, this);
+        MkvCodecInfo.ThrowIfFailed(NativeMethods.mkvc_encoder_cancel(handle!));
+    }
+
     public MkvPipelineMetrics Metrics => finalMetrics ?? ReadMetrics();
 
     private MkvPipelineMetrics ReadMetrics()

@@ -34,7 +34,7 @@
 - [x] blocking write / non-blocking try-write
 - [x] ordered drain、flush、finalize
 - [x] bounded prefetch decode
-- [ ] explicit cancellation、pipeline metrics
+- [x] explicit encoder cancellation and bounded pipeline metrics
 
 ## Phase 3: hardware backends
 

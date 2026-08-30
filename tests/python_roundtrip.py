@@ -129,6 +129,38 @@ def main() -> None:
             assert capture.read_i420() is not None
             assert capture.read_i420() is None
 
+        canceled_path = os.path.join(directory, "canceled.webm")
+        os.environ["MKVC_TEST_ENCODER_DELAY_MS"] = "250"
+        try:
+            with mkvcodec.VideoWriter(
+                canceled_path, fps=30, frame_size=(width, height), queue_size=2,
+            ) as writer:
+                canceled_submissions = [
+                    writer.submit_borrowed(
+                        (frames[0].y, frames[0].u, frames[0].v),
+                        format="i420", pts=index,
+                    )
+                    for index in range(3)
+                ]
+                writer.cancel()
+                try:
+                    writer.write((frames[0].y, frames[0].u, frames[0].v))
+                except RuntimeError:
+                    pass
+                else:
+                    raise AssertionError("write after cancel did not fail")
+                canceled_count = 0
+                for submission in canceled_submissions:
+                    try:
+                        submission.wait(5000)
+                    except RuntimeError:
+                        canceled_count += 1
+                    assert submission.done
+                    submission.close()
+                assert canceled_count > 0
+        finally:
+            os.environ.pop("MKVC_TEST_ENCODER_DELAY_MS", None)
+
         pool_path = os.path.join(directory, "native-pool.webm")
         pool = mkvcodec.CpuFramePool("i420", (width, height), capacity=1)
         buffer = pool.acquire()

@@ -41,7 +41,8 @@ typedef enum mkvc_result {
     MKVC_ERROR_CODEC = 7,             /**< Codec initialization or processing failed. */
     MKVC_END_OF_STREAM = 8,           /**< Decoder reached a clean end of stream. */
     MKVC_WOULD_BLOCK = 9,             /**< Nonblocking operation cannot complete yet. */
-    MKVC_ERROR_TIMEOUT = 10           /**< A bounded wait expired. */
+    MKVC_ERROR_TIMEOUT = 10,          /**< A bounded wait expired. */
+    MKVC_ERROR_CANCELLED = 11         /**< Operation was explicitly cancelled. */
 } mkvc_result;
 
 /** Backend families addressable through the common API. */
@@ -149,7 +150,8 @@ typedef enum mkvc_gpu_completion_status {
 typedef enum mkvc_submission_status {
     MKVC_SUBMISSION_PENDING = 0,
     MKVC_SUBMISSION_COMPLETE = 1,
-    MKVC_SUBMISSION_FAILED = 2
+    MKVC_SUBMISSION_FAILED = 2,
+    MKVC_SUBMISSION_CANCELLED = 3
 } mkvc_submission_status;
 
 /** Backend-neutral immutable GPU frame metadata. */
@@ -376,6 +378,8 @@ MKVC_API mkvc_result mkvc_encoder_try_write_frame(
     const mkvc_frame_view* frame);
 /** Drain currently submitted encoder work without closing the handle. */
 MKVC_API mkvc_result mkvc_encoder_flush(mkvc_encoder* encoder);
+/** Stop accepting work, discard queued frames, and wake all blocked callers. */
+MKVC_API mkvc_result mkvc_encoder_cancel(mkvc_encoder* encoder);
 /** Drain, finalize the container, and close the encoder idempotently. */
 MKVC_API mkvc_result mkvc_encoder_close(mkvc_encoder* encoder);
 /** Snapshot cumulative encoder metrics without resetting them. */

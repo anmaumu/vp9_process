@@ -236,6 +236,7 @@ const char* mkvc_result_string(mkvc_result result) {
         case MKVC_END_OF_STREAM: return "end of stream";
         case MKVC_WOULD_BLOCK: return "would block";
         case MKVC_ERROR_TIMEOUT: return "timeout";
+        case MKVC_ERROR_CANCELLED: return "cancelled";
         default: return "unknown result";
     }
 }
@@ -423,6 +424,22 @@ mkvc_result mkvc_encoder_flush(mkvc_encoder* encoder) {
         return fail(MKVC_ERROR_INTERNAL, exception.what());
     } catch (...) {
         return fail(MKVC_ERROR_INTERNAL, "unknown encoder flush failure");
+    }
+}
+
+mkvc_result mkvc_encoder_cancel(mkvc_encoder* encoder) {
+    last_error.clear();
+    if (encoder == nullptr) {
+        return fail(MKVC_ERROR_INVALID_ARGUMENT, "encoder is null");
+    }
+    try {
+        std::string error;
+        const mkvc_result result = encoder->implementation->cancel(error);
+        return result == MKVC_OK ? result : fail(result, std::move(error));
+    } catch (const std::exception& exception) {
+        return fail(MKVC_ERROR_INTERNAL, exception.what());
+    } catch (...) {
+        return fail(MKVC_ERROR_INTERNAL, "unknown encoder cancel failure");
     }
 }
 

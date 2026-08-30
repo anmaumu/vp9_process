@@ -66,6 +66,8 @@ class EncoderSession {
                                 std::string& error);
     /** Insert and wait for an ordered codec flush barrier. */
     mkvc_result flush(std::string& error);
+    /** Discard queued work and wake blocked producers/submissions. */
+    mkvc_result cancel(std::string& error);
     /** Drain queued frames, finalize output, and join the worker. */
     mkvc_result close(std::string& error);
     /** Snapshot cumulative queue/backend observations. */
