@@ -14,8 +14,14 @@ public sealed class MkvVideoWriter : IDisposable
         uint fpsNumerator = 30, uint fpsDenominator = 1,
         MkvCodecKind codec = MkvCodecKind.Vp9,
         MkvBackend backend = MkvBackend.Cpu, uint quality = 32,
-        uint queueSize = 0)
+        uint queueSize = 0, bool requireGpuResident = false)
     {
+        if (requireGpuResident && backend == MkvBackend.Cpu)
+            throw new ArgumentException(
+                "GPU-resident encoding requires Intel or NVIDIA", nameof(backend));
+        if (requireGpuResident && queueSize != 0)
+            throw new ArgumentException(
+                "GPU-resident encoding currently requires queueSize=0", nameof(queueSize));
         nint utf8 = Marshal.StringToCoTaskMemUTF8(path);
         try
         {
@@ -29,11 +35,32 @@ public sealed class MkvVideoWriter : IDisposable
             };
             MkvCodecInfo.ThrowIfFailed(
                 NativeMethods.mkvc_encoder_create(ref config, out handle));
+            if (requireGpuResident)
+            {
+                var policy = StrictGpuPolicy();
+                try
+                {
+                    MkvCodecInfo.ThrowIfFailed(
+                        NativeMethods.mkvc_encoder_set_copy_policy(handle!, ref policy));
+                }
+                catch
+                {
+                    handle?.Dispose();
+                    handle = null;
+                    throw;
+                }
+            }
         }
         finally { Marshal.FreeCoTaskMem(utf8); }
         this.width = width;
         this.height = height;
     }
+
+    private static NativeCopyPolicy StrictGpuPolicy() => new() {
+        StructSize = checked((uint)Marshal.SizeOf<NativeCopyPolicy>()),
+        StructVersion = 1, RequireGpuResident = 1,
+        AllowGpuCopy = 1, AllowCpuCopy = 0
+    };
 
     public unsafe void WriteI420(byte[] y, byte[] u, byte[] v, long pts = -1)
     {
@@ -57,6 +84,15 @@ public sealed class MkvVideoWriter : IDisposable
             MkvCodecInfo.ThrowIfFailed(
                 NativeMethods.mkvc_encoder_write_frame(handle!, ref frame));
         }
+    }
+
+    /// <summary>Submit a compatible leased GPU surface without CPU pixel transfer.</summary>
+    public void WriteSurface(MkvGpuFrame frame)
+    {
+        ObjectDisposedException.ThrowIf(handle is null || handle.IsClosed, this);
+        ArgumentNullException.ThrowIfNull(frame);
+        MkvCodecInfo.ThrowIfFailed(NativeMethods.mkvc_encoder_write_gpu_frame(
+            handle!, frame.BorrowHandle()));
     }
 
     public void Flush()

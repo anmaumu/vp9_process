@@ -37,8 +37,16 @@ internal static class NativeMethods
         ref NativeEncoderConfig config, out MkvEncoderHandle encoder);
 
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern MkvResult mkvc_encoder_set_copy_policy(
+        MkvEncoderHandle encoder, ref NativeCopyPolicy policy);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
     internal static extern MkvResult mkvc_encoder_write_frame(
         MkvEncoderHandle encoder, ref NativeFrameView frame);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern MkvResult mkvc_encoder_write_gpu_frame(
+        MkvEncoderHandle encoder, MkvGpuFrameHandle frame);
 
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
     internal static extern MkvResult mkvc_encoder_flush(MkvEncoderHandle encoder);
@@ -56,6 +64,10 @@ internal static class NativeMethods
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
     internal static extern MkvResult mkvc_decoder_create(
         ref NativeDecoderConfig config, out MkvDecoderHandle decoder);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern MkvResult mkvc_decoder_set_copy_policy(
+        MkvDecoderHandle decoder, ref NativeCopyPolicy policy);
 
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
     internal static extern MkvResult mkvc_decoder_read(

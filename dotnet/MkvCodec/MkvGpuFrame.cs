@@ -9,6 +9,12 @@ public sealed class MkvGpuFrame : IDisposable
 
     internal MkvGpuFrame(MkvGpuFrameHandle handle) => this.handle = handle;
 
+    internal MkvGpuFrameHandle BorrowHandle()
+    {
+        ObjectDisposedException.ThrowIf(handle is null || handle.IsClosed, this);
+        return handle!;
+    }
+
     public MkvGpuFrameDescriptor Descriptor
     {
         get

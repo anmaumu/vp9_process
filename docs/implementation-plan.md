@@ -97,7 +97,8 @@
 - [ ] fused processing, strict GPU-resident policy and copy-path trace
 - [ ] Python GPU processing methods and CuPy hardware qualification
 - [x] .NET GPU Frame SafeHandle, descriptor/native handle/wait and Capture.ReadSurface source API
-- [ ] .NET GPU Frame SDK build, Intel/NVIDIA hardware smoke and C++ RAII wrapper
+- [x] .NET strict GPU-resident Capture/Writer and WriteSurface source API
+- [ ] .NET SDK-style build, Intel/NVIDIA hardware smoke and C++ RAII wrapper
 - [ ] `TEST-GPU-001..014` lifetime, interop, fault, trace and soak qualification
 
 ## Phase 4: language bindings and distribution

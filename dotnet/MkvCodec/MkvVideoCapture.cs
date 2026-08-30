@@ -12,8 +12,15 @@ public sealed class MkvVideoCapture : IDisposable
     private MkvPipelineMetrics? finalMetrics;
 
     public MkvVideoCapture(string path, MkvCodecKind codec = MkvCodecKind.Vp9,
-        MkvBackend backend = MkvBackend.Cpu, uint prefetch = 0)
+        MkvBackend backend = MkvBackend.Cpu, uint prefetch = 0,
+        bool requireGpuResident = false)
     {
+        if (requireGpuResident && backend == MkvBackend.Cpu)
+            throw new ArgumentException(
+                "GPU-resident decoding requires Intel or NVIDIA", nameof(backend));
+        if (requireGpuResident && prefetch != 0)
+            throw new ArgumentException(
+                "GPU-resident decoding currently requires prefetch=0", nameof(prefetch));
         nint utf8 = Marshal.StringToCoTaskMemUTF8(path);
         try
         {
@@ -24,6 +31,25 @@ public sealed class MkvVideoCapture : IDisposable
             };
             MkvCodecInfo.ThrowIfFailed(
                 NativeMethods.mkvc_decoder_create(ref config, out handle));
+            if (requireGpuResident)
+            {
+                var policy = new NativeCopyPolicy {
+                    StructSize = checked((uint)Marshal.SizeOf<NativeCopyPolicy>()),
+                    StructVersion = 1, RequireGpuResident = 1,
+                    AllowGpuCopy = 1, AllowCpuCopy = 0
+                };
+                try
+                {
+                    MkvCodecInfo.ThrowIfFailed(
+                        NativeMethods.mkvc_decoder_set_copy_policy(handle!, ref policy));
+                }
+                catch
+                {
+                    handle?.Dispose();
+                    handle = null;
+                    throw;
+                }
+            }
         }
         finally { Marshal.FreeCoTaskMem(utf8); }
     }

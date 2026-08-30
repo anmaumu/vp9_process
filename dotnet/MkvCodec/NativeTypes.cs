@@ -23,6 +23,16 @@ public enum MkvGpuMemoryType : uint { D3D11Texture = 1, VaSurface = 2, CudaPoint
 public enum MkvGpuNativeHandleType : uint { D3D11Texture = 1, VaSurface = 2, CudaPointer = 3, CudaArray = 4, UsmPointer = 5 }
 
 [StructLayout(LayoutKind.Sequential)]
+internal struct NativeCopyPolicy
+{
+    internal uint StructSize;
+    internal uint StructVersion;
+    internal uint RequireGpuResident;
+    internal uint AllowGpuCopy;
+    internal uint AllowCpuCopy;
+}
+
+[StructLayout(LayoutKind.Sequential)]
 public struct MkvVersion
 {
     public uint StructSize;

@@ -105,6 +105,21 @@ ctest --test-dir build -R mkvc_dotnet --output-on-failure
 `MKVC_LIBRARY_PATH`はCTestがbuild済みnative libraryへ設定します。高水準の
 NuGet packagingは後続段階です。
 
+GPU-resident経路ではCaptureとWriterへ同じ`MkvGpuFrame` leaseを渡せます。
+
+```csharp
+using var capture = new MkvVideoCapture(
+    "input.webm", MkvCodecKind.Vp9, MkvBackend.Intel,
+    prefetch: 0, requireGpuResident: true);
+using var writer = new MkvVideoWriter(
+    "output.webm", 1920, 1080, codec: MkvCodecKind.Vp9,
+    backend: MkvBackend.Intel, queueSize: 0, requireGpuResident: true);
+while (capture.ReadSurface() is { } surface)
+{
+    using (surface) writer.WriteSurface(surface);
+}
+```
+
 ## Documentation generation
 
 ```shell

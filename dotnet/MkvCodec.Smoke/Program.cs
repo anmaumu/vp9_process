@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Runtime.InteropServices;
 using MkvCodec;
 
@@ -11,6 +14,8 @@ if (Marshal.SizeOf<MkvGpuFrameDescriptor>() != 136)
     throw new InvalidOperationException("MkvGpuFrameDescriptor ABI layout mismatch");
 if (Marshal.SizeOf<MkvGpuNativeHandleDescriptor>() != 64)
     throw new InvalidOperationException("MkvGpuNativeHandleDescriptor ABI layout mismatch");
+if (Marshal.SizeOf(typeof(NativeCopyPolicyForSmoke)) != 20)
+    throw new InvalidOperationException("copy policy ABI layout mismatch");
 
 MkvVersion version = MkvCodecInfo.Version;
 if (version.AbiVersion != 1 || version.StructSize != 20)
@@ -58,3 +63,10 @@ try
     if (count != 10) throw new InvalidOperationException(".NET frame count mismatch");
 }
 finally { if (File.Exists(path)) File.Delete(path); }
+
+[StructLayout(LayoutKind.Sequential)]
+struct NativeCopyPolicyForSmoke
+{
+    public uint StructSize, StructVersion, RequireGpuResident,
+        AllowGpuCopy, AllowCpuCopy;
+}
