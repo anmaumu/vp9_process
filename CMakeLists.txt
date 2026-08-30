@@ -167,6 +167,12 @@ if(MKVC_BUILD_TESTS)
                 "PYTHONPATH=$<TARGET_FILE_DIR:mkvc_python_dlpack>"
                 "${Python3_EXECUTABLE}"
                 "${CMAKE_CURRENT_SOURCE_DIR}/tests/python_dlpack_capsule.py")
+        add_test(NAME mkvc_python_external_gpu_import
+            COMMAND "${Python3_EXECUTABLE}"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/python_external_gpu_import.py"
+                "$<TARGET_FILE:mkvcodec>"
+                "$<TARGET_FILE_DIR:mkvc_python_dlpack>"
+                "${CMAKE_CURRENT_SOURCE_DIR}/python")
     endif()
     target_compile_definitions(mkvcodec PRIVATE MKVC_ENABLE_TEST_HOOKS=1)
     if(Python3_Interpreter_FOUND)

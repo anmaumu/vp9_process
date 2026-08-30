@@ -74,7 +74,7 @@ profile: test-spec@1.0
 | `TEST-GPU-017` | .NET strict Capture `ReadSurface`→Writer `WriteSurface`でlease解放順、frame数、PTS、`zero_copy` metricsを検証する | end-to-end/hardware | .NET Intel/NVIDIA |
 | `TEST-GPU-018` | C ABI copy policyのsize/version/conflict、初回frame後変更、queue/prefetch制約を検証 | ABI/unit | CPU/Intel |
 | `TEST-GPU-019` | CUDA pointer/CUarray、D3D11 texture、VA surface importのdevice/layout/completionを検証し、encode完了後だけrelease callbackを一度呼ぶ。mock resourceでcallback順序・invalid layoutを常時CI検証する | unit/hardware/lifetime | common/Intel/NVIDIA |
-| `TEST-GPU-020` | DLPack importでproducer stream/event dependency、deleter所有権、未消費capsule、cancel/failure時cleanupを検証 | Python/hardware | NVIDIA/対応Intel |
+| `TEST-GPU-020` | Python importでnative owner holderのGC寿命、producer stream/event dependency、DLPack deleter所有権、未消費capsule、cancel/failure時cleanupを検証。同期済みCUDA pointer owner寿命は常時CI対象 | Python/unit/hardware | common/NVIDIA/対応Intel |
 
 ### 1.4 CPU Frame Interoperability
 

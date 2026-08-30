@@ -143,7 +143,9 @@ managed tensorを解放するまでnative GPU leaseも保持されます。
 `GpuFrame::import_external()`で共通leaseへ取り込めます。producer queryとrelease
 callbackは必須の寿命契約で、CUDA-pointer NV12は対応NVENCへ直接submitできます。
 .NETは`MkvGpuFrame.ImportExternal()`でmanaged ownerを最終releaseまで保持できます。
-Python owner adapterとDLPack importは今後の実装です。
+Pythonはstable-ABI extension経由の`GpuFrame.import_cuda_pointer()`を利用でき、現時点では
+`producer_synchronized=True`を明示した完了済みresourceに限定します。非同期CUDA event
+dependencyとDLPack importは今後の実装です。
 
 ```python
 import cupy as cp

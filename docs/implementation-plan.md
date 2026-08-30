@@ -93,6 +93,7 @@
 - [x] Python stable-ABI DLPack capsule and `GpuFrame.plane()` protocol source API
 - [ ] CuPy hardware qualification, consumer CUDA event dependency and Intel safe USM adapter
 - [x] backend-neutral external GPU frame wrapper with producer-query and single-shot release callbacks; CUDA-pointer NV12 is NVIDIA-encode compatible
+- [x] Python stable-ABI owner holder and synchronized CUDA-pointer NV12 import adapter
 - [ ] external CUDA CUarray/DLPack import with native producer event/deleter ownership
 - [ ] external D3D11 texture and VA surface oneVPL import adapter with producer fence/sync ownership
 - [ ] strict GPU-resident policy and export/import edge copy-path trace

@@ -1,5 +1,6 @@
 import ctypes as ct
 import gc
+import weakref
 
 import _dlpack
 
@@ -50,3 +51,29 @@ gc.collect()
 assert deleted == 1
 delete_tensor(ct.pointer(consumed))
 assert deleted == 2
+
+
+class Owner:
+    pass
+
+
+owner = Owner()
+owner_ref = weakref.ref(owner)
+user_data, release_address = _dlpack.external_owner_create(owner)
+del owner
+gc.collect()
+assert owner_ref() is not None
+_dlpack.external_owner_cancel(user_data)
+gc.collect()
+assert owner_ref() is None
+
+owner = Owner()
+owner_ref = weakref.ref(owner)
+user_data, release_address = _dlpack.external_owner_create(owner)
+del owner
+gc.collect()
+assert owner_ref() is not None
+ReleaseOwner = ct.CFUNCTYPE(None, ct.c_void_p)
+ReleaseOwner(release_address)(user_data)
+gc.collect()
+assert owner_ref() is None

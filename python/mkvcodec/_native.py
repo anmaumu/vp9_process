@@ -26,6 +26,8 @@ MKVC_PIXEL_FORMAT_BGR24 = 3
 MKVC_PIXEL_FORMAT_RGB24 = 4
 MKVC_PIXEL_FORMAT_BGRA32 = 5
 MKVC_PIXEL_FORMAT_P010 = 6
+MKVC_GPU_MEMORY_CUDA_POINTER = 3
+MKVC_GPU_NATIVE_CUDA_POINTER = 3
 MKVC_FRAME_FIT_STRETCH = 0
 MKVC_FRAME_FIT_CONTAIN = 1
 MKVC_FRAME_FIT_COVER = 2
@@ -179,6 +181,15 @@ class GpuNativeHandleDesc(ct.Structure):
     ]
 
 
+class GpuExternalFrameConfig(ct.Structure):
+    _fields_ = [
+        ("struct_size", ct.c_uint32), ("struct_version", ct.c_uint32),
+        ("frame", GpuFrameDesc), ("native_handle", GpuNativeHandleDesc),
+        ("query", ct.c_void_p), ("release", ct.c_void_p),
+        ("user_data", ct.c_void_p),
+    ]
+
+
 def _candidate_paths() -> list[str]:
     explicit = os.environ.get("MKVC_LIBRARY_PATH")
     candidates = [explicit] if explicit else []
@@ -304,6 +315,10 @@ lib.mkvc_gpu_frame_get_native_handle.argtypes = [
     GpuFrameHandle, ct.POINTER(GpuNativeHandleDesc)
 ]
 lib.mkvc_gpu_frame_get_native_handle.restype = ct.c_int
+lib.mkvc_gpu_frame_import_external.argtypes = [
+    ct.POINTER(GpuExternalFrameConfig), ct.POINTER(GpuFrameHandle)
+]
+lib.mkvc_gpu_frame_import_external.restype = ct.c_int
 lib.mkvc_gpu_frame_wait.argtypes = [GpuFrameHandle, ct.c_uint32]
 lib.mkvc_gpu_frame_wait.restype = ct.c_int
 lib.mkvc_gpu_frame_export_dlpack.argtypes = [
