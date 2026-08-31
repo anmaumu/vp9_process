@@ -93,6 +93,33 @@ CPU pinning の既定差は一般には、スレッド移動、キャッシュ�
 
 追加の生データは `results/windows_1thread_cpu0.csv` と `results/wsl_1thread_cpu0.csv` に保存した。再実行には既存コマンドへ `--single-core --iterations 200 --warmup 20` を追加する。
 
+## OpenVINOバージョン別: 1スレッド・1コア固定
+
+OpenVINO 2024.6.0、2025.2.0、2025.4.1をそれぞれ独立venvへ導入し、両OSでCPU 0のみ、`INFERENCE_NUM_THREADS=1`、`NUM_STREAMS=1`、warm-up 20回後に100回測定した。入力、モデル、測定プログラムは同一である。
+
+| OpenVINO | Windows ResNet-50 | WSL2 ResNet-50 | Windows MobileNetV2 | WSL2 MobileNetV2 |
+|---|---:|---:|---:|---:|
+| 2024.6.0 | 360.033 ms | 379.809 ms | 30.478 ms | 32.839 ms |
+| 2025.2.0 | **358.375 ms** | 379.754 ms | **30.440 ms** | 33.008 ms |
+| 2025.4.1 | 358.793 ms | **379.396 ms** | 30.473 ms | **32.848 ms** |
+
+同一OS内の最大差は、WindowsのResNet-50で約0.5%、MobileNetV2で約0.1%、WSL2のResNet-50で約0.1%、MobileNetV2で約0.5%だった。測定ばらつきと比べても小さく、このCPU・2モデル・FP32・1スレッド条件では、バージョン更新による一貫した性能向上または低下は確認できない。
+
+一方、Windowsは全バージョンでWSL2より速く、ResNet-50で約5.2～5.6%、MobileNetV2で約7.2～7.8%短い。したがって、1コア時のOS差は特定OpenVINO版に固有の回帰ではない。
+
+2024.6.0は依存制約のためNumPy 2.1.3、2025系はNumPy 2.2.6を使用した。NumPyによる入力生成は計測区間外で、OpenVINOへ渡す配列はいずれも同じshape・FP32である。2024.6.0のWindows CPUプラグインは要求した `ENABLE_CPU_PINNING=True` を実効値 `False` と報告したが、測定プログラム自身がプロセス全体をWindows APIでCPU 0へ固定しているため、1 CPU制限は維持される。
+
+OpenVINO公式リリースノートによると、2026.0以降のCPUプラグインはAVX2が最低要件である。今回のXeon E5-2697 v2はAVXまででAVX2非対応のため、2026系CPU推論は比較対象外とした。
+
+生データは次の6ファイルに保存した。
+
+- `results/windows_1core_ov_2024_6_0.csv`
+- `results/windows_1core_ov_2025_2_0.csv`
+- `results/windows_1core_ov_2025_4_1.csv`
+- `results/wsl_1core_ov_2024_6_0.csv`
+- `results/wsl_1core_ov_2025_2_0.csv`
+- `results/wsl_1core_ov_2025_4_1.csv`
+
 ## Windows 側の推奨設定
 
 ### 1. 低レイテンシ（同期・batch 1）

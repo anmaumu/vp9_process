@@ -11,6 +11,8 @@
 - `setup_wsl.sh`: WSL2 venv作成、依存関係・モデル取得
 - `run_windows.ps1`: Windowsの標準測定と1コア測定
 - `run_wsl.sh`: WSL2の標準測定と1コア測定
+- `benchmark_versions_windows.ps1`: WindowsでOpenVINO 3バージョンを比較
+- `benchmark_versions_wsl.sh`: WSL2でOpenVINO 3バージョンを比較
 - `results/*.csv`: 調査時の生データ
 - `REPORT.md`: 条件、結果、原因分析、推奨設定
 
@@ -70,6 +72,20 @@ taskset -c 0 .venv-wsl/bin/python your_script.py
 ```
 
 WSL2のCPU 0は仮想CPUです。ホスト物理コアへの最終配置はHyper-Vが管理するため、これは同一物理コアの直接比較ではなく、各環境で利用可能な論理CPUを1個に揃える比較です。
+
+## OpenVINOバージョン比較
+
+2024.6.0、2025.2.0、2025.4.1を独立venvへ導入し、1 core / 1 threadで各100回測定します。
+
+```powershell
+.\benchmark_versions_windows.ps1
+```
+
+```bash
+bash benchmark_versions_wsl.sh
+```
+
+OpenVINO 2026.0以降はCPUプラグインがAVX2必須です。AVX2非対応CPUでは2025.4.1以前を使用してください。
 
 ## Windowsアプリ向け推奨値
 

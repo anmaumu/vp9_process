@@ -20,5 +20,7 @@ __pycache__/
 # OpenVINO Windows/WSL benchmark local artifacts
 openvino_optim/.venv-win/
 openvino_optim/.venv-wsl/
+openvino_optim/.venv-win-*/
+openvino_optim/.venv-wsl-*/
 openvino_optim/models/*.onnx
 openvino_optim/results/*.local.csv
