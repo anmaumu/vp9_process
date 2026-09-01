@@ -83,7 +83,6 @@ int main(int argc, char** argv) {
         encoder_config.struct_version = 1;
         encoder_config.output_path_utf8 = argv[2];
         encoder_config.codec = MKVC_CODEC_VP9;
-        encoder_config.container = MKVC_CONTAINER_WEBM;
         encoder_config.backend = MKVC_BACKEND_INTEL;
         encoder_config.width = desc.width;
         encoder_config.height = desc.height;
