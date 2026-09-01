@@ -204,11 +204,16 @@ mkvc_result import_external_surface(
     mkvc_result result = frame->get_native_handle(native, error);
     if (result != MKVC_OK) return result;
     mfxMemoryInterface* memory = nullptr;
-    if (MFXGetMemoryInterface(impl.session, &memory) != MFX_ERR_NONE ||
-        memory == nullptr || memory->Version.Major < 1 ||
+    const mfxStatus memory_status = MFXGetMemoryInterface(impl.session, &memory);
+    if (memory_status != MFX_ERR_NONE || memory == nullptr ||
+        memory->Version.Major < 1 ||
         (memory->Version.Major == 1 && memory->Version.Minor < 1) ||
         memory->ImportFrameSurface == nullptr) {
-        error = "oneVPL runtime does not expose external surface import";
+        error = "oneVPL runtime does not expose external surface import (status=" +
+                std::to_string(memory_status) + ", interface=" +
+                (memory == nullptr ? std::string("null") :
+                 std::to_string(memory->Version.Major) + "." +
+                 std::to_string(memory->Version.Minor)) + ")";
         return MKVC_ERROR_NOT_SUPPORTED;
     }
     mfxSurfaceHeader* header = nullptr;

@@ -29,8 +29,9 @@ decode結果をNumPy/OpenCV、CuPy/DLPack、D3D11、VA-API等へexportし、外�
 - CPU owned NumPy APIと現在のCPU convenience processingは安全な既定機能として残します。
 - borrowed CPU decode、同期/非同期encode、固定容量native input poolはC ABI/Pythonへ
   実装済みです。.NETも同じunmanaged poolとcompletion submissionを利用できます。
-  OS page-lock付きpoolは未実装です。GPU processed-resource importはCUDA pointer
-  （完了済みまたはproducer CUDA event付き）を実装済みです。
+  OS page-lock付きpoolは未実装です。GPU processed-resource importはCUDA pointer/
+  CUDA array（完了済みまたはproducer CUDA event付き）と、oneVPL runtime capability
+  対応時のIntel D3D11/VA shared surface adapterを実装済みです。
 
 ## 現在地
 
@@ -44,7 +45,10 @@ NVENC AV1 WriterはC ABI/Python共通経路へ実装済みで、runtime queryが
 AV1 NVENC対応GPUでのpositive encode検証は未完です。NVIDIA VP9 decodeはCUDA pointer
 surfaceを公開でき、NVDEC surface→NVENC registered-resource経路と、各NV12 planeを
 DLPackへ渡すnative/Python APIを実装済みです。外部CUDA pointerはproducer CUDA event
-付きで再importできます。DLPackのconsumer-stream dependency、CuPy実機検証、
+付きで再importでき、consumer-stream dependencyとCuPy実機検証も完了しています。
+Intel外部D3D11/VA surfaceはoneVPL `mfxMemoryInterface 1.1`のshared importが必要です。
+`linux-machine`のIntel GPU runtime 25.4はinterface 1.0のため、copyへ降格せず
+`NOT_SUPPORTED`になることを確認済みです。対応Intel runtimeでのpositive E2E、
 NVIDIA AV1対応GPU検証、
 10-bit public frame APIは未完です。
 .NET 8 bindingではABI version/capability query、型付きerror、SafeHandleに加え、

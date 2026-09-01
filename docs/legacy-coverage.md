@@ -73,7 +73,7 @@
 
 | Dependency | Baseline |
 |---|---|
-| oneVPL Dispatcher | API 2.10+ |
+| oneVPL Dispatcher/header | API 2.10+（external D3D11/VA importはruntime memory interface 1.1必須） |
 | NVIDIA Video Codec SDK/API headers | 13.1系列 |
 | NVIDIA driver | 対応API以上、runtime query必須 |
 | CUDA build toolkit | 13.1系列（CUDA buildのみ） |
@@ -90,4 +90,3 @@
 | 7: user-facing attribution | EXT-PKG-005..006、TEST-PKG-005 | Complete |
 | 8-9: release Go/No-Go | EXT-PKG-006、AC-PKG-001 | Complete |
 | 10: next actions | external Open Questions、internal Open Questions | Complete |
-

@@ -45,7 +45,8 @@
 - [x] Intel encoder multi-SyncPoint overlap and AsyncDepth 1/2/4/8 ordering tests
 - [x] Intel decoder multi-SyncPoint overlap and AsyncDepth 1/2/4/8 ordering tests
 - [x] Linux Intel decode surface→encoder direct shared-surface submission (no CPU Map/readback)
-- [ ] Intel external D3D11/VA resource import and fully asynchronous shared-session pipeline
+- [x] Intel external D3D11/VA shared-import adapter with runtime interface/copy gate
+- [ ] Intel external-resource positive hardware qualification and fully asynchronous shared-session pipeline
 - [x] injected Intel pending-operation failure cleanup and session recovery
 - [x] NVIDIA NVDEC VP9 public Capture（RTX 2060 VP9 positive、AV1 positive pending）
 - [x] NVIDIA NVENC AV1 public Writer adapter and runtime capability gate
@@ -95,7 +96,8 @@
 - [x] backend-neutral external GPU frame wrapper with producer-query and single-shot release callbacks; CUDA-pointer NV12 is NVIDIA-encode compatible
 - [x] Python stable-ABI owner holder and synchronized/CUDA-event CUDA-pointer NV12 import adapter
 - [x] external CUDA CUarray/linear-DLPack import with producer event/deleter ownership（CUarray NVENC positive encodeはAV1対応GPU待ち）
-- [ ] external D3D11 texture and VA surface oneVPL import adapter with producer fence/sync ownership
+- [x] external D3D11 texture and VA surface oneVPL shared-import adapter with owner retention and copy rejection
+- [ ] external Intel producer fence/sync dependency and positive interface-1.1 hardware qualification
 - [ ] strict GPU-resident policy and export/import edge copy-path trace
 - [x] Python CuPy contiguous-NV12 DLPack processed-resource import/export hardware qualification
 - [ ] Python CuPy/CUarray processed-resource→NVENC positive encode qualification on an AV1-capable GPU
