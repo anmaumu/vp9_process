@@ -168,6 +168,10 @@ AV1 decode: supported GPU backend -> libaom -> error
   Linux Intel NV12 VA surfaceは`mkvc_gpu_frame_import_va_surface`でVAに投入済みのproducer処理をnative同期できる。query callbackはnull必須。C++/Python/.NETにも同等入口を公開する。surface ID 0は有効、`UINT32_MAX`は無効とし、ownerはdisplayとsurfaceの両方を最終leaseまで保持する。未対応platform/build、libva symbol不足、driver未実装は`NOT_SUPPORTED`で失敗し、失敗時にowner/release callbackの所有権を受け取らない。import後の追加書込みは禁止。VA同期はOpenCL/SYCL等の独立した処理を保証せず、汎用producer queryまたは明示的な外部同期を必要とする。Pythonの`producer_synchronized=True`は利用者がその同期を完了した場合だけ許可する。
 - `EXT-GPU-010`: `require_gpu_resident=True`、`allow_gpu_copy`、`allow_cpu_copy`をdecode/export/import/encode全体へ適用し、edge別copy-pathとfallback理由を返す。
 
+検証結果の説明では、library境界のcopy metric、公開APIの独立観測、driver内部まで含む
+完全なtraceを区別する。監視対象APIのCPU転送0件だけで経路全体のzero-copy保証へ
+格上げしない。OpenCL image共有が動作してもIntel USM/DLPack対応とは表示しない。
+
 C/C++/C#利用者はversioned `mkvc_copy_policy`を作成直後に
 `mkvc_encoder_set_copy_policy` / `mkvc_decoder_set_copy_policy`へ渡す。
 policyは最初のframe operation後には変更できない。初期実装のstrict Intel

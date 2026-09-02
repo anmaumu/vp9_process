@@ -11,6 +11,59 @@
 - GitHub Actions builds strict MkDocs HTML and stores `mkvcodec-documentation` for 30 days.
 - GitHub Pages publication remains disabled until an explicit public-release decision.
 
+## 2026-09-03: Independent copy observations and same-process soak
+
+Status: `PARTIAL` (exported-API instrumentation and short-soak gates implemented;
+complete driver traces, 30-minute/VRAM qualification and Intel USM remain open)
+
+Added a test-only Linux glibc x86-64 LD_AUDIT module, not included in product
+libraries/wheel/NuGet. It observes libva/OpenCL exported API calls independently
+of the library's copy metrics, including RTLD_LOCAL/dlsym and OpenCL extension
+function pointers. A GPU-free synthetic library exercises all **14 wrappers**
+and checks that deliberately invoked host transfers/maps fail the positive gate.
+Report validation rejects missing observations, invalid entries, ambiguous
+bindings and wrong child PID; missing reports and child timeouts cannot pass.
+Old result files are invalidated before each run.
+
+On linux-machine's real 32-frame external OpenCL roundtrip, the audit observes
+**64 kernels, 32 acquire calls, 32 release calls and 32 vaDeriveImage calls**,
+with **0 watched host-transfer/map calls and 0 binding conflicts**. vaPutImage
+is bound but unused; other watched host-transfer/map symbols are unbound in
+this run. vaMapBuffer/vaMapBuffer2 are also unbound, not evidence that the
+encoder never maps bitstreams. vaDeriveImage is metadata, not a pixel download
+by itself. These are attempted-call counts, not transferred-byte counts.
+Private/internal/vtable driver calls and GPU copies remain unqualified; this
+partial trace does **not** prove the full driver path is zero-copy or support USM.
+
+The external OpenCL test now supports bounded repeated batches in one process,
+including Capture/Writer lifecycle, import-owner GC and a CPU PTS/count/PSNR
+oracle. Each batch releases every external owner. Fixed-size JSON records the
+post-close RSS/FD/thread baseline, high-water and last sample; incomplete/failed
+runs do not receive a passed status. Engineering regression budgets after the
+first warm-up batch are +256 MiB RSS, +2 FDs and +4 threads, not performance SLAs.
+
+A **60.69-second** run completes **82 batches × 240 = 19,680 frames**. Owner
+peak is **5**, with all owners released after every batch. FDs stay **6**, threads
+stay **25**, and RSS goes from **184,512,512 to 190,386,176 bytes** (about +5.6 MiB).
+This qualifies a short lifecycle repetition, not a 30-minute soak, VRAM plateau,
+pool exhaustion, slow-consumer behavior or general long-term leak freedom.
+Reports are `build/intel/intel_opencl_copy_audit.json` and
+`build/intel/intel_opencl_soak_60s.json` on the test host; invocation and scope
+are recorded in the test specification. The CI smoke uses two seconds/minimum
+two batches; longer execution is opt-in and has not been scheduled.
+
+Validation: Linux **27/27 CTests pass** with required Intel external import.
+Windows **22 pass, 1 expected RTX 2060 AV1 NVENC skip**, including D3D11 fence,
+CUDA import/DLPack and .NET build/smoke. Specification/docgen checks pass.
+
+Intel USM remains unimplemented: the current native/OpenCL image path is kept
+separate from linear USM/DLPack. A safe no-copy allocation identity/layout and
+encoder return path must be established before advertising that capability;
+an explicit GPU-copy adapter, if needed, must not be called zero-copy.
+
+Traceability: EXT-GPU-010 -> INT-OBS-004 / INT-PERF-003 ->
+AC-GPU-001 / TEST-GPU-013/014; RISK-GPU-010/011.
+
 ## 2026-09-02: D3D11 fences and real external OpenCL roundtrip
 
 Status: `PARTIAL` (D3D11 synchronization and Linux external processing qualified;

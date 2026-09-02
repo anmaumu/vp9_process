@@ -339,6 +339,13 @@ Status: `PROPOSED`
 - `INT-PERF-002`: absolute target確定前は直近承認baselineに対する回帰でgateする。
 - `INT-PERF-003`: long-runでresource countが単調増加しないことをtraceする。
 
+検証実装補足（INT-OBS-004 / INT-PERF-003）:
+
+- Linux glibc x86-64のtest専用LD_AUDIT moduleで、libva/OpenCLの公開API呼出しをlibrary metricsとは独立に観測する。RTLD_LOCAL/dlsymとOpenCL extension function pointerを対象とし、試験子processだけに適用する。製品library、wheel、NuGetには収録しない。
+- host transfer/mapは試行回数を数える。byte数やdriver内部コピーの推定値へ変換しない。vaDeriveImageはmetadata、vaMapBuffer/vaMapBuffer2はbitstream等の可能性もある未分類mapとして記録し、pixel readbackと断定しない。未bind APIの0件を観測済みとみなさない。
+- reportはversion、child PID、symbol/category/bound/count、binding conflictを検証する。欠落、曖昧な別実装へのbinding、必要なkernel/acquire/release/derive観測の欠落、host transfer/map検出では合格にしない。結果artifactは開始時にnot_completedへ戻し、検証成功後だけpassedへ変更する。
+- same-process耐久試験はbounded batchごとにdecode→外部処理→encode→close→GC→CPU oracleを行い、全owner解放を検査する。1 batch目をwarm-up baselineとし、終了後RSS/FD/threadの現在値とhigh-waterを固定サイズJSONへ記録する。既定の回帰budgetはRSS +256 MiB、FD +2、thread +4であり、承認済み性能SLAやVRAM leak判定ではない。30分/VRAM/遅いconsumerの全体受入れとは区別する。
+
 ## 11. Security
 
 Status: `PROPOSED`

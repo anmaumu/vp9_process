@@ -91,6 +91,27 @@ GPU補足（TEST-GPU-003/004/006/014/019/020）:
 - `mkvc_intel_import_contract`: runtime refcount>1、Locked>0、GetRefCounter不足/失敗でretireしないことをunit検証する。保持上限64のfault注入は追加検証項目。
 - `mkvc_python_intel_opencl_roundtrip`: Linux Intel decode→外部OpenCL luma反転/UV中立化→VA共有import→VP9 encode→CPU oracle。既定32 frames、MKVC_OPENCL_TEST_FRAMESで最大10000へ延長する。PTS/count/Y-PSNR>25 dB、import先が別surface・同じdisplay、owner先行GC、runtime入力参照の保持、終了時全owner解放、最大保持数<=65を検証する。CPU oracleは比較用の別経路であり、GPU処理中のhost転送と区別する。OpenCL側はshared image acquire→kernel→release→clFinishで明示同期する。独立driver trace、VRAM/RSSの長時間計測、30分soak、USM変換はこの試験の成功だけでは受入れ完了としない。
 
+コピー・耐久性の追加検証（TEST-GPU-013/014）:
+
+- `mkvc_gpu_copy_audit_report`: 全host transfer/map項目の検出時拒否、version/conflict/必須symbol/必要なkernel観測/負countの不正、report欠落時の古い合格結果の無効化、child PID不一致、timeout時のkill/reapをGPUなしで検査する。
+- `mkvc_gpu_copy_audit_selftest`: Linux glibc x86-64の独立audit moduleとfake libraryで全14 APIを各1回呼び、RTLD_LOCAL/dlsym、extension pointer、整数/pointer戻り値を検証する。意図的なhost transfer/mapをpositive gateが拒否することを確認する。
+- `mkvc_intel_opencl_copy_audit`: 実機の外部OpenCL roundtripを独立観測する。watched host transfer/map 0回、kernel/acquire/release/vaDeriveImageの実観測、正しいreport/PID/schemaとbinding conflict 0を必須とする。missing report/timeoutは合格にしない。vaMapBuffer/vaMapBuffer2は未分類のまま残す。private driver/internal/vtable経路、byte数、GPU内copyは未検証であり、全体zero-copy受入れの代替にしない。
+- `mkvc_intel_opencl_soak_smoke`: 同一processで最低2 batchかつ2秒以上の開始・処理・終了を繰り返す。各batchでPTS/count/PSNR、全owner解放、owner peak<=65を検査する。warm-up後のRSS/FD/thread増分budgetは+256 MiB/+2/+4。固定サイズJSONは進捗、baseline/high-water/last、終了statusを保持する。短時間回帰用のbudgetであり性能SLAではない。
+- `MKVC_OPENCL_SOAK_SECONDS`は0（既定の単発）から86400まで、`MKVC_OPENCL_TEST_FRAMES`は1..10000。`MKVC_OPENCL_SOAK_REPORT`で結果保存先を指定する。長時間試験はCTest smokeとは別に実行し、要求時間未達・timeout・failed/not_completedを合格として扱わない。VRAM、pool枯渇、遅いconsumer、複数streamは別途検証が必要。
+
+Linux Intel buildを準備し、CTestでCPU VP9 fixtureを生成した後の30分実行例:
+
+```sh
+MKVC_REQUIRE_INTEL_EXTERNAL_IMPORT=1 MKVC_OPENCL_TEST_FRAMES=240 \
+MKVC_OPENCL_SOAK_SECONDS=1800 \
+MKVC_OPENCL_SOAK_REPORT=build/intel/intel_opencl_soak_30m.json \
+timeout 35m python3 tests/python_intel_opencl_roundtrip.py \
+  build/intel/libmkvcodec.so build/intel python build/intel/cpu_vp9_test.webm
+```
+
+この実行例を記載したことは30分試験の実施済みを意味しない。実測結果は
+`docs/implementation-status.md`に分けて記録する。
+
 ### 1.4 CPU Frame Interoperability
 
 | ID | Test requirement | Level | Environment |

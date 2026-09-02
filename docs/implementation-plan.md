@@ -105,6 +105,9 @@
 - [ ] Windows Intel D3D11 decode→external processing→encode hardware qualification
 - [x] retain imported oneVPL wrappers/original VA owners through runtime input references; safe bounded retirement and teardown order
 - [x] Linux external OpenCL VP9 roundtrip with 10000-frame repetition and owner-retention bound
+- [x] Linux glibc exported-API copy audit with GPU-free injected-transfer selftest and real OpenCL observations (driver internals remain unqualified)
+- [x] configurable same-process OpenCL soak with bounded JSON, owner/FD/thread/RSS gates; 60-second qualification
+- [ ] 30-minute soak, VRAM growth, slow-consumer and complete driver-internal copy qualification
 - [ ] VA pending real-workload/race, missing-symbol loader fault injection and independent trace qualification
 - [ ] strict GPU-resident policy and export/import edge copy-path trace
 - [x] Python CuPy contiguous-NV12 DLPack processed-resource import/export hardware qualification

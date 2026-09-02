@@ -24,6 +24,11 @@ GPU decode→external export→外部処理→import→encode、native handle、
 
 Go/No-Go条件は`AC-GPU-001`および`TEST-GPU-001..020`を正とする。性能値だけではzero-copyを証明せず、API trace、CUDA event、oneVPL/D3D11/VA同期、CPU transfer counterを併用する。
 
+RISK-GPU-010/011の追加対策: Linux公開APIの独立LD_AUDIT観測には
+意図的transfer/map注入selftestとreport欠落/binding conflictのfail-closed gateを置く。
+未bind/private driver経路は未検証のまま残す。同一processの反復試験ではowner全解放と
+post-close RSS/FD/thread増分を計測するが、60秒の合格を30分/VRAM受入れへ代用しない。
+
 D3D11 fenceはproducer側でSignal/dispatchを済ませ、値を巻き戻さない。未dispatchの
 fenceは永久pendingになり得るため、libraryのbounded waitで検出し、最終release前には
 producerを完了させる。device removalはterminal failureへ変換する。Intel imported

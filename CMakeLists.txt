@@ -192,6 +192,8 @@ if(MKVC_BUILD_TESTS)
     endif()
     target_compile_definitions(mkvcodec PRIVATE MKVC_ENABLE_TEST_HOOKS=1)
     if(Python3_Interpreter_FOUND)
+        add_test(NAME mkvc_gpu_copy_audit_report
+            COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_gpu_copy_audit.py")
         add_test(NAME mkvc_compliance_source
             COMMAND "${Python3_EXECUTABLE}"
                 "${CMAKE_CURRENT_SOURCE_DIR}/tools/compliance_gate.py" source)
@@ -225,6 +227,26 @@ if(MKVC_BUILD_TESTS)
         target_compile_options(mkvc_gpu_frame_test PRIVATE -UNDEBUG)
     endif()
     add_test(NAME mkvc_gpu_frame COMMAND mkvc_gpu_frame_test)
+
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SIZEOF_VOID_P EQUAL 8)
+        include(CheckCSourceCompiles)
+        check_c_source_compiles("#include <features.h>
+            #if !defined(__GLIBC__) || !defined(__x86_64__)
+            #error unsupported audit platform
+            #endif
+            int main(void) { return 0; }" MKVC_HAS_GLIBC_AUDIT)
+        if(MKVC_HAS_GLIBC_AUDIT AND Python3_Interpreter_FOUND)
+            add_library(mkvc_gpu_copy_audit MODULE tests/gpu_copy_audit.c)
+            target_compile_features(mkvc_gpu_copy_audit PRIVATE c_std_11)
+            target_compile_options(mkvc_gpu_copy_audit PRIVATE -Wall -Wextra -Werror)
+            add_library(mkvc_gpu_copy_audit_mock MODULE tests/gpu_copy_audit_mock.c)
+            add_test(NAME mkvc_gpu_copy_audit_selftest
+                COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_gpu_copy_audit.py"
+                    --audit "$<TARGET_FILE:mkvc_gpu_copy_audit>"
+                    --self-test "$<TARGET_FILE:mkvc_gpu_copy_audit_mock>")
+            set_tests_properties(mkvc_gpu_copy_audit_selftest PROPERTIES TIMEOUT 30)
+        endif()
+    endif()
 
     if(WIN32)
         add_executable(mkvc_d3d11_fence_test tests/d3d11_fence_test.cpp)
@@ -455,6 +477,26 @@ if(MKVC_BUILD_TESTS)
                         "${CMAKE_CURRENT_SOURCE_DIR}/python" "${MKVC_VP9_TEST_OUTPUT}")
                 set_tests_properties(mkvc_python_intel_opencl_roundtrip PROPERTIES
                     FIXTURES_REQUIRED cpu_vp9_sample SKIP_RETURN_CODE 77 TIMEOUT 60)
+                add_test(NAME mkvc_intel_opencl_soak_smoke
+                    COMMAND "${Python3_EXECUTABLE}"
+                        "${CMAKE_CURRENT_SOURCE_DIR}/tests/python_intel_opencl_roundtrip.py"
+                        "$<TARGET_FILE:mkvcodec>" "$<TARGET_FILE_DIR:mkvc_python_dlpack>"
+                        "${CMAKE_CURRENT_SOURCE_DIR}/python" "${MKVC_VP9_TEST_OUTPUT}")
+                set_tests_properties(mkvc_intel_opencl_soak_smoke PROPERTIES
+                    FIXTURES_REQUIRED cpu_vp9_sample SKIP_RETURN_CODE 77 TIMEOUT 60
+                    ENVIRONMENT "MKVC_OPENCL_SOAK_SECONDS=2;MKVC_OPENCL_TEST_FRAMES=32;MKVC_OPENCL_SOAK_REPORT=${CMAKE_CURRENT_BINARY_DIR}/intel_opencl_soak_smoke.json")
+                if(TARGET mkvc_gpu_copy_audit)
+                    add_test(NAME mkvc_intel_opencl_copy_audit
+                        COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_gpu_copy_audit.py"
+                            --audit "$<TARGET_FILE:mkvc_gpu_copy_audit>"
+                            --report "${CMAKE_CURRENT_BINARY_DIR}/intel_opencl_copy_audit.json"
+                            -- "${Python3_EXECUTABLE}"
+                            "${CMAKE_CURRENT_SOURCE_DIR}/tests/python_intel_opencl_roundtrip.py"
+                            "$<TARGET_FILE:mkvcodec>" "$<TARGET_FILE_DIR:mkvc_python_dlpack>"
+                            "${CMAKE_CURRENT_SOURCE_DIR}/python" "${MKVC_VP9_TEST_OUTPUT}")
+                    set_tests_properties(mkvc_intel_opencl_copy_audit PROPERTIES
+                        FIXTURES_REQUIRED cpu_vp9_sample SKIP_RETURN_CODE 77 TIMEOUT 100)
+                endif()
             endif()
         endif()
     endif()

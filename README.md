@@ -206,6 +206,11 @@ flushしてから再試行します。Linuxでは外部OpenCLの画像反転→V
 検証していますが、これは検証用kernelであり製品内の画像処理機能ではありません。
 OpenCL image共有をUSM/DLPack共有とは扱わず、driver内部のcopyは別途trace対象です。
 
+Linux glibc環境ではCTestの`mkvc_intel_opencl_copy_audit`で公開APIのCPU転送を
+独立監査し、`mkvc_intel_opencl_soak_smoke`で同一process内の反復とowner/RSS/FDを
+確認できます。監視対象APIの0件はdriver内部のzero-copy証明とは別です。
+長時間実行の指定と合否条件は[GPU検証項目](docs/test-spec/test-requirements.md)を参照してください。
+
 ```python
 import cupy as cp
 
