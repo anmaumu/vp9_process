@@ -74,8 +74,9 @@ bool verify_output(const char* path, uint32_t width, uint32_t height) {
 }
 
 int main(int argc, char** argv) {
-    if ((argc != 2 && argc != 3) || !std::filesystem::exists(argv[1]))
+    if ((argc != 2 && argc != 3 && argc != 4) || !std::filesystem::exists(argv[1]))
         return unavailable("Intel GPU input fixture is missing");
+    const bool native_va_sync = argc == 4;
     mkvc_decoder_config config{};
     config.struct_size = sizeof(config);
     config.struct_version = 1;
@@ -140,22 +141,23 @@ int main(int argc, char** argv) {
     }
 
     mkvc_gpu_frame* imported = nullptr;
-    if (argc == 3) {
+    if (argc >= 3) {
         mkvc_gpu_external_frame_config external{};
         external.struct_size = sizeof(external);
         external.struct_version = 1;
         external.frame = desc;
         external.native_handle = native;
         external.release = release_source;
-        external.query = query_source;
+        external.query = native_va_sync ? nullptr : query_source;
         external.user_data = frame;
         if (mkvc_gpu_frame_retain(frame) != MKVC_OK) {
             mkvc_gpu_frame_release(frame);
             mkvc_decoder_destroy(decoder);
             return 3;
         }
-        const mkvc_result imported_result =
-            mkvc_gpu_frame_import_external(&external, &imported);
+        const mkvc_result imported_result = native_va_sync
+            ? mkvc_gpu_frame_import_va_surface(&external, &imported)
+            : mkvc_gpu_frame_import_external(&external, &imported);
         if (imported_result != MKVC_OK) {
             std::cerr << mkvc_get_last_error() << " desc=(" << desc.width
                       << 'x' << desc.height << ", planes=" << desc.plane_count
@@ -168,7 +170,8 @@ int main(int argc, char** argv) {
             mkvc_gpu_frame_release(frame);
             mkvc_gpu_frame_release(frame);
             mkvc_decoder_destroy(decoder);
-            return 3;
+            return imported_result == MKVC_ERROR_NOT_SUPPORTED
+                ? unavailable("native VA synchronization unavailable") : 3;
         }
     }
 
@@ -219,7 +222,8 @@ int main(int argc, char** argv) {
             mkvc_gpu_frame_release(frame);
             return unavailable(message.c_str());
         }
-        bool valid = written == MKVC_OK && queries >= 3 && releases == 0;
+        bool valid = written == MKVC_OK &&
+            (native_va_sync || queries >= 3) && releases == 0;
 #if !defined(_WIN32)
         // A mismatching display must be rejected before dereferencing or
         // passing the deliberately invalid test display to a vendor function.

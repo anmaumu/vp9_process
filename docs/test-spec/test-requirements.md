@@ -58,7 +58,7 @@ profile: test-spec@1.0
 | `TEST-GPU-001` | retain/release/export lease中のnative resource非再利用とreleased/generation不一致access拒否 | concurrency/sanitizer | Intel/NVIDIA |
 | `TEST-GPU-002` | producer/複数consumer completion順序を全順列で変え、最後のcompletion後だけpoolへ戻る | deterministic concurrency | Intel/NVIDIA |
 | `TEST-GPU-003` | CUDA context/device、D3D11 device、VA display不一致と別process handle使用を拒否 | negative/hardware | Windows/Linux GPU |
-| `TEST-GPU-004` | device-wide syncなしでconsumer stream/fence dependencyが正しく待機する | trace/race | Intel/NVIDIA |
+| `TEST-GPU-004` | device-wide syncなしでconsumer stream/fence dependencyが正しく待機する。VA adapterはfake ABIでtimeout_ns=0、pending→timeout→ready、success/failure固定、UNIMPLEMENTED/一般error、library寿命を検証する。実機native importはsurface単位同期とencodeを確認するが、pending実負荷や独立traceの証明とは分ける | unit/hardware/trace/race | Intel/NVIDIA |
 | `TEST-GPU-005` | NV12/P010のplane offset、pitch、alignment、D3D11 subresource、VA surface、CUDA pointer/CUarray descriptorをguard付き検証 | hardware | Intel/NVIDIA |
 | `TEST-GPU-006` | Intel oneVPL decode→native export→外部resource import→encodeをCPU Mapなしで実行し、PTS/order/golden decodeを検証 | end-to-end/trace | Windows D3D11/Linux VA-API Intel |
 | `TEST-GPU-007` | NVIDIA NVDEC→NVENCをDtoH/HtoDなしで実行し、map/register/unmap lifetime、PTS/order/golden decodeを検証 | end-to-end/trace | NVIDIA |
@@ -74,7 +74,16 @@ profile: test-spec@1.0
 | `TEST-GPU-017` | .NET strict Capture `ReadSurface`→Writer `WriteSurface`でlease解放順、frame数、PTS、`zero_copy` metricsを検証する | end-to-end/hardware | .NET Intel/NVIDIA |
 | `TEST-GPU-018` | C ABI copy policyのsize/version/conflict、初回frame後変更、queue/prefetch制約を検証 | ABI/unit | CPU/Intel |
 | `TEST-GPU-019` | CUDA pointer/CUarray、D3D11 texture、VA surface importのdevice/layout/completionを検証し、encode完了後だけrelease callbackを一度呼ぶ。mock resourceでcallback順序・invalid layoutを常時CI検証し、CUDA eventと実CUarrayはcontextをpopした状態からquery/waitする。Intelはmemory interface 1.0/1.1を受理し、未知major/null functionを拒否するunit回帰を行う。same-display/video-memory shared import実機で8 frames、flush/rebind、producer待機、別display拒否、最初のownerのflush/closeまでの保持、CPU再decodeのPTS/count/PSNRを検証する。通常CIではcapability不足をskipし、`MKVC_REQUIRE_INTEL_EXTERNAL_IMPORT=1`では失敗させる | unit/hardware/lifetime | common/Intel/NVIDIA |
-| `TEST-GPU-020` | Python importでnative owner holderのGC寿命、producer stream/event dependency、DLPack deleter所有権、未消費capsule、cancel/failure時cleanupを検証。同期済みCUDA pointer owner寿命は常時CI対象、native CUDA-event importはNVIDIA hardware対象 | Python/unit/hardware | common/NVIDIA/対応Intel |
+| `TEST-GPU-020` | Python importでnative owner holderのGC寿命、producer stream/event dependency、DLPack deleter所有権、未消費capsule、cancel/failure時cleanupを検証。同期済みCUDA pointer/VA surface owner寿命とVA ID範囲・import失敗時holder解放は常時CI対象。native CUDA-event importはNVIDIA hardware対象。Linux native VA Python経路はcapture先行close、4 framesのstrict encode、writer保持中owner生存・close後GC、CPU再decodeのcount/shape/画素変化を実機検証する | Python/unit/hardware | common/NVIDIA/対応Intel |
+
+`TEST-GPU-019`のVA native同期補足: `mkvc_intel_va_surface_sync`はnative VA importで
+8 frames、flush/rebind、device/display不一致、owner解放順、CPU再decodeのPTS/count/PSNRを
+確認する。`mkvc_gpu_frame`はquery非null、無効surface、非Intel buildでの拒否と
+失敗時release callback非実行を検証する。surface ID 0は有効。symbol欠落/driver未実装では
+blocking fallbackしない。driver未実装はfakeで検証し、symbol欠落の動的loader fault注入は
+後続項目とする。実機試験は完了済みdecoder surfaceを用いるので、VA producerの実負荷での
+pending/race試験、OpenCL/SYCL kernel処理、外部API traceは別途必要。通常CIはcapability
+不足をskipし、`MKVC_REQUIRE_INTEL_EXTERNAL_IMPORT=1`ではnative/Pythonとも失敗させる。
 
 ### 1.4 CPU Frame Interoperability
 

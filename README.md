@@ -162,6 +162,30 @@ leaseまで保持されます。producer event付きDLPack exportではconsumer 
 検証も通過しています。CUDA arrayは`GpuFrame.import_cuda_array()`で取り込めますが、
 NVENC登録・encodeのpositive検証はAV1対応GPU待ちです。
 
+Linux IntelのNV12 VA surfaceは`mkvc_gpu_frame_import_va_surface()`、C++の
+`GpuFrame::import_va_surface()`、.NETの`MkvGpuFrame.ImportVaSurface()`、Pythonの
+`GpuFrame.import_va_surface()`で取り込めます。VAに投入済みの処理をsurface単位で
+非blockingに確認し、完了後にoneVPL共有importへ渡します。libva/driverが
+`vaSyncSurface2`を提供しない場合は`NOT_SUPPORTED`を返し、blocking同期やCPU copyへ
+切り替えません。OpenCL/SYCLの独立した書込みまでは同期しないので、その場合は
+外部APIで完了を待ってからPythonの`producer_synchronized=True`、またはC/C++/.NETの
+汎用importにproducer queryを指定します。
+
+```python
+frame = mkvcodec.GpuFrame.import_va_surface(
+    display=va_display, surface_id=va_surface_id, device_id=device_id,
+    frame_size=(width, height), owner=surface_owner,
+)
+writer.write_surface(frame)  # Intel + require_gpu_resident=True
+frame.close()
+```
+
+ownerはsurfaceとdisplayの両方を保持する必要があります。import後は新たな書込みを
+投入せず、ownerを明示的にcloseしないでください。encoderは最初の外部frameを
+flush/closeまでdevice寿命のため保持するので、pool容量に1 slot分を見込みます。
+Linux実機でnative/Python経路のencodeとowner解放順を確認済みです。Windows Intelの
+native fence同期と実機検証、Intel USM/DLPack変換は未完了です。
+
 ```python
 import cupy as cp
 

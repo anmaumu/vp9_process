@@ -7,7 +7,7 @@ GPU decode→external export→外部処理→import→encode、native handle、
 | `RISK-GPU-001` | completion前のsurface再利用による画像破損・use-after-free | producer/consumer completionとexternal leaseを再利用条件にする | TEST-GPU-001, TEST-GPU-002 |
 | `RISK-GPU-002` | release、unmap、unregisterの二重実行または循環参照 | generation、single-owner cleanup、idempotent terminal state | TEST-GPU-002, TEST-GPU-012 |
 | `RISK-GPU-003` | CUDA context/device、D3D11 device、VA display不一致 | device identityをdescriptorに含めsubmit/export時に検証 | TEST-GPU-003 |
-| `RISK-GPU-004` | producer未完了のresourceを別stream/APIが読むrace | completion dependencyをconsumer stream/fenceへ挿入 | TEST-GPU-004, TEST-GPU-009 |
+| `RISK-GPU-004` | producer未完了のresourceを別stream/APIが読むrace | completion dependencyをconsumer stream/fenceへ挿入。Linux VAはvaSyncSurface2(timeout=0)でsurface単位pollし、非対応時は失敗する。OpenCL/SYCLの独立した書込みは対象外で、別途producer query/外部同期が必要 | TEST-GPU-004, TEST-GPU-009 |
 | `RISK-GPU-005` | DLPack deleterとPython GC競合、interpreter shutdown crash | deleterがnative leaseのみ保持しPython callbackへ依存しない | TEST-GPU-009, TEST-GPU-010 |
 | `RISK-GPU-006` | texture/VA surfaceをlinear USM/CUDA pointerと誤表現 | memory type別descriptor、表現不能なDLPack exportを拒否 | TEST-GPU-005, TEST-GPU-009 |
 | `RISK-GPU-007` | NVDEC mapped frameを早期unmap、NVENC登録resourceを早期解除 | completion付きslotにmap/register lifetimeを束縛 | TEST-GPU-007 |
@@ -19,7 +19,7 @@ GPU decode→external export→外部処理→import→encode、native handle、
 | `RISK-GPU-013` | export/import境界で色metadata/PTS消失 | immutable metadata伝播と境界assert | TEST-GPU-008 |
 | `RISK-GPU-014` | native handleを利用者がlease後も保持して破損 | borrowed/export-lease API分離とreleased access拒否 | TEST-GPU-001, TEST-GPU-003 |
 | `RISK-GPU-015` | imported resourceのrelease callbackを早期または二重実行 | submissionがownerをencode completionまでretainしsingle-shot cleanup | TEST-GPU-019, TEST-GPU-020 |
-| `RISK-GPU-016` | 外部producer completion未指定・誤contextでencodeが未完成resourceを読む | completion必須化、device/context検証、stream/fence dependency挿入 | TEST-GPU-004, TEST-GPU-019, TEST-GPU-020 |
+| `RISK-GPU-016` | 外部producer completion未指定・誤contextでencodeが未完成resourceを読む | completion必須化、device/context検証、stream/fence dependency挿入。VA import後の追加producer投入は禁止し、最初の成功/失敗を固定してconsumerを誤って再待機しない。Pythonのproducer_synchronized=Trueは呼出側の外部同期完了宣言とする | TEST-GPU-004, TEST-GPU-019, TEST-GPU-020 |
 | `RISK-GPU-017` | submission中に外部resourceを変更し画像破損 | mutation禁止期間をcompletionまでとしdebug generation/owner検査 | TEST-GPU-019, TEST-GPU-020 |
 
 Go/No-Go条件は`AC-GPU-001`および`TEST-GPU-001..020`を正とする。性能値だけではzero-copyを証明せず、API trace、CUDA event、oneVPL/D3D11/VA同期、CPU transfer counterを併用する。

@@ -1,6 +1,7 @@
 #include "gpu_frame.hpp"
 #include "gpu_frame_pool.hpp"
 #include "intel_native_handle.hpp"
+#include "va_completion.hpp"
 #include "nvidia_native_handle.hpp"
 
 #include <cassert>
@@ -12,6 +13,13 @@
 thread_local std::string mkvc_last_error;
 
 namespace {
+struct VaProbe { int result = mkvc::gpu::intel::kVaTimedOut; unsigned calls = 0; };
+int fake_va_sync(void* display, unsigned int surface, uint64_t timeout_ns) {
+    assert(surface == 0 && timeout_ns == 0);
+    auto& probe = *static_cast<VaProbe*>(display);
+    ++probe.calls;
+    return probe.result;
+}
 struct TestDLDevice { int32_t type; int32_t id; };
 struct TestDLDataType { uint8_t code; uint8_t bits; uint16_t lanes; };
 struct TestDLTensor {
@@ -38,6 +46,38 @@ void release_external(void* opaque) {
 }
 
 int main() {
+    {
+        using namespace mkvc::gpu::intel;
+        VaProbe probe;
+        std::string error;
+        auto owner = std::make_shared<int>(1);
+        std::weak_ptr<int> weak_owner = owner;
+        auto completion = make_va_surface_completion(&probe, 0, fake_va_sync, owner);
+        owner.reset();
+        assert(!weak_owner.expired());
+        assert(completion->wait(0, error) == MKVC_ERROR_TIMEOUT);
+        assert(completion->query(error) == MKVC_GPU_COMPLETION_PENDING);
+        probe.result = kVaSuccess;
+        assert(completion->wait(10, error) == MKVC_OK);
+        const auto calls = probe.calls;
+        probe.result = 1;
+        assert(completion->query(error) == MKVC_GPU_COMPLETION_COMPLETE);
+        assert(probe.calls == calls); // Do not wait on later consumer work.
+        completion.reset();
+        assert(weak_owner.expired());
+        probe.result = kVaUnimplemented;
+        completion = make_va_surface_completion(&probe, 0, fake_va_sync);
+        assert(completion->wait(0, error) == MKVC_ERROR_NOT_SUPPORTED);
+        probe.result = kVaSuccess;
+        assert(completion->query(error) == MKVC_GPU_COMPLETION_FAILED);
+        completion = make_va_surface_completion(&probe, UINT32_MAX, fake_va_sync);
+        assert(completion->wait(0, error) == MKVC_ERROR_INVALID_ARGUMENT);
+        completion = make_va_surface_completion(&probe, 0, nullptr);
+        assert(completion->wait(0, error) == MKVC_ERROR_INVALID_ARGUMENT);
+        probe.result = 1;
+        completion = make_va_surface_completion(&probe, 0, fake_va_sync);
+        assert(completion->wait(0, error) == MKVC_ERROR_CODEC);
+    }
     mkvc_gpu_frame_desc desc{};
     desc.struct_size = sizeof(desc);
     desc.struct_version = 1;
@@ -215,6 +255,18 @@ int main() {
     external_config.frame.memory_type = MKVC_GPU_MEMORY_VA_SURFACE;
     external_config.native_handle.type = MKVC_GPU_NATIVE_VA_SURFACE;
     external_config.native_handle.handles[0] = 0x55550000;
+    external_config.native_handle.handles[1] = 17;
+    // This isolated unit target intentionally has no Intel runtime enabled.
+    assert(mkvc_gpu_frame_import_va_surface(&external_config, &external_frame) ==
+           MKVC_ERROR_NOT_SUPPORTED);
+    assert(external_frame == nullptr && external_state.releases.load() == 2);
+    external_config.query = query_external;
+    assert(mkvc_gpu_frame_import_va_surface(&external_config, &external_frame) ==
+           MKVC_ERROR_INVALID_ARGUMENT);
+    external_config.query = nullptr;
+    external_config.native_handle.handles[1] = UINT32_MAX;
+    assert(mkvc_gpu_frame_import_va_surface(&external_config, &external_frame) ==
+           MKVC_ERROR_INVALID_ARGUMENT);
     external_config.native_handle.handles[1] = 17;
     assert(mkvc_gpu_frame_import_external(
         &external_config, &external_frame) == MKVC_OK);

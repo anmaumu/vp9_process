@@ -163,6 +163,7 @@ AV1 decode: supported GPU backend -> libaom -> error
 - `EXT-GPU-007`: NVIDIA GPU frameからCUDA device pointerまたはCUarray、pitch、CUDA context/device、producer stream/eventをborrowed viewとして取得できる。
 - `EXT-GPU-008`: PythonではIntel USM対応経路およびNVIDIA CUDA対応経路をDLPack protocolで受け渡しでき、consumer指定streamへ正しいdependencyを設定する。
 - `EXT-GPU-009`: CUDA pointer/CUarray、D3D11 texture、VA surface、対応時USM/DLPackのimport APIはresource owner、layout、device/context、producer completion、release callbackを受け取る。
+  Linux Intel NV12 VA surfaceは`mkvc_gpu_frame_import_va_surface`でVAに投入済みのproducer処理をnative同期できる。query callbackはnull必須。C++/Python/.NETにも同等入口を公開する。surface ID 0は有効、`UINT32_MAX`は無効とし、ownerはdisplayとsurfaceの両方を最終leaseまで保持する。未対応platform/build、libva symbol不足、driver未実装は`NOT_SUPPORTED`で失敗し、失敗時にowner/release callbackの所有権を受け取らない。import後の追加書込みは禁止。VA同期はOpenCL/SYCL等の独立した処理を保証せず、汎用producer queryまたは明示的な外部同期を必要とする。Pythonの`producer_synchronized=True`は利用者がその同期を完了した場合だけ許可する。
 - `EXT-GPU-010`: `require_gpu_resident=True`、`allow_gpu_copy`、`allow_cpu_copy`をdecode/export/import/encode全体へ適用し、edge別copy-pathとfallback理由を返す。
 
 C/C++/C#利用者はversioned `mkvc_copy_policy`を作成直後に
@@ -312,6 +313,7 @@ mkvc_encoder_cancel();
 mkvc_gpu_frame_get_native_handle();
 mkvc_gpu_frame_import_external();
 mkvc_gpu_frame_import_cuda_event();
+mkvc_gpu_frame_import_va_surface();
 mkvc_encoder_write_gpu_frame();
 mkvc_gpu_frame_query_completion();
 mkvc_gpu_frame_wait();
@@ -387,7 +389,7 @@ Status: `PROPOSED`
 | `AC-FRAME-001` | Surface lease中の再利用がなく、release後accessを拒否する | EXT-FRAME-001..005 |
 | `AC-CPUINT-001` | CPU frameのborrowed export/importがpointer/shape/stride、lease、completion、strict copy policyを満たし、GPU→NumPy copyを明示する | EXT-FRAME-006..012 |
 | `AC-ZC-001` | zero-copy対応経路をtraceで証明し、require時に降格しない | EXT-FRAME-003..004 |
-| `AC-GPU-001` | Intel/NVIDIAでdecode→export→外部処理→import→encodeがGPU-resident契約、lease/completion、native/DLPack interop、copy policyを満たす | EXT-GPU-001..010 |
+| `AC-GPU-001` | Intel/NVIDIAでdecode→export→外部処理→import→encodeがGPU-resident契約、lease/completion、native/DLPack interop、copy policyを満たす。Linux VA native同期の部分受入れはpending/timeout/terminal failure、非対応時のfail-closed、native/Python実機encode、owner寿命を検証する。これだけでWindows fence、USM/DLPack、外部kernelや独立traceの全体受入れ完了とはしない | EXT-GPU-001..010 |
 | `AC-PROC-001` | CPU owned frame向け5種の便利処理が幾何・色metadata契約どおり動作し、GPU処理はinteropへ案内される | EXT-PROC-001..008 |
 | `AC-ABI-001` | C/C#/Pythonから同じCoreのcreate/read-write/destroyが成立する | EXT-ABI-001..005, EXT-CS-001..004 |
 | `AC-ERR-001` | 全失敗でexception leak、double free、resource leakがない | EXT-ERR-001..006 |

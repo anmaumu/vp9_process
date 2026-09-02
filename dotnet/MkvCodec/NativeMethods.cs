@@ -160,6 +160,10 @@ internal static class NativeMethods
         ref NativeGpuExternalFrameConfig config, out MkvGpuFrameHandle frame);
 
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern MkvResult mkvc_gpu_frame_import_va_surface(
+        ref NativeGpuExternalFrameConfig config, out MkvGpuFrameHandle frame);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
     internal static extern MkvResult mkvc_gpu_frame_import_cuda_event(
         ref NativeGpuExternalFrameConfig config, out MkvGpuFrameHandle frame);
 }

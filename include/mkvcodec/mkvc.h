@@ -535,6 +535,20 @@ MKVC_API mkvc_result mkvc_gpu_frame_import_external(
     mkvc_gpu_frame** out_frame);
 
 /**
+ * Import an Intel NV12 VA surface using nonblocking vaSyncSurface2 polling.
+ * Linux Intel builds only; missing library/function/driver support is rejected
+ * without a blocking fallback. native_handle.handles=(VADisplay, VASurfaceID).
+ * query must be NULL. Submit all VA producer operations before import and do not
+ * modify the surface until consumers finish. This synchronizes VA work only:
+ * arbitrary OpenCL/SYCL writes require a separate explicit completion contract.
+ * The owner must keep display and surface valid through final release. Failure
+ * does not transfer ownership or invoke the release callback.
+ */
+MKVC_API mkvc_result mkvc_gpu_frame_import_va_surface(
+    const mkvc_gpu_external_frame_config* config,
+    mkvc_gpu_frame** out_frame);
+
+/**
  * Import an NVIDIA CUDA-pointer frame whose producer dependency is represented
  * by native_handle.handles[3] (CUevent). The event is queried in the supplied
  * CUDA context without a device-wide synchronization. The event and context

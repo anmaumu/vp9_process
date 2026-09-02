@@ -99,7 +99,9 @@
 - [x] external CUDA CUarray/linear-DLPack import with producer event/deleter ownership（CUarray NVENC positive encodeはAV1対応GPU待ち）
 - [x] external D3D11 texture and VA surface oneVPL shared-import adapter with owner retention and copy rejection
 - [x] external Intel callback producer wait, display ownership and VP9 encode/flush/lease qualification on memory interface 1.0
-- [ ] external Intel native producer fence/VA-sync dependency and Windows hardware qualification
+- [x] Linux external VA native completion polling (`vaSyncSurface2`) and C/C++/Python/.NET import API; native/Python VP9 hardware qualification
+- [ ] external Intel D3D11 native producer fence and Windows hardware qualification
+- [ ] VA pending real-workload/race, missing-symbol loader fault injection and independent trace qualification
 - [ ] strict GPU-resident policy and export/import edge copy-path trace
 - [x] Python CuPy contiguous-NV12 DLPack processed-resource import/export hardware qualification
 - [ ] Python CuPy/CUarray processed-resource→NVENC positive encode qualification on an AV1-capable GPU

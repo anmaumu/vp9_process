@@ -64,6 +64,14 @@
       "source": "https://github.com/numpy/numpy",
       "distribution": "dependency",
       "required_notices": []
+    },
+    {
+      "name": "libva",
+      "version": "runtime-selected (vaSyncSurface2 required)",
+      "license": "MIT",
+      "source": "https://github.com/intel/libva",
+      "distribution": "dependency",
+      "required_notices": []
     }
   ]
 }

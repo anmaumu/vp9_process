@@ -56,6 +56,7 @@ add_library(mkvcodec SHARED
     src/gpu/gpu_frame_pool.cpp
     src/gpu/dlpack_adapter.cpp
     src/gpu/intel/intel_native_handle.cpp
+    src/gpu/intel/va_completion.cpp
     src/gpu/nvidia/nvidia_native_handle.cpp
     src/encoder_session.cpp
     src/cpu_av1_encoder.cpp
@@ -111,7 +112,7 @@ if(MKVC_ENABLE_INTEL_ONEVPL)
         MKVC_HAS_INTEL_ONEVPL=1 ONEVPL_EXPERIMENTAL=1)
     target_include_directories(mkvcodec PRIVATE ${LIBWEBM_COMPAT_INCLUDE_DIR})
     target_link_libraries(mkvcodec PRIVATE
-        VPL::dispatcher unofficial::libwebm::libwebm yuv)
+        VPL::dispatcher unofficial::libwebm::libwebm yuv ${CMAKE_DL_LIBS})
     if(WIN32)
         target_compile_definitions(mkvcodec PRIVATE NOMINMAX)
     endif()
@@ -210,6 +211,7 @@ if(MKVC_BUILD_TESTS)
         src/gpu/gpu_frame_pool.cpp
         src/gpu/dlpack_adapter.cpp
         src/gpu/intel/intel_native_handle.cpp
+        src/gpu/intel/va_completion.cpp
         src/gpu/nvidia/nvidia_native_handle.cpp)
     target_compile_features(mkvc_gpu_frame_test PRIVATE cxx_std_17)
     target_compile_definitions(mkvc_gpu_frame_test PRIVATE MKVC_BUILDING_LIBRARY=1)
@@ -341,6 +343,7 @@ if(MKVC_BUILD_TESTS)
                 tests/nvidia_gpu_test_support.cpp
                 src/nvidia_webm_decoder.cpp src/nvidia_probe.cpp
                 src/gpu/gpu_frame.cpp src/gpu/gpu_frame_pool.cpp
+                src/gpu/intel/va_completion.cpp
                 src/gpu/nvidia/cuda_completion.cpp
                 src/gpu/nvidia/nvidia_native_handle.cpp)
             target_compile_features(mkvc_nvidia_webm_decoder_test PRIVATE cxx_std_17)
@@ -418,6 +421,23 @@ if(MKVC_BUILD_TESTS)
                 "${CMAKE_CURRENT_BINARY_DIR}/intel_external_va_import.webm")
         set_tests_properties(mkvc_intel_gpu_surface PROPERTIES
             FIXTURES_REQUIRED cpu_vp9_sample SKIP_RETURN_CODE 77)
+        if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+            add_test(NAME mkvc_intel_va_surface_sync
+                COMMAND mkvc_intel_gpu_surface_test "${MKVC_VP9_TEST_OUTPUT}"
+                    "${CMAKE_CURRENT_BINARY_DIR}/intel_native_va_sync.webm" native-va)
+            set_tests_properties(mkvc_intel_va_surface_sync PROPERTIES
+                FIXTURES_REQUIRED cpu_vp9_sample SKIP_RETURN_CODE 77 TIMEOUT 30)
+            if(TARGET mkvc_python_dlpack AND MKVC_BUILD_PYTHON_TESTS)
+                add_test(NAME mkvc_python_intel_va_import
+                    COMMAND "${Python3_EXECUTABLE}"
+                        "${CMAKE_CURRENT_SOURCE_DIR}/tests/python_intel_va_import.py"
+                        "$<TARGET_FILE:mkvcodec>"
+                        "$<TARGET_FILE_DIR:mkvc_python_dlpack>"
+                        "${CMAKE_CURRENT_SOURCE_DIR}/python" "${MKVC_VP9_TEST_OUTPUT}")
+                set_tests_properties(mkvc_python_intel_va_import PROPERTIES
+                    FIXTURES_REQUIRED cpu_vp9_sample SKIP_RETURN_CODE 77 TIMEOUT 30)
+            endif()
+        endif()
     endif()
 
     if(MKVC_BUILD_PYTHON_TESTS)

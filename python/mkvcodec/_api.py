@@ -362,6 +362,68 @@ class GpuFrame:
         self._closed = False
 
     @classmethod
+    def import_va_surface(
+        cls, *, display: int, surface_id: int, device_id: int,
+        frame_size: tuple[int, int], owner: object, pts_ns: int = -1,
+        producer_synchronized: bool = False,
+    ) -> "GpuFrame":
+        """Import an Intel NV12 VA surface, retaining its owner until release.
+
+        By default Linux uses nonblocking ``vaSyncSurface2`` polling. Submit all
+        VA producer work before import; this cannot synchronize arbitrary SYCL
+        or OpenCL writes. Use ``producer_synchronized=True`` only after external
+        synchronization has completed. Do not explicitly close the owner while
+        this lease or its encoder remains alive. The encoder retains its first
+        imported owner through flush/close to preserve the borrowed VA display.
+        """
+        if _dlpack is None:
+            raise RuntimeError("VA import requires the mkvcodec stable-ABI extension")
+        if owner is None:
+            raise ValueError("VA import requires a resource owner")
+        if not isinstance(frame_size, tuple) or len(frame_size) != 2:
+            raise ValueError("frame_size must contain width and height")
+        width, height = frame_size
+        if any(not isinstance(value, int) for value in
+               (display, surface_id, device_id, width, height, pts_ns)):
+            raise ValueError("VA import descriptors must be integers")
+        if (not 0 < display <= 0xFFFFFFFFFFFFFFFF or
+                not 0 <= surface_id < 0xFFFFFFFF or
+                not 0 <= device_id <= 0xFFFFFFFFFFFFFFFF or
+                not 0 < width <= 0xFFFFFFFF or not 0 < height <= 0xFFFFFFFF or
+                width & 1 or height & 1 or
+                not -0x8000000000000000 <= pts_ns <= 0x7FFFFFFFFFFFFFFF):
+            raise ValueError("VA import descriptor is invalid")
+        generation = next(_external_gpu_generations)
+        config = native.GpuExternalFrameConfig()
+        config.struct_size, config.struct_version = ct.sizeof(config), 1
+        desc = config.frame
+        desc.struct_size, desc.struct_version = ct.sizeof(desc), 1
+        desc.backend = native.MKVC_BACKEND_INTEL
+        desc.memory_type = native.MKVC_GPU_MEMORY_VA_SURFACE
+        desc.device_id, desc.generation = device_id, generation
+        desc.pixel_format = native.MKVC_PIXEL_FORMAT_NV12
+        desc.width, desc.height, desc.plane_count = width, height, 2
+        desc.pts = pts_ns
+        handle_desc = config.native_handle
+        handle_desc.struct_size, handle_desc.struct_version = ct.sizeof(handle_desc), 1
+        handle_desc.type = native.MKVC_GPU_NATIVE_VA_SURFACE
+        handle_desc.borrowed = 1
+        handle_desc.device_id, handle_desc.generation = device_id, generation
+        handle_desc.handles[0], handle_desc.handles[1] = display, surface_id
+        user_data, release = _dlpack.external_owner_create(owner)
+        config.user_data, config.release = user_data, release
+        result_handle = native.GpuFrameHandle()
+        try:
+            importer = (native.lib.mkvc_gpu_frame_import_external
+                        if producer_synchronized
+                        else native.lib.mkvc_gpu_frame_import_va_surface)
+            native.check(importer(ct.byref(config), ct.byref(result_handle)))
+        except Exception:
+            _dlpack.external_owner_cancel(user_data)
+            raise
+        return cls(result_handle)
+
+    @classmethod
     def import_cuda_pointer(
         cls, *, pointer: int, context: int, device_id: int,
         frame_size: tuple[int, int], pitch: int, owner: object,

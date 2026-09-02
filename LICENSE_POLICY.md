@@ -126,6 +126,7 @@ Intelのlibvpl Dispatcher/APIとvpl-gpu-rtはMITで公開されている。copyr
 
 - `libvpl` Dispatcherはversionと依存を固定した上でwheel/NuGetへの同梱候補とする。
 - Intel GPU runtime、media driver、OS graphics componentsは同梱しない。
+- Linux native VA同期はhostの`libva.so.2`/`vaSyncSurface2`をruntime loadする。libvaはMITのsystem dependencyとしてmanifest/SBOMへ記録し、wheel/NuGetへbinaryやvendor headerを同梱しない。利用者のdriverがentry pointを実装しない場合は非対応とする。将来同梱へ変更する場合は別途notice・依存license・再配布を再レビューする。
 - systemにあるruntimeをDispatcher経由で検出する。
 - `Intel`, `oneVPL`のlogoを使用せず、対応backend名としてplain textで正確に記載する。
 - Intelによる認定・推奨を示唆しない。
@@ -336,4 +337,3 @@ names and marks are the property of their respective owners.
 5. NVIDIA adapterは `nv-codec-headers` のみでclean implementationする。
 6. release artifact inspection testをCIへ追加する。
 7. 商用公開前にAOM/VP9 patent条項と対象国について専門家レビューを受ける。
-

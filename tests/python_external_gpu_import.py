@@ -23,6 +23,46 @@ class Owner:
 
 
 owner = Owner()
+va_owner_ref = weakref.ref(owner)
+va_frame = mkvcodec.GpuFrame.import_va_surface(
+    display=0x1000, surface_id=0, device_id=0, frame_size=(64, 48),
+    owner=owner, producer_synchronized=True)
+del owner
+gc.collect()
+assert va_owner_ref() is not None
+assert va_frame.native_handle["handles"][:2] == (0x1000, 0)
+va_frame.close()
+gc.collect()
+assert va_owner_ref() is None
+for invalid_surface in (-1, 0xFFFFFFFF, 0x100000000):
+    try:
+        mkvcodec.GpuFrame.import_va_surface(
+            display=0x1000, surface_id=invalid_surface, device_id=0,
+            frame_size=(64, 48), owner=Owner(), producer_synchronized=True)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("invalid VA surface ID was accepted")
+
+# A native import failure must cancel the holder without retaining its owner.
+from unittest.mock import patch
+owner = Owner()
+failed_va_owner = weakref.ref(owner)
+with patch.object(api.native.lib, "mkvc_gpu_frame_import_va_surface", return_value=3):
+    try:
+        mkvcodec.GpuFrame.import_va_surface(
+            display=0x1000, surface_id=0, device_id=0,
+            frame_size=(64, 48), owner=owner)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("native VA error was swallowed")
+del owner
+gc.collect()
+assert failed_va_owner() is None
+
+
+owner = Owner()
 owner_ref = weakref.ref(owner)
 frame = mkvcodec.GpuFrame.import_cuda_pointer(
     pointer=0x1000,

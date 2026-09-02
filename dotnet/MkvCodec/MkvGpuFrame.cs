@@ -27,7 +27,25 @@ public sealed class MkvGpuFrame : IDisposable
         MkvGpuNativeHandleDescriptor nativeHandle,
         object owner,
         Func<bool>? producerReady = null,
-        Action<object>? release = null)
+        Action<object>? release = null) =>
+        ImportExternalCore(descriptor, nativeHandle, owner, producerReady, release, false);
+
+    /// <summary>
+    /// Imports a Linux Intel VA surface with native vaSyncSurface2 polling.
+    /// Covers VA-submitted work only; submit all producer work before calling.
+    /// Keep the display/surface valid until the retained owner is released.
+    /// Unsupported platforms or drivers fail without blocking fallback.
+    /// </summary>
+    public static MkvGpuFrame ImportVaSurface(
+        MkvGpuFrameDescriptor descriptor,
+        MkvGpuNativeHandleDescriptor nativeHandle,
+        object owner,
+        Action<object>? release = null) =>
+        ImportExternalCore(descriptor, nativeHandle, owner, null, release, true);
+
+    private static unsafe MkvGpuFrame ImportExternalCore(
+        MkvGpuFrameDescriptor descriptor, MkvGpuNativeHandleDescriptor nativeHandle,
+        object owner, Func<bool>? producerReady, Action<object>? release, bool vaSync)
     {
         ArgumentNullException.ThrowIfNull(owner);
         if (descriptor.PlaneOffsets is null || descriptor.PlaneOffsets.Length != 4 ||
@@ -57,8 +75,11 @@ public sealed class MkvGpuFrame : IDisposable
         };
         try
         {
-            MkvCodecInfo.ThrowIfFailed(
-                NativeMethods.mkvc_gpu_frame_import_external(ref config, out var frame));
+            MkvGpuFrameHandle frame;
+            var result = vaSync
+                ? NativeMethods.mkvc_gpu_frame_import_va_surface(ref config, out frame)
+                : NativeMethods.mkvc_gpu_frame_import_external(ref config, out frame);
+            MkvCodecInfo.ThrowIfFailed(result);
             return new MkvGpuFrame(frame);
         }
         catch

@@ -1,4 +1,5 @@
 #include "gpu_frame.hpp"
+#include "intel/va_completion.hpp"
 
 #if defined(MKVC_HAS_NVIDIA)
 #include "nvidia/cuda_completion.hpp"
@@ -409,6 +410,39 @@ mkvc_result mkvc_gpu_frame_import_external(
     } catch (...) {
         return gpu_fail(MKVC_ERROR_INTERNAL,
                         "unknown external GPU frame import failure");
+    }
+}
+
+mkvc_result mkvc_gpu_frame_import_va_surface(
+    const mkvc_gpu_external_frame_config* config,
+    mkvc_gpu_frame** out_frame) {
+    mkvc_last_error.clear();
+    if (out_frame != nullptr) *out_frame = nullptr;
+    if (config == nullptr || out_frame == nullptr ||
+        config->struct_size < sizeof(*config) || config->struct_version != 1) {
+        return gpu_fail(MKVC_ERROR_INVALID_ARGUMENT, "invalid VA surface import configuration");
+    }
+    try {
+        std::string error;
+        if (!valid_external_layout(*config, error))
+            return gpu_fail(MKVC_ERROR_INVALID_ARGUMENT, std::move(error));
+        if (config->frame.backend != MKVC_BACKEND_INTEL ||
+            config->frame.memory_type != MKVC_GPU_MEMORY_VA_SURFACE ||
+            config->native_handle.type != MKVC_GPU_NATIVE_VA_SURFACE ||
+            config->query != nullptr) {
+            return gpu_fail(MKVC_ERROR_INVALID_ARGUMENT,
+                "native VA import requires Intel VA surface and no producer callback");
+        }
+        std::shared_ptr<mkvc::gpu::Completion> producer;
+        const auto result = mkvc::gpu::intel::load_va_surface_completion(
+            config->native_handle.handles[0], config->native_handle.handles[1],
+            producer, error);
+        if (result != MKVC_OK) return gpu_fail(result, std::move(error));
+        return import_external_with_completion(*config, std::move(producer), out_frame);
+    } catch (const std::exception& exception) {
+        return gpu_fail(MKVC_ERROR_INTERNAL, exception.what());
+    } catch (...) {
+        return gpu_fail(MKVC_ERROR_INTERNAL, "unknown native VA surface import failure");
     }
 }
 

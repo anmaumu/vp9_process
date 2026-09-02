@@ -28,6 +28,8 @@ MKVC_PIXEL_FORMAT_BGRA32 = 5
 MKVC_PIXEL_FORMAT_P010 = 6
 MKVC_GPU_MEMORY_CUDA_POINTER = 3
 MKVC_GPU_MEMORY_CUDA_ARRAY = 4
+MKVC_GPU_MEMORY_VA_SURFACE = 2
+MKVC_GPU_NATIVE_VA_SURFACE = 2
 MKVC_GPU_NATIVE_CUDA_POINTER = 3
 MKVC_GPU_NATIVE_CUDA_ARRAY = 4
 MKVC_FRAME_FIT_STRETCH = 0
@@ -321,6 +323,10 @@ lib.mkvc_gpu_frame_import_external.argtypes = [
     ct.POINTER(GpuExternalFrameConfig), ct.POINTER(GpuFrameHandle)
 ]
 lib.mkvc_gpu_frame_import_external.restype = ct.c_int
+lib.mkvc_gpu_frame_import_va_surface.argtypes = [
+    ct.POINTER(GpuExternalFrameConfig), ct.POINTER(GpuFrameHandle)
+]
+lib.mkvc_gpu_frame_import_va_surface.restype = ct.c_int
 lib.mkvc_gpu_frame_import_cuda_event.argtypes = [
     ct.POINTER(GpuExternalFrameConfig), ct.POINTER(GpuFrameHandle)
 ]

@@ -11,6 +11,48 @@
 - GitHub Actions builds strict MkDocs HTML and stores `mkvcodec-documentation` for 30 days.
 - GitHub Pages publication remains disabled until an explicit public-release decision.
 
+## 2026-09-02: Linux native VA producer completion and Python import
+
+Status: `PARTIAL` (Linux VA slice implemented; cross-platform GPU interop remains partial)
+
+Added `mkvc_gpu_frame_import_va_surface`, C++ `GpuFrame::import_va_surface`,
+Python `GpuFrame.import_va_surface`, and .NET `MkvGpuFrame.ImportVaSurface`.
+Linux Intel builds load the host's `libva.so.2` and poll the individual surface
+through `vaSyncSurface2(timeout_ns=0)`. Pending work remains pending; terminal
+success/failure is latched so later queries do not accidentally wait for encoder
+consumer work. Missing entry points and driver UNIMPLEMENTED fail closed, with
+no blocking `vaSyncSurface` or CPU-copy fallback. libva is recorded as an external
+MIT runtime dependency in the manifest/SBOM, not bundled into wheel/NuGet.
+
+The owner retains both display and surface; failed imports do not acquire owner
+ownership or invoke its release callback. VA ID 0 is valid and UINT32_MAX is not.
+All producer work must be submitted before import. Native VA polling covers
+VA-submitted work only, not independent OpenCL/SYCL writes. Those require a
+producer query or explicit external synchronization (`producer_synchronized=True`
+in Python). The first external frame still anchors the encoder display until
+flush/close, reserving one pool slot.
+
+Validation on `linux-machine`: **22/22 CTests passed**, no skip, with
+`MKVC_REQUIRE_INTEL_EXTERNAL_IMPORT=1`. New native synchronization E2E checks
+eight VP9 frames, flush/rebind, mismatched display rejection, ownership, and
+CPU-decoded count/PTS/luma PSNR. New Python E2E checks four frames, capture-first
+close, owner retention through writer close, final GC, strict copy-path metrics,
+and decoded frame shape/pixel variation. Deterministic tests cover pending,
+timeout, success/failure latching, driver UNIMPLEMENTED, invalid arguments,
+library keepalive and failed-import owner cleanup. As before, the optional CPU
+AV1 reference decoder is disabled in this Linux build; Intel AV1 tests still run.
+
+Windows NVIDIA regression: **20 passed, 1 expected skip** (RTX 2060 lacks AV1
+NVENC). This includes .NET build/smoke and native/Python negative VA import tests.
+Docgen validation passes. Windows does not claim positive VA or Intel hardware
+qualification. Hardware VA tests use completed decoder surfaces: actual pending
+VA workloads/races, missing-symbol loader fault injection, external processing
+kernels and independent driver/API traces remain to qualify. D3D11 native fences,
+Intel USM/DLPack and positive NVIDIA AV1 encode remain separate unfinished work.
+
+Traceability: EXT-GPU-003/004/009 -> INT-GPU-004/005/007/017 ->
+AC-GPU-001 / TEST-GPU-004/019/020; risks RISK-GPU-004/016/017.
+
 ## 2026-09-02: Intel external shared-surface import qualification
 
 Status: `PARTIAL`
@@ -26,8 +68,9 @@ the resource's VA display (or D3D11 device), requests only shared import, and
 rejects a different device/display before vendor submission. CPU/direct input
 must be flushed before changing to external input. The first external frame is
 retained as a device lifetime anchor until flush/close; applications must allow
-one retained pool slot. Native producer fences/VA completion adapters remain
-pending; the existing producer query callback is waited before import.
+one retained pool slot. At this checkpoint the existing producer query callback
+was waited before import; the subsequent native VA completion slice is recorded
+above. Windows native producer fences remain pending.
 
 On `linux-machine`, runtime 25.4/API 2.15/interface 1.0 now passes VP9 external VA
 import -> encode -> CPU decode: eight frames, flush/rebind, delayed producer query,

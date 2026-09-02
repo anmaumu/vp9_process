@@ -123,6 +123,16 @@ try
         Handles = [0x1000, 0x2000, 0, 0]
     };
     bool externalReady = false;
+    try
+    {
+        using var invalidVa = MkvGpuFrame.ImportVaSurface(
+            externalDescriptor, externalHandle, new object(),
+            release: _ => ++externalReleases);
+        throw new InvalidOperationException("VA import accepted a CUDA descriptor");
+    }
+    catch (MkvCodecException error) when (error.Result == MkvResult.InvalidArgument) { }
+    if (externalReleases != 0)
+        throw new InvalidOperationException("Failed VA import transferred ownership");
     using (MkvGpuFrame imported = MkvGpuFrame.ImportExternal(
         externalDescriptor, externalHandle, new object(),
         producerReady: () => externalReady,
