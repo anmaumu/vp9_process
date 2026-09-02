@@ -11,6 +11,70 @@
 - GitHub Actions builds strict MkDocs HTML and stores `mkvcodec-documentation` for 30 days.
 - GitHub Pages publication remains disabled until an explicit public-release decision.
 
+## 2026-09-02: D3D11 fences and real external OpenCL roundtrip
+
+Status: `PARTIAL` (D3D11 synchronization and Linux external processing qualified;
+Windows Intel encode, independent copy traces and Intel USM remain unfinished)
+
+Added native D3D11 fence import through the C ABI, C++ RAII, Python and .NET.
+The adapter validates matching NV12 texture dimensions, a single GPU-only
+subresource and canonical same-device COM identity. It retains texture/fence
+references, polls GetCompletedValue, latches terminal results and reports device
+removal as failure. The producer must Signal and dispatch its commands; the
+library does not Flush, Map, copy or perform a device-wide wait. This implements
+native host-side fence polling, not a GPU-queue dependency insertion.
+
+The Windows D3D11 hardware test passes pending/timeout/recovery, different-device
+rejection, invalid descriptors, same texture/fence identity, GPU CopyResource
+pixel verification and caller-first COM/owner release. The default 128 iterations
+and an additional **4096-iteration** run pass. The readback oracle is test-only.
+This validates D3D11 on the available Windows GPU, not Intel oneVPL encode.
+
+Linux now has a real external-producer test: oneVPL VP9 decode -> OpenCL shared
+VA images -> luma inversion/neutral chroma in another VA surface -> explicit
+OpenCL release/finish -> Python synchronized VA import -> oneVPL VP9 encode.
+CPU reference decoding checks count, increasing PTS and luma PSNR > 25 dB.
+OpenCL code and kernels exist only under tests, not in the shipped library.
+
+This test exposed a real ownership defect: an output SyncPoint did not imply
+that the runtime had released all references to the imported input. Destroying
+successive caller-allocated VA surfaces caused crashes/hangs. The encoder now
+holds the imported wrapper and an actual owner lease until GetRefCounter=1 and
+Data.Locked=0, then releases the wrapper before its original resource. During
+close, its wrapper references are released before component shutdown, while
+original owners survive through session/loader teardown. Retention is capped at
+64 wrappers; exceeding it returns WOULD_BLOCK and requires flush/retry. Unknown
+refcount state is retained rather than guessed safe. The existing first-frame
+device anchor remains. Deterministic tests cover refcount/Locked/error decisions.
+[Intel surface lifetime contract](https://github.com/intel/libvpl/blob/v2.14.0/doc/surface_sharing_apis_overview.md#reference-counting-and-release-of-imported-surfaces)
+
+Validation: Linux **23/23 CTests pass**, with required Intel external import.
+The default external OpenCL test is 32 frames; additional 240-frame and
+**10000-frame** runs pass. In the 10000-frame run the owner peak is **5**, all
+10000 owners are released after close, and runtime is about 22 seconds. This is
+a repetition test, not 30-minute soak, a VRAM/RSS leak proof or an approved
+performance baseline. Windows regression passes **21 tests with 1 expected
+RTX 2060 AV1 NVENC skip**. The Intel encoder TU also compiles with MSVC /W4 /WX
+using the oneVPL headers; this does not substitute for Windows Intel hardware.
+
+Copy qualification is partial: producer code does not map/read/write host pixel
+buffers, VA import requests shared-only, and the library encoder metric reports
+zero_copy. The external kernel intentionally writes a separate GPU allocation;
+that is not an identity-preserving in-place operation. Driver-internal copying
+still requires independent trace evidence. Missing-symbol/fence/refcount-limit
+fault injection, real device removal and long-run shutdown stress remain open.
+
+Intel USM feasibility: linux-machine advertises both OpenCL VA media sharing and
+unified shared memory, but the former exports images, not linear USM pointers.
+The presence of both extensions does not establish a no-copy image/USM bridge
+or a USM-to-oneVPL encoder path. USM/DLPack support is **not advertised or
+implemented**; its allocation identity, layout, context and synchronization
+contract remains the next implementation prerequisite. Existing native image
+sharing is available without misrepresenting it as a tensor.
+
+Traceability: EXT-GPU-003/004/006/009 -> INT-GPU-004/006/007/011/017 ->
+AC-GPU-001 / TEST-GPU-003/004/006/014/019/020; RISK-GPU-008/011/016.
+
 ## 2026-09-02: Linux native VA producer completion and Python import
 
 Status: `PARTIAL` (Linux VA slice implemented; cross-platform GPU interop remains partial)

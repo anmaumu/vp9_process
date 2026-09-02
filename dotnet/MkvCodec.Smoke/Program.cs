@@ -133,6 +133,16 @@ try
     catch (MkvCodecException error) when (error.Result == MkvResult.InvalidArgument) { }
     if (externalReleases != 0)
         throw new InvalidOperationException("Failed VA import transferred ownership");
+    try
+    {
+        using var invalidD3D = MkvGpuFrame.ImportD3D11Fence(
+            externalDescriptor, externalHandle, new object(),
+            release: _ => ++externalReleases);
+        throw new InvalidOperationException("D3D11 import accepted a CUDA descriptor");
+    }
+    catch (MkvCodecException error) when (error.Result == MkvResult.InvalidArgument) { }
+    if (externalReleases != 0)
+        throw new InvalidOperationException("Failed D3D11 import transferred ownership");
     using (MkvGpuFrame imported = MkvGpuFrame.ImportExternal(
         externalDescriptor, externalHandle, new object(),
         producerReady: () => externalReady,

@@ -529,6 +529,9 @@ MKVC_API mkvc_result mkvc_gpu_frame_get_native_handle(
  * and is retained until encoder flush/close to keep the borrowed device alive.
  * Flush before switching an existing CPU/direct-input sequence to external input
  * or changing the device/display. Reserve pool capacity for this retained frame.
+ * Additional imported owners remain retained until the runtime releases its
+ * input references (not merely until an output SyncPoint completes). At 64
+ * outstanding imported wrappers, write returns WOULD_BLOCK; flush to drain.
  */
 MKVC_API mkvc_result mkvc_gpu_frame_import_external(
     const mkvc_gpu_external_frame_config* config,
@@ -545,6 +548,23 @@ MKVC_API mkvc_result mkvc_gpu_frame_import_external(
  * does not transfer ownership or invoke the release callback.
  */
 MKVC_API mkvc_result mkvc_gpu_frame_import_va_surface(
+    const mkvc_gpu_external_frame_config* config,
+    mkvc_gpu_frame** out_frame);
+
+/**
+ * Import an Intel NV12 D3D11 texture with a native producer fence on Windows.
+ * handles=(ID3D11Texture2D*, 0, ID3D11Fence*, target value). The texture must be
+ * GPU-only, single-subresource and match frame dimensions; fence and texture
+ * must belong to the same device. target is 1..UINT64_MAX-1; query must be NULL.
+ * Submit producer work then Signal(target) on its immediate context before
+ * import; the producer must ensure commands are dispatched (e.g. Flush).
+ * Do not rewind/reuse the target or modify the texture until consumers finish.
+ * Polls only this fence; does not Flush, Map, copy or synchronize the device.
+ * COM references are retained through the frame lease; the release callback
+ * still governs the supplied owner. Failed imports do not acquire ownership.
+ * Encoder support is separately gated by oneVPL capabilities.
+ */
+MKVC_API mkvc_result mkvc_gpu_frame_import_d3d11_fence(
     const mkvc_gpu_external_frame_config* config,
     mkvc_gpu_frame** out_frame);
 

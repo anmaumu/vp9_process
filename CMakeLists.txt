@@ -57,6 +57,7 @@ add_library(mkvcodec SHARED
     src/gpu/dlpack_adapter.cpp
     src/gpu/intel/intel_native_handle.cpp
     src/gpu/intel/va_completion.cpp
+    src/gpu/intel/d3d11_completion.cpp
     src/gpu/nvidia/nvidia_native_handle.cpp
     src/encoder_session.cpp
     src/cpu_av1_encoder.cpp
@@ -212,6 +213,7 @@ if(MKVC_BUILD_TESTS)
         src/gpu/dlpack_adapter.cpp
         src/gpu/intel/intel_native_handle.cpp
         src/gpu/intel/va_completion.cpp
+        src/gpu/intel/d3d11_completion.cpp
         src/gpu/nvidia/nvidia_native_handle.cpp)
     target_compile_features(mkvc_gpu_frame_test PRIVATE cxx_std_17)
     target_compile_definitions(mkvc_gpu_frame_test PRIVATE MKVC_BUILDING_LIBRARY=1)
@@ -223,6 +225,15 @@ if(MKVC_BUILD_TESTS)
         target_compile_options(mkvc_gpu_frame_test PRIVATE -UNDEBUG)
     endif()
     add_test(NAME mkvc_gpu_frame COMMAND mkvc_gpu_frame_test)
+
+    if(WIN32)
+        add_executable(mkvc_d3d11_fence_test tests/d3d11_fence_test.cpp)
+        target_compile_features(mkvc_d3d11_fence_test PRIVATE cxx_std_17)
+        target_compile_definitions(mkvc_d3d11_fence_test PRIVATE NOMINMAX)
+        target_link_libraries(mkvc_d3d11_fence_test PRIVATE mkvcodec d3d11)
+        add_test(NAME mkvc_d3d11_fence COMMAND mkvc_d3d11_fence_test)
+        set_tests_properties(mkvc_d3d11_fence PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 60)
+    endif()
 
     if(MKVC_ENABLE_CPU_VP9 OR MKVC_ENABLE_CPU_AV1 OR
        MKVC_ENABLE_INTEL_ONEVPL OR MKVC_ENABLE_NVIDIA)
@@ -344,6 +355,7 @@ if(MKVC_BUILD_TESTS)
                 src/nvidia_webm_decoder.cpp src/nvidia_probe.cpp
                 src/gpu/gpu_frame.cpp src/gpu/gpu_frame_pool.cpp
                 src/gpu/intel/va_completion.cpp
+                src/gpu/intel/d3d11_completion.cpp
                 src/gpu/nvidia/cuda_completion.cpp
                 src/gpu/nvidia/nvidia_native_handle.cpp)
             target_compile_features(mkvc_nvidia_webm_decoder_test PRIVATE cxx_std_17)
@@ -436,6 +448,13 @@ if(MKVC_BUILD_TESTS)
                         "${CMAKE_CURRENT_SOURCE_DIR}/python" "${MKVC_VP9_TEST_OUTPUT}")
                 set_tests_properties(mkvc_python_intel_va_import PROPERTIES
                     FIXTURES_REQUIRED cpu_vp9_sample SKIP_RETURN_CODE 77 TIMEOUT 30)
+                add_test(NAME mkvc_python_intel_opencl_roundtrip
+                    COMMAND "${Python3_EXECUTABLE}"
+                        "${CMAKE_CURRENT_SOURCE_DIR}/tests/python_intel_opencl_roundtrip.py"
+                        "$<TARGET_FILE:mkvcodec>" "$<TARGET_FILE_DIR:mkvc_python_dlpack>"
+                        "${CMAKE_CURRENT_SOURCE_DIR}/python" "${MKVC_VP9_TEST_OUTPUT}")
+                set_tests_properties(mkvc_python_intel_opencl_roundtrip PROPERTIES
+                    FIXTURES_REQUIRED cpu_vp9_sample SKIP_RETURN_CODE 77 TIMEOUT 60)
             endif()
         endif()
     endif()

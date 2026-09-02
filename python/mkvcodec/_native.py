@@ -29,6 +29,8 @@ MKVC_PIXEL_FORMAT_P010 = 6
 MKVC_GPU_MEMORY_CUDA_POINTER = 3
 MKVC_GPU_MEMORY_CUDA_ARRAY = 4
 MKVC_GPU_MEMORY_VA_SURFACE = 2
+MKVC_GPU_MEMORY_D3D11_TEXTURE = 1
+MKVC_GPU_NATIVE_D3D11_TEXTURE = 1
 MKVC_GPU_NATIVE_VA_SURFACE = 2
 MKVC_GPU_NATIVE_CUDA_POINTER = 3
 MKVC_GPU_NATIVE_CUDA_ARRAY = 4
@@ -327,6 +329,10 @@ lib.mkvc_gpu_frame_import_va_surface.argtypes = [
     ct.POINTER(GpuExternalFrameConfig), ct.POINTER(GpuFrameHandle)
 ]
 lib.mkvc_gpu_frame_import_va_surface.restype = ct.c_int
+lib.mkvc_gpu_frame_import_d3d11_fence.argtypes = [
+    ct.POINTER(GpuExternalFrameConfig), ct.POINTER(GpuFrameHandle)
+]
+lib.mkvc_gpu_frame_import_d3d11_fence.restype = ct.c_int
 lib.mkvc_gpu_frame_import_cuda_event.argtypes = [
     ct.POINTER(GpuExternalFrameConfig), ct.POINTER(GpuFrameHandle)
 ]

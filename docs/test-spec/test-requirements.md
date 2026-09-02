@@ -85,6 +85,12 @@ blocking fallbackしない。driver未実装はfakeで検証し、symbol欠落�
 pending/race試験、OpenCL/SYCL kernel処理、外部API traceは別途必要。通常CIはcapability
 不足をskipし、`MKVC_REQUIRE_INTEL_EXTERNAL_IMPORT=1`ではnative/Pythonとも失敗させる。
 
+GPU補足（TEST-GPU-003/004/006/014/019/020）:
+
+- `mkvc_d3d11_fence`: Windows hardwareでpending/timeout/recovery、同じadapter上の別device拒否、寸法/target/subresource不正、GPU CopyResourceのidentity/画素、caller-first COM解放、128回のowner single-releaseを確認する。長めの反復は実行引数4096で行う。MKVC_REQUIRE_D3D11_FENCE=1ではcapability不足を失敗にする。CPU readbackは試験oracleだけで行い、製品import内には持ち込まない。fake completionではdevice lossとterminal固定を検証する。
+- `mkvc_intel_import_contract`: runtime refcount>1、Locked>0、GetRefCounter不足/失敗でretireしないことをunit検証する。保持上限64のfault注入は追加検証項目。
+- `mkvc_python_intel_opencl_roundtrip`: Linux Intel decode→外部OpenCL luma反転/UV中立化→VA共有import→VP9 encode→CPU oracle。既定32 frames、MKVC_OPENCL_TEST_FRAMESで最大10000へ延長する。PTS/count/Y-PSNR>25 dB、import先が別surface・同じdisplay、owner先行GC、runtime入力参照の保持、終了時全owner解放、最大保持数<=65を検証する。CPU oracleは比較用の別経路であり、GPU処理中のhost転送と区別する。OpenCL側はshared image acquire→kernel→release→clFinishで明示同期する。独立driver trace、VRAM/RSSの長時間計測、30分soak、USM変換はこの試験の成功だけでは受入れ完了としない。
+
 ### 1.4 CPU Frame Interoperability
 
 | ID | Test requirement | Level | Environment |

@@ -28,7 +28,7 @@ public sealed class MkvGpuFrame : IDisposable
         object owner,
         Func<bool>? producerReady = null,
         Action<object>? release = null) =>
-        ImportExternalCore(descriptor, nativeHandle, owner, producerReady, release, false);
+        ImportExternalCore(descriptor, nativeHandle, owner, producerReady, release, 0);
 
     /// <summary>
     /// Imports a Linux Intel VA surface with native vaSyncSurface2 polling.
@@ -41,11 +41,25 @@ public sealed class MkvGpuFrame : IDisposable
         MkvGpuNativeHandleDescriptor nativeHandle,
         object owner,
         Action<object>? release = null) =>
-        ImportExternalCore(descriptor, nativeHandle, owner, null, release, true);
+        ImportExternalCore(descriptor, nativeHandle, owner, null, release, 1);
+
+    /// <summary>
+    /// Imports a Windows NV12 texture using native D3D11 fence polling.
+    /// Handles=(texture, 0, fence, target). Submit work then Signal and dispatch
+    /// the producer context before import. Do not rewind the fence or overwrite
+    /// the texture before consumers finish. COM references and owner are retained.
+    /// oneVPL encoder capability is checked separately from synchronization.
+    /// </summary>
+    public static MkvGpuFrame ImportD3D11Fence(
+        MkvGpuFrameDescriptor descriptor,
+        MkvGpuNativeHandleDescriptor nativeHandle,
+        object owner,
+        Action<object>? release = null) =>
+        ImportExternalCore(descriptor, nativeHandle, owner, null, release, 2);
 
     private static unsafe MkvGpuFrame ImportExternalCore(
         MkvGpuFrameDescriptor descriptor, MkvGpuNativeHandleDescriptor nativeHandle,
-        object owner, Func<bool>? producerReady, Action<object>? release, bool vaSync)
+        object owner, Func<bool>? producerReady, Action<object>? release, int syncKind)
     {
         ArgumentNullException.ThrowIfNull(owner);
         if (descriptor.PlaneOffsets is null || descriptor.PlaneOffsets.Length != 4 ||
@@ -76,9 +90,11 @@ public sealed class MkvGpuFrame : IDisposable
         try
         {
             MkvGpuFrameHandle frame;
-            var result = vaSync
-                ? NativeMethods.mkvc_gpu_frame_import_va_surface(ref config, out frame)
-                : NativeMethods.mkvc_gpu_frame_import_external(ref config, out frame);
+            var result = syncKind switch {
+                1 => NativeMethods.mkvc_gpu_frame_import_va_surface(ref config, out frame),
+                2 => NativeMethods.mkvc_gpu_frame_import_d3d11_fence(ref config, out frame),
+                _ => NativeMethods.mkvc_gpu_frame_import_external(ref config, out frame)
+            };
             MkvCodecInfo.ThrowIfFailed(result);
             return new MkvGpuFrame(frame);
         }

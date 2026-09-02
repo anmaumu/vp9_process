@@ -31,10 +31,21 @@ struct IntelVplEncoder::Impl {
         std::shared_ptr<gpu::ManualCompletion> input_completion;
         std::weak_ptr<gpu::GpuFrameCore> input_frame;
     };
+    struct ImportedInput {
+        mfxFrameSurface1* surface = nullptr;
+        mkvc_gpu_frame* owner = nullptr;
+        ~ImportedInput() {
+            // VA handles have no native refcount: destroy the imported wrapper
+            // before allowing the application to destroy its original surface.
+            if (surface) surface->FrameInterface->Release(surface);
+            mkvc_gpu_frame_release(owner);
+        }
+    };
     mfxLoader loader = nullptr;
     mfxSession session = nullptr;
     mfxVideoParam parameters{};
     std::deque<std::unique_ptr<Pending>> pending;
+    std::vector<std::unique_ptr<ImportedInput>> imported_inputs;
     size_t bitstream_capacity = 0;
 #endif
     uint32_t codec = 0;
@@ -68,6 +79,21 @@ IntelVplEncoder::~IntelVplEncoder() {
 namespace {
 
 constexpr mfxU32 kSyncWaitMs = 100;
+constexpr size_t kMaxImportedInputs = 64;
+
+void retire_imported_inputs(IntelVplEncoder::Impl& impl) {
+    auto& inputs = impl.imported_inputs;
+    for (auto it = inputs.begin(); it != inputs.end();) {
+        auto* surface = (*it)->surface;
+        // Output SyncPoint alone does not prove an imported surface is unused.
+        // Keep our reference while checking the runtime's remaining ownership.
+        if (gpu::intel::can_release_imported_surface(surface)) {
+            it = inputs.erase(it);
+        } else {
+            ++it;
+        }
+    }
+}
 
 uint32_t read_le32(const uint8_t* value) {
     return static_cast<uint32_t>(value[0]) |
@@ -152,6 +178,7 @@ mkvc_result collect_oldest(IntelVplEncoder::Impl& impl,
                 impl.session, pending->sync, kSyncWaitMs);
         } while (status == MFX_WRN_IN_EXECUTION);
         error = "injected Intel encoder device loss";
+        if (pending->input_completion) pending->input_completion->fail(error);
         return MKVC_ERROR_IO;
     }
 #endif
@@ -463,6 +490,7 @@ mkvc_result IntelVplEncoder::write_gpu_surface(
         error = "GPU frame is not a compatible Intel NV12 surface";
         return MKVC_ERROR_INVALID_ARGUMENT;
     }
+    retire_imported_inputs(impl);
     if (impl.external_device_owner != nullptr) {
         mkvc_gpu_native_handle_desc native{};
         if (frame->get_native_handle(native, error) != MKVC_OK)
@@ -495,8 +523,16 @@ mkvc_result IntelVplEncoder::write_gpu_surface(
         resource.object != nullptr) {
         surface = static_cast<mfxFrameSurface1*>(resource.object);
     } else {
+        if (impl.imported_inputs.size() >= kMaxImportedInputs) {
+            error = "Intel imported surface retention limit reached; flush before retrying";
+            return MKVC_WOULD_BLOCK;
+        }
+        auto input = std::make_unique<Impl::ImportedInput>();
         result = import_external_surface(impl, frame, surface, error);
         if (result != MKVC_OK) return result;
+        input->surface = surface;
+        input->owner = gpu::make_handle(frame);
+        impl.imported_inputs.push_back(std::move(input));
         imported = true;
     }
     const int64_t frame_pts = pts >= 0 ? pts : impl.next_pts;
@@ -506,7 +542,6 @@ mkvc_result IntelVplEncoder::write_gpu_surface(
     auto completion = std::make_shared<gpu::ManualCompletion>();
     result = submit_surface(impl, surface, error, completion, frame);
     surface->Data.TimeStamp = original_timestamp;
-    if (imported) surface->FrameInterface->Release(surface);
     if (result != MKVC_OK && result != MKVC_END_OF_STREAM) {
         completion->fail(error);
         return result;
@@ -523,6 +558,7 @@ mkvc_result IntelVplEncoder::write_gpu_surface(
     if (result == MKVC_OK && !impl.pending.empty()) {
         result = collect_oldest(impl, packets, error);
     }
+    if (imported) retire_imported_inputs(impl);
     if (result == MKVC_OK || result == MKVC_END_OF_STREAM) {
         impl.next_pts = std::max(impl.next_pts, frame_pts + 1);
         return MKVC_OK;
@@ -641,6 +677,12 @@ mkvc_result IntelVplEncoder::close(std::string& error) {
         }
     }
     impl_->pending.clear();
+    // Release our wrapper references while the component still exists. Keep
+    // original VA resources alive until runtime teardown drops its references.
+    for (auto& input : impl_->imported_inputs) {
+        input->surface->FrameInterface->Release(input->surface);
+        input->surface = nullptr;
+    }
     if (impl_->encoder_initialized) {
         MFXVideoENCODE_Close(impl_->session);
         impl_->encoder_initialized = false;
@@ -649,6 +691,7 @@ mkvc_result IntelVplEncoder::close(std::string& error) {
     if (impl_->loader != nullptr) MFXUnload(impl_->loader);
     impl_->session = nullptr;
     impl_->loader = nullptr;
+    impl_->imported_inputs.clear();
 #endif
     mkvc_gpu_frame_release(impl_->external_device_owner);
     impl_->external_device_owner = nullptr;

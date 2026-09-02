@@ -11,7 +11,7 @@ GPU decode→external export→外部処理→import→encode、native handle、
 | `RISK-GPU-005` | DLPack deleterとPython GC競合、interpreter shutdown crash | deleterがnative leaseのみ保持しPython callbackへ依存しない | TEST-GPU-009, TEST-GPU-010 |
 | `RISK-GPU-006` | texture/VA surfaceをlinear USM/CUDA pointerと誤表現 | memory type別descriptor、表現不能なDLPack exportを拒否 | TEST-GPU-005, TEST-GPU-009 |
 | `RISK-GPU-007` | NVDEC mapped frameを早期unmap、NVENC登録resourceを早期解除 | completion付きslotにmap/register lifetimeを束縛 | TEST-GPU-007 |
-| `RISK-GPU-008` | oneVPL decode/import surfaceをexternal/encode完了前にRelease | external leaseとencode SyncPoint完了までsurface refを保持 | TEST-GPU-006, TEST-GPU-019 |
+| `RISK-GPU-008` | output完成後もruntimeが入力を参照し、VA ownerの早期解放でcrash | imported wrapperと実owner leaseを保持しGetRefCounter=1かつLocked=0でwrapper→ownerの順に解放。closeはwrapper参照をcomponent Close前、元ownerをsession破棄後に解放 | TEST-GPU-006, TEST-GPU-019 |
 | `RISK-GPU-009` | driver reset/device lostでwaitが永久block | timeout、terminal failure伝播、全waiter wakeup | TEST-GPU-012 |
 | `RISK-GPU-010` | hidden CPU readback/fallbackで性能・契約違反 | operation単位のcopy traceとstrict policy gate | TEST-GPU-011, TEST-GPU-013 |
 | `RISK-GPU-011` | bounded pool枯渇によるdeadlockまたはVRAM増加 | backpressure、cancel wakeup、固定上限、soak計測。Intel external encoderはdevice lifetimeのため最初のframeをflush/closeまで保持するので、その1 slotをpool容量へ算入する。1-slot poolでの連続decode/importにはframeとは独立したdevice owner設計が必要 | TEST-GPU-014, TEST-GPU-019 |
@@ -23,6 +23,11 @@ GPU decode→external export→外部処理→import→encode、native handle、
 | `RISK-GPU-017` | submission中に外部resourceを変更し画像破損 | mutation禁止期間をcompletionまでとしdebug generation/owner検査 | TEST-GPU-019, TEST-GPU-020 |
 
 Go/No-Go条件は`AC-GPU-001`および`TEST-GPU-001..020`を正とする。性能値だけではzero-copyを証明せず、API trace、CUDA event、oneVPL/D3D11/VA同期、CPU transfer counterを併用する。
+
+D3D11 fenceはproducer側でSignal/dispatchを済ませ、値を巻き戻さない。未dispatchの
+fenceは永久pendingになり得るため、libraryのbounded waitで検出し、最終release前には
+producerを完了させる。device removalはterminal failureへ変換する。Intel imported
+wrapper保持は最大64とし、上限時にWOULD_BLOCK/flushで無制限増加を防ぐ。
 
 ## CPU borrowed/import risk
 

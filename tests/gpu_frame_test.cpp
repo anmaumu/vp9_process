@@ -2,6 +2,7 @@
 #include "gpu_frame_pool.hpp"
 #include "intel_native_handle.hpp"
 #include "va_completion.hpp"
+#include "d3d11_completion.hpp"
 #include "nvidia_native_handle.hpp"
 
 #include <cassert>
@@ -46,6 +47,30 @@ void release_external(void* opaque) {
 }
 
 int main() {
+    {
+        using mkvc::gpu::intel::make_d3d11_fence_completion;
+        uint64_t value = 0;
+        unsigned calls = 0;
+        auto query = [&] { ++calls; return value; };
+        auto completion = make_d3d11_fence_completion(7, query);
+        std::string error;
+        assert(completion->wait(0, error) == MKVC_ERROR_TIMEOUT);
+        value = 6;
+        assert(completion->query(error) == MKVC_GPU_COMPLETION_PENDING);
+        value = 8; // Fence may advance beyond the requested value.
+        assert(completion->wait(20, error) == MKVC_OK);
+        const auto completed_calls = calls;
+        value = UINT64_MAX;
+        assert(completion->query(error) == MKVC_GPU_COMPLETION_COMPLETE);
+        assert(calls == completed_calls);
+        completion = make_d3d11_fence_completion(7, query);
+        assert(completion->wait(0, error) == MKVC_ERROR_CODEC);
+        value = 8;
+        assert(completion->query(error) == MKVC_GPU_COMPLETION_FAILED);
+        assert(make_d3d11_fence_completion(0, query)->wait(0, error) == MKVC_ERROR_INVALID_ARGUMENT);
+        assert(make_d3d11_fence_completion(UINT64_MAX, query)->wait(0, error) == MKVC_ERROR_INVALID_ARGUMENT);
+        assert(make_d3d11_fence_completion(1, {})->wait(0, error) == MKVC_ERROR_INVALID_ARGUMENT);
+    }
     {
         using namespace mkvc::gpu::intel;
         VaProbe probe;

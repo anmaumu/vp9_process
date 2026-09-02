@@ -78,7 +78,8 @@
 - [x] oneVPL SyncPoint and NVIDIA CUDA event completion adapter foundations
 - [ ] connect completion adapters to decode/export/import/encode surface factories; add D3D11 fence/VA synchronization
 - [x] oneVPL video-memory surface wrapper with SyncPoint, native handle, pool lease and deferred Surface Release
-- [ ] Intel decode→external processing→resource import→encode shared-session pipeline (direct decode→encode is implemented on Linux)
+- [x] Linux Intel decode→external OpenCL image processing→VA shared import→encode synchronous pipeline
+- [ ] fully asynchronous external-resource pipeline and shared-session optimization
 - [x] Linux Intel oneVPL video-memory decode→`mkvc_decoder_read_gpu`→VA surface lease
 - [x] Linux Intel VP9/AV1 direct decode-surface→encode transcode qualification
 - [x] Python Intel `VideoCapture.read_surface()` descriptor/native-handle lease
@@ -100,7 +101,10 @@
 - [x] external D3D11 texture and VA surface oneVPL shared-import adapter with owner retention and copy rejection
 - [x] external Intel callback producer wait, display ownership and VP9 encode/flush/lease qualification on memory interface 1.0
 - [x] Linux external VA native completion polling (`vaSyncSurface2`) and C/C++/Python/.NET import API; native/Python VP9 hardware qualification
-- [ ] external Intel D3D11 native producer fence and Windows hardware qualification
+- [x] native D3D11 producer fence with C/C++/Python/.NET APIs; Windows hardware fence/copy/lifetime qualification
+- [ ] Windows Intel D3D11 decode→external processing→encode hardware qualification
+- [x] retain imported oneVPL wrappers/original VA owners through runtime input references; safe bounded retirement and teardown order
+- [x] Linux external OpenCL VP9 roundtrip with 10000-frame repetition and owner-retention bound
 - [ ] VA pending real-workload/race, missing-symbol loader fault injection and independent trace qualification
 - [ ] strict GPU-resident policy and export/import edge copy-path trace
 - [x] Python CuPy contiguous-NV12 DLPack processed-resource import/export hardware qualification

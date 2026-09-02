@@ -268,6 +268,13 @@ class GpuFrame {
         check(mkvc_gpu_frame_import_va_surface(&config, &frame));
         return GpuFrame(frame);
     }
+    /** Import a Windows D3D11 NV12 texture with a native producer fence. */
+    static GpuFrame import_d3d11_fence(
+        const mkvc_gpu_external_frame_config& config) {
+        mkvc_gpu_frame* frame = nullptr;
+        check(mkvc_gpu_frame_import_d3d11_fence(&config, &frame));
+        return GpuFrame(frame);
+    }
     ~GpuFrame() { reset(); }
     GpuFrame(const GpuFrame&) = delete;
     GpuFrame& operator=(const GpuFrame&) = delete;

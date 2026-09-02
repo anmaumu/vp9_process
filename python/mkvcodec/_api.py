@@ -362,6 +362,65 @@ class GpuFrame:
         self._closed = False
 
     @classmethod
+    def import_d3d11_texture(
+        cls, *, texture: int, fence: int, fence_value: int, device_id: int,
+        frame_size: tuple[int, int], owner: object, pts_ns: int = -1,
+    ) -> "GpuFrame":
+        """Import a Windows Intel NV12 texture with a native D3D11 fence.
+
+        Submit all producer work, Signal the target, and ensure command dispatch
+        before import. Texture and fence must belong to the same device. This
+        polls only the fence, retains COM references and the supplied owner, and
+        never performs a CPU copy. Do not rewind the fence or write the resource
+        until consumers finish. Only a single-subresource GPU-only NV12 texture
+        is accepted. oneVPL encoder capability is checked separately.
+        """
+        if _dlpack is None:
+            raise RuntimeError("D3D11 import requires the mkvcodec stable-ABI extension")
+        if owner is None:
+            raise ValueError("D3D11 import requires a resource owner")
+        if not isinstance(frame_size, tuple) or len(frame_size) != 2:
+            raise ValueError("frame_size must contain width and height")
+        width, height = frame_size
+        if any(not isinstance(value, int) for value in
+               (texture, fence, fence_value, device_id, width, height, pts_ns)):
+            raise ValueError("D3D11 import descriptors must be integers")
+        if (not 0 < texture <= 0xFFFFFFFFFFFFFFFF or
+                not 0 < fence <= 0xFFFFFFFFFFFFFFFF or
+                not 0 < fence_value < 0xFFFFFFFFFFFFFFFF or
+                not 0 <= device_id <= 0xFFFFFFFFFFFFFFFF or
+                not 0 < width <= 0xFFFFFFFF or not 0 < height <= 0xFFFFFFFF or
+                width & 1 or height & 1 or
+                not -0x8000000000000000 <= pts_ns <= 0x7FFFFFFFFFFFFFFF):
+            raise ValueError("D3D11 import descriptor is invalid")
+        generation = next(_external_gpu_generations)
+        config = native.GpuExternalFrameConfig()
+        config.struct_size, config.struct_version = ct.sizeof(config), 1
+        desc = config.frame
+        desc.struct_size, desc.struct_version = ct.sizeof(desc), 1
+        desc.backend = native.MKVC_BACKEND_INTEL
+        desc.memory_type = native.MKVC_GPU_MEMORY_D3D11_TEXTURE
+        desc.device_id, desc.generation = device_id, generation
+        desc.pixel_format = native.MKVC_PIXEL_FORMAT_NV12
+        desc.width, desc.height, desc.plane_count = width, height, 2
+        desc.pts = pts_ns
+        native_handle = config.native_handle
+        native_handle.struct_size, native_handle.struct_version = ct.sizeof(native_handle), 1
+        native_handle.type, native_handle.borrowed = native.MKVC_GPU_NATIVE_D3D11_TEXTURE, 1
+        native_handle.device_id, native_handle.generation = device_id, generation
+        native_handle.handles[:] = (texture, 0, fence, fence_value)
+        user_data, release = _dlpack.external_owner_create(owner)
+        config.user_data, config.release = user_data, release
+        result_handle = native.GpuFrameHandle()
+        try:
+            native.check(native.lib.mkvc_gpu_frame_import_d3d11_fence(
+                ct.byref(config), ct.byref(result_handle)))
+        except Exception:
+            _dlpack.external_owner_cancel(user_data)
+            raise
+        return cls(result_handle)
+
+    @classmethod
     def import_va_surface(
         cls, *, display: int, surface_id: int, device_id: int,
         frame_size: tuple[int, int], owner: object, pts_ns: int = -1,

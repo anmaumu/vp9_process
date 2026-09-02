@@ -160,9 +160,11 @@ AV1 decode: supported GPU backend -> libaom -> error
 - `EXT-GPU-004`: IntelではoneVPL decode surfaceをD3D11/VA-API/対応時USMとして外部libraryへexportし、外部処理済みresourceをoneVPL encodeへimportする。D3D11/VA importはmemory interface 1.0と互換minor revisionの`ImportFrameSurface`を使い、未公開function、未知major ABI、copy-only runtimeでは`NOT_SUPPORTED`を返す。最初の外部入力で同じdevice/displayのvideo-memory encoderへ紐づけ、既存CPU/direct sequenceからの切替やdevice/display変更にはflushを要求する。borrowed device保護のため最初の外部frameをflush/closeまで保持するので、利用者はその分のpool容量を確保する。
 - `EXT-GPU-005`: NVIDIAではNVDEC outputをCUDA/DLPackとして外部libraryへexportし、外部処理済みCUDA resourceをNVENCへimportする。
 - `EXT-GPU-006`: Intel GPU frameからWindows D3D11 texture/subresourceおよびLinux VA display/surfaceのborrowed native handleを取得できる。D3D11/VA resourceの所有権はlibraryに残す。
+  外部importの元ownerは、出力SyncPoint完了後もruntime入力参照がある間保持する。参照中のimport wrapperの上限は64とし、上限でwriteはWOULD_BLOCKを返す。呼出側はflushでdrainしてから再試行する。最初のdevice anchorの保持と合わせてpool容量を見積もる。
 - `EXT-GPU-007`: NVIDIA GPU frameからCUDA device pointerまたはCUarray、pitch、CUDA context/device、producer stream/eventをborrowed viewとして取得できる。
 - `EXT-GPU-008`: PythonではIntel USM対応経路およびNVIDIA CUDA対応経路をDLPack protocolで受け渡しでき、consumer指定streamへ正しいdependencyを設定する。
 - `EXT-GPU-009`: CUDA pointer/CUarray、D3D11 texture、VA surface、対応時USM/DLPackのimport APIはresource owner、layout、device/context、producer completion、release callbackを受け取る。
+  Windows D3D11 NV12の`mkvc_gpu_frame_import_d3d11_fence`はhandles=(texture, subresource=0, fence, target)を受け取り、targetは1..UINT64_MAX-1、queryはnull必須とする。同一device、GPU-only、single-subresource、寸法一致を検査しCOM参照を保持する。producerは処理後のSignalとcommand dispatchを完了させ、fenceの巻戻し/target再利用やconsumer完了前の書込みを禁止する。library側ではfence値のみpollし、Flush/Map/copy/device-wide waitを行わない。非WindowsはNOT_SUPPORTED、descriptor不正はINVALID_ARGUMENT、device removalはCODECとし、失敗時はownerを受け取らない。C++/Python/.NETに同等入口を設ける。oneVPL encoderの対応可否は同期の対応可否と独立に判定する。
   Linux Intel NV12 VA surfaceは`mkvc_gpu_frame_import_va_surface`でVAに投入済みのproducer処理をnative同期できる。query callbackはnull必須。C++/Python/.NETにも同等入口を公開する。surface ID 0は有効、`UINT32_MAX`は無効とし、ownerはdisplayとsurfaceの両方を最終leaseまで保持する。未対応platform/build、libva symbol不足、driver未実装は`NOT_SUPPORTED`で失敗し、失敗時にowner/release callbackの所有権を受け取らない。import後の追加書込みは禁止。VA同期はOpenCL/SYCL等の独立した処理を保証せず、汎用producer queryまたは明示的な外部同期を必要とする。Pythonの`producer_synchronized=True`は利用者がその同期を完了した場合だけ許可する。
 - `EXT-GPU-010`: `require_gpu_resident=True`、`allow_gpu_copy`、`allow_cpu_copy`をdecode/export/import/encode全体へ適用し、edge別copy-pathとfallback理由を返す。
 
@@ -314,6 +316,7 @@ mkvc_gpu_frame_get_native_handle();
 mkvc_gpu_frame_import_external();
 mkvc_gpu_frame_import_cuda_event();
 mkvc_gpu_frame_import_va_surface();
+mkvc_gpu_frame_import_d3d11_fence();
 mkvc_encoder_write_gpu_frame();
 mkvc_gpu_frame_query_completion();
 mkvc_gpu_frame_wait();

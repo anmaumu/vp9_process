@@ -61,6 +61,30 @@ del owner
 gc.collect()
 assert failed_va_owner() is None
 
+for invalid_target in (0, -1, 0xFFFFFFFFFFFFFFFF):
+    try:
+        mkvcodec.GpuFrame.import_d3d11_texture(
+            texture=0x1000, fence=0x2000, fence_value=invalid_target,
+            device_id=0, frame_size=(64, 48), owner=Owner())
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("invalid D3D11 fence value accepted")
+owner = Owner()
+failed_d3d_owner = weakref.ref(owner)
+with patch.object(api.native.lib, "mkvc_gpu_frame_import_d3d11_fence", return_value=3):
+    try:
+        mkvcodec.GpuFrame.import_d3d11_texture(
+            texture=0x1000, fence=0x2000, fence_value=1,
+            device_id=0, frame_size=(64, 48), owner=owner)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("native D3D11 failure swallowed")
+del owner
+gc.collect()
+assert failed_d3d_owner() is None
+
 
 owner = Owner()
 owner_ref = weakref.ref(owner)

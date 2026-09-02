@@ -13,4 +13,13 @@ inline bool has_surface_import(const mfxMemoryInterface* memory) noexcept {
            memory->ImportFrameSurface != nullptr;
 }
 
+/** Our last wrapper reference may retire only when the runtime no longer uses it. */
+inline bool can_release_imported_surface(mfxFrameSurface1* surface) noexcept {
+    mfxU32 references = 0;
+    return surface != nullptr && surface->FrameInterface != nullptr &&
+           surface->FrameInterface->GetRefCounter != nullptr &&
+           surface->FrameInterface->GetRefCounter(surface, &references) == MFX_ERR_NONE &&
+           references == 1 && surface->Data.Locked == 0;
+}
+
 }  // namespace mkvc::gpu::intel

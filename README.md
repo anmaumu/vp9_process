@@ -184,7 +184,27 @@ ownerはsurfaceとdisplayの両方を保持する必要があります。import�
 投入せず、ownerを明示的にcloseしないでください。encoderは最初の外部frameを
 flush/closeまでdevice寿命のため保持するので、pool容量に1 slot分を見込みます。
 Linux実機でnative/Python経路のencodeとowner解放順を確認済みです。Windows Intelの
-native fence同期と実機検証、Intel USM/DLPack変換は未完了です。
+encode実機検証、Intel USM/DLPack変換は未完了です。
+
+Windows D3D11のproducer fenceは`mkvc_gpu_frame_import_d3d11_fence()`、C++の
+`GpuFrame::import_d3d11_fence()`、.NETの`MkvGpuFrame.ImportD3D11Fence()`、Pythonの
+`GpuFrame.import_d3d11_texture()`で利用できます。textureとfenceは同じdeviceに属し、
+GPU-only NV12・subresource 0である必要があります。producerは処理後の`Signal`と
+command dispatchを済ませてからimportし、consumer終了まで追加書込みをしません。
+libraryはfence値だけをpollし、暗黙のFlush/Map/コピーは行いません。
+
+```python
+frame = mkvcodec.GpuFrame.import_d3d11_texture(
+    texture=texture_pointer, fence=fence_pointer, fence_value=target,
+    device_id=device_id, frame_size=(width, height), owner=texture_owner,
+)
+```
+
+Intel外部入力のownerは、出力SyncPoint完了だけでなくoneVPLの入力参照がなくなるまで
+保持します。参照中のimport wrapperは最大64個とし、上限では`WOULD_BLOCK`を返すので
+flushしてから再試行します。Linuxでは外部OpenCLの画像反転→VA共有import→encodeを
+検証していますが、これは検証用kernelであり製品内の画像処理機能ではありません。
+OpenCL image共有をUSM/DLPack共有とは扱わず、driver内部のcopyは別途trace対象です。
 
 ```python
 import cupy as cp
