@@ -26,7 +26,8 @@ class IntelVplEncoder {
         uint32_t codec, uint32_t width, uint32_t height,
         uint32_t fps_num, uint32_t fps_den, uint32_t quality,
         uint32_t keyframe_interval_frames, std::string& error,
-        uint32_t async_depth = 4);
+        uint32_t async_depth = 4,
+        const std::shared_ptr<gpu::GpuFrameCore>& external_device_owner = {});
     ~IntelVplEncoder();
     IntelVplEncoder(const IntelVplEncoder&) = delete;
     IntelVplEncoder& operator=(const IntelVplEncoder&) = delete;

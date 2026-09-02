@@ -73,7 +73,7 @@
 
 | Dependency | Baseline |
 |---|---|
-| oneVPL Dispatcher/header | API 2.10+（external D3D11/VA importはruntime memory interface 1.1必須） |
+| oneVPL Dispatcher/header | API 2.10+（external D3D11/VA importはruntime memory interface 1.0のfunctionとshared import対応を実行時確認） |
 | NVIDIA Video Codec SDK/API headers | 13.1系列 |
 | NVIDIA driver | 対応API以上、runtime query必須 |
 | CUDA build toolkit | 13.1系列（CUDA buildのみ） |

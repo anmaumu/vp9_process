@@ -523,9 +523,12 @@ MKVC_API mkvc_result mkvc_gpu_frame_get_native_handle(
  * CUDA-pointer NV12 imports can be submitted to a compatible NVIDIA encoder.
  * A CUDA-array NV12 import uses one byte-wide 2D array of height*3/2 rows;
  * its descriptor pitch must equal width and NVENC registers it as CUDAARRAY.
- * D3D11/VA imports require a oneVPL runtime exposing mfxMemoryInterface 1.1
- * and ImportFrameSurface for shared, copy-free Intel encoding. Runtimes with
- * interface 1.0, a missing import function, or copy-only import are rejected.
+ * D3D11/VA imports use ImportFrameSurface from oneVPL memory interface 1.0
+ * or a compatible minor revision. Missing functions and copy-only imports are
+ * rejected. The first external input binds a video-memory encoder to its device
+ * and is retained until encoder flush/close to keep the borrowed device alive.
+ * Flush before switching an existing CPU/direct-input sequence to external input
+ * or changing the device/display. Reserve pool capacity for this retained frame.
  */
 MKVC_API mkvc_result mkvc_gpu_frame_import_external(
     const mkvc_gpu_external_frame_config* config,

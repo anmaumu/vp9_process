@@ -112,6 +112,9 @@ if(MKVC_ENABLE_INTEL_ONEVPL)
     target_include_directories(mkvcodec PRIVATE ${LIBWEBM_COMPAT_INCLUDE_DIR})
     target_link_libraries(mkvcodec PRIVATE
         VPL::dispatcher unofficial::libwebm::libwebm yuv)
+    if(WIN32)
+        target_compile_definitions(mkvcodec PRIVATE NOMINMAX)
+    endif()
 endif()
 
 if(MKVC_ENABLE_CPU_AV1)
@@ -240,6 +243,13 @@ if(MKVC_BUILD_TESTS)
     endif()
 
     if(MKVC_ENABLE_INTEL_ONEVPL)
+        add_executable(mkvc_intel_import_contract_test tests/intel_import_contract_test.cpp)
+        target_compile_features(mkvc_intel_import_contract_test PRIVATE cxx_std_17)
+        target_include_directories(mkvc_intel_import_contract_test PRIVATE src)
+        target_compile_definitions(mkvc_intel_import_contract_test PRIVATE ONEVPL_EXPERIMENTAL=1)
+        target_link_libraries(mkvc_intel_import_contract_test PRIVATE VPL::dispatcher)
+        add_test(NAME mkvc_intel_import_contract COMMAND mkvc_intel_import_contract_test)
+
         add_executable(mkvc_intel_vpl_probe_test
             tests/intel_vpl_probe_test.cpp src/intel_vpl_probe.cpp)
         target_compile_features(mkvc_intel_vpl_probe_test PRIVATE cxx_std_17)
@@ -437,6 +447,8 @@ if(MKVC_BUILD_TESTS)
         if(MKVC_ENABLE_INTEL_ONEVPL)
             add_test(NAME mkvc_python_intel_roundtrip
                 COMMAND ${CMAKE_COMMAND} -E env
+                    "MKVC_TEST_CPU_VP9=$<BOOL:${MKVC_ENABLE_CPU_VP9}>"
+                    "MKVC_TEST_CPU_AV1=$<BOOL:${MKVC_ENABLE_CPU_AV1}>"
                     "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/python"
                     "MKVC_LIBRARY_PATH=$<TARGET_FILE:mkvcodec>"
                     "${Python3_EXECUTABLE}"

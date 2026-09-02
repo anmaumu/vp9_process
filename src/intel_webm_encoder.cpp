@@ -36,6 +36,7 @@ struct IntelWebmEncoder::Impl {
     uint64_t frames_in_sequence = 0;
     uint32_t hardware_pending_peak = 0;
     bool closed = false;
+    bool external_gpu_mode = false;
     std::vector<uint8_t> i420;
     std::vector<uint8_t> nv12;
 };
@@ -294,6 +295,19 @@ mkvc_result IntelWebmEncoder::write_gpu(
         error = "GPU frame dimensions do not match Intel encoder";
         return MKVC_ERROR_INVALID_ARGUMENT;
     }
+    if (frame->backend_resource().kind == gpu::BackendResourceKind::kNone &&
+        !impl.external_gpu_mode) {
+        if (impl.frames_in_sequence != 0) {
+            error = "flush Intel writer before switching to external GPU input";
+            return MKVC_ERROR_INVALID_STATE;
+        }
+        auto adapter = IntelVplEncoder::create(
+            impl.codec, impl.width, impl.height, impl.fps_num, impl.fps_den,
+            impl.quality, impl.keyframe_interval_frames, error, 4, frame);
+        if (!adapter) return MKVC_ERROR_NOT_SUPPORTED;
+        impl.encoder = std::move(adapter);
+        impl.external_gpu_mode = true;
+    }
     std::vector<IntelEncodedPacket> packets;
     const int64_t frame_pts = impl.next_pts;
     const mkvc_result result = impl.encoder->write_gpu_surface(
@@ -311,7 +325,8 @@ mkvc_result IntelWebmEncoder::flush(std::string& error) {
     return MKVC_ERROR_NOT_SUPPORTED;
 #else
     auto& impl = *impl_;
-    if (impl.closed || impl.frames_in_sequence == 0) return MKVC_OK;
+    if (impl.closed || (impl.frames_in_sequence == 0 && !impl.external_gpu_mode))
+        return MKVC_OK;
     std::vector<IntelEncodedPacket> packets;
     mkvc_result result = impl.encoder->drain(packets, error);
     if (result == MKVC_OK) result = mux_packets(impl, packets, error);
@@ -321,6 +336,7 @@ mkvc_result IntelWebmEncoder::flush(std::string& error) {
     impl.encoder->close(close_error);
     impl.encoder.reset();
     impl.frames_in_sequence = 0;
+    impl.external_gpu_mode = false;
     if (result != MKVC_OK) return result;
     impl.encoder = create_adapter(impl, error);
     return impl.encoder ? MKVC_OK : MKVC_ERROR_CODEC;

@@ -2,9 +2,14 @@
 #include "gpu/gpu_frame.hpp"
 
 #if defined(MKVC_HAS_INTEL_ONEVPL)
+#include "gpu/intel/intel_import_contract.hpp"
 #include <vpl/mfxdispatcher.h>
 #include <vpl/mfxmemory.h>
 #include <vpl/mfxvideo.h>
+#if defined(_WIN32)
+#include <d3d11.h>
+#include <wrl/client.h>
+#endif
 #endif
 
 #include <algorithm>
@@ -45,6 +50,10 @@ struct IntelVplEncoder::Impl {
     uint32_t collected_syncpoints = 0;
 #endif
     bool encoder_initialized = false;
+    // A real lease (not merely shared_ptr ownership) prevents recycling the
+    // external resource whose owner also guarantees the borrowed device lifetime.
+    mkvc_gpu_frame* external_device_owner = nullptr;
+    uint64_t external_device_identity = 0;
     bool drained = false;
     bool closed = false;
 };
@@ -205,10 +214,7 @@ mkvc_result import_external_surface(
     if (result != MKVC_OK) return result;
     mfxMemoryInterface* memory = nullptr;
     const mfxStatus memory_status = MFXGetMemoryInterface(impl.session, &memory);
-    if (memory_status != MFX_ERR_NONE || memory == nullptr ||
-        memory->Version.Major < 1 ||
-        (memory->Version.Major == 1 && memory->Version.Minor < 1) ||
-        memory->ImportFrameSurface == nullptr) {
+    if (memory_status != MFX_ERR_NONE || !gpu::intel::has_surface_import(memory)) {
         error = "oneVPL runtime does not expose external surface import (status=" +
                 std::to_string(memory_status) + ", interface=" +
                 (memory == nullptr ? std::string("null") :
@@ -274,10 +280,12 @@ std::unique_ptr<IntelVplEncoder> IntelVplEncoder::create(
     uint32_t codec, uint32_t width, uint32_t height,
     uint32_t fps_num, uint32_t fps_den, uint32_t quality,
     uint32_t keyframe_interval_frames, std::string& error,
-    uint32_t async_depth) {
+    uint32_t async_depth,
+    const std::shared_ptr<gpu::GpuFrameCore>& external_device_owner) {
 #if !defined(MKVC_HAS_INTEL_ONEVPL)
     (void)codec; (void)width; (void)height; (void)fps_num; (void)fps_den;
     (void)quality; (void)keyframe_interval_frames; (void)async_depth;
+    (void)external_device_owner;
     error = "Intel oneVPL backend was not built";
     return nullptr;
 #else
@@ -322,15 +330,61 @@ std::unique_ptr<IntelVplEncoder> IntelVplEncoder::create(
             codec_filter,
             reinterpret_cast<const mfxU8*>(
                 "mfxImplDescription.mfxEncoderDescription.encoder.CodecID"),
-            value) != MFX_ERR_NONE ||
-        MFXCreateSession(impl.loader, 0, &impl.session) != MFX_ERR_NONE) {
+            value) != MFX_ERR_NONE) {
+        error = "oneVPL encoder codec filter failed";
+        return nullptr;
+    }
+    if (external_device_owner) {
+        mkvc_gpu_native_handle_desc native{};
+        if (external_device_owner->get_native_handle(native, error) != MKVC_OK)
+            return nullptr;
+        mfxHandleType handle_type;
+        mfxHDL device = nullptr;
+#if defined(_WIN32)
+        Microsoft::WRL::ComPtr<ID3D11Device> texture_device;
+        if (native.type != MKVC_GPU_NATIVE_D3D11_TEXTURE || native.handles[0] == 0) {
+            error = "external Intel encoder requires a D3D11 texture";
+            return nullptr;
+        }
+        reinterpret_cast<ID3D11Texture2D*>(static_cast<uintptr_t>(native.handles[0]))
+            ->GetDevice(texture_device.GetAddressOf());
+        device = texture_device.Get();
+        handle_type = MFX_HANDLE_D3D11_DEVICE;
+#else
+        if (native.type != MKVC_GPU_NATIVE_VA_SURFACE || native.handles[0] == 0) {
+            error = "external Intel encoder requires a VA display/surface";
+            return nullptr;
+        }
+        device = reinterpret_cast<mfxHDL>(static_cast<uintptr_t>(native.handles[0]));
+        handle_type = MFX_HANDLE_VA_DISPLAY;
+#endif
+        impl.external_device_owner = gpu::make_handle(external_device_owner);
+        impl.external_device_identity = reinterpret_cast<uintptr_t>(device);
+        mfxConfig type_config = MFXCreateConfig(impl.loader);
+        mfxConfig device_config = MFXCreateConfig(impl.loader);
+        mfxVariant type_value{};
+        type_value.Type = MFX_VARIANT_TYPE_U32;
+        type_value.Data.U32 = handle_type;
+        mfxVariant device_value{};
+        device_value.Type = MFX_VARIANT_TYPE_PTR;
+        device_value.Data.Ptr = device;
+        if (!device || !type_config || !device_config ||
+            MFXSetConfigFilterProperty(type_config,
+                reinterpret_cast<const mfxU8*>("mfxHandleType"), type_value) != MFX_ERR_NONE ||
+            MFXSetConfigFilterProperty(device_config,
+                reinterpret_cast<const mfxU8*>("mfxHDL"), device_value) != MFX_ERR_NONE) {
+            error = "oneVPL external device configuration failed";
+            return nullptr;
+        }
+    }
+    if (MFXCreateSession(impl.loader, 0, &impl.session) != MFX_ERR_NONE) {
         error = "no matching Intel hardware encoder is available";
         return nullptr;
     }
     auto& parameters = impl.parameters;
     parameters.mfx.CodecId = vpl_codec(codec);
-    parameters.mfx.CodecProfile = codec == MKVC_CODEC_VP9
-        ? MFX_PROFILE_VP9_0 : MFX_PROFILE_AV1_MAIN;
+    parameters.mfx.CodecProfile = static_cast<mfxU16>(codec == MKVC_CODEC_VP9
+        ? MFX_PROFILE_VP9_0 : MFX_PROFILE_AV1_MAIN);
     if (codec == MKVC_CODEC_AV1) parameters.mfx.CodecLevel = MFX_LEVEL_AV1_63;
     parameters.mfx.TargetUsage = MFX_TARGETUSAGE_BALANCED;
     parameters.mfx.RateControlMethod = MFX_RATECONTROL_CQP;
@@ -353,7 +407,8 @@ std::unique_ptr<IntelVplEncoder> IntelVplEncoder::create(
     parameters.mfx.FrameInfo.Width = static_cast<mfxU16>((width + 15u) & ~15u);
     parameters.mfx.FrameInfo.Height = static_cast<mfxU16>((height + 15u) & ~15u);
     parameters.mfx.FrameInfo.PicStruct = MFX_PICSTRUCT_PROGRESSIVE;
-    parameters.IOPattern = MFX_IOPATTERN_IN_SYSTEM_MEMORY;
+    parameters.IOPattern = static_cast<mfxU16>(external_device_owner
+        ? MFX_IOPATTERN_IN_VIDEO_MEMORY : MFX_IOPATTERN_IN_SYSTEM_MEMORY);
     parameters.AsyncDepth = static_cast<mfxU16>(async_depth);
     mfxStatus status = MFXVideoENCODE_Query(impl.session, &parameters, &parameters);
     if (status < MFX_ERR_NONE) {
@@ -371,6 +426,10 @@ std::unique_ptr<IntelVplEncoder> IntelVplEncoder::create(
     mfxVideoParam actual{};
     if (MFXVideoENCODE_GetVideoParam(impl.session, &actual) != MFX_ERR_NONE) {
         error = "oneVPL failed to report encoder parameters";
+        return nullptr;
+    }
+    if (external_device_owner && actual.IOPattern != MFX_IOPATTERN_IN_VIDEO_MEMORY) {
+        error = "oneVPL external encoder did not preserve video-memory input";
         return nullptr;
     }
     const size_t suggested = static_cast<size_t>(actual.mfx.BufferSizeInKB) *
@@ -403,6 +462,26 @@ mkvc_result IntelVplEncoder::write_gpu_surface(
         frame->desc().width != impl.width || frame->desc().height != impl.height) {
         error = "GPU frame is not a compatible Intel NV12 surface";
         return MKVC_ERROR_INVALID_ARGUMENT;
+    }
+    if (impl.external_device_owner != nullptr) {
+        mkvc_gpu_native_handle_desc native{};
+        if (frame->get_native_handle(native, error) != MKVC_OK)
+            return MKVC_ERROR_INVALID_ARGUMENT;
+        uint64_t identity = 0;
+#if defined(_WIN32)
+        Microsoft::WRL::ComPtr<ID3D11Device> device;
+        if (native.type == MKVC_GPU_NATIVE_D3D11_TEXTURE && native.handles[0] != 0) {
+            reinterpret_cast<ID3D11Texture2D*>(static_cast<uintptr_t>(native.handles[0]))
+                ->GetDevice(device.GetAddressOf());
+            identity = reinterpret_cast<uintptr_t>(device.Get());
+        }
+#else
+        if (native.type == MKVC_GPU_NATIVE_VA_SURFACE) identity = native.handles[0];
+#endif
+        if (identity != impl.external_device_identity) {
+            error = "external Intel frame belongs to a different device/display; flush first";
+            return MKVC_ERROR_INVALID_ARGUMENT;
+        }
     }
     // Separate decode/encode sessions cannot share a SyncPoint dependency. Waiting
     // here keeps pixels resident while establishing readiness deterministically.
@@ -571,6 +650,8 @@ mkvc_result IntelVplEncoder::close(std::string& error) {
     impl_->session = nullptr;
     impl_->loader = nullptr;
 #endif
+    mkvc_gpu_frame_release(impl_->external_device_owner);
+    impl_->external_device_owner = nullptr;
     impl_->closed = true;
     return MKVC_OK;
 }

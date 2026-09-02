@@ -11,25 +11,40 @@
 - GitHub Actions builds strict MkDocs HTML and stores `mkvcodec-documentation` for 30 days.
 - GitHub Pages publication remains disabled until an explicit public-release decision.
 
-## 2026-09-01: Intel external shared-surface import adapter
+## 2026-09-02: Intel external shared-surface import qualification
 
 Status: `PARTIAL`
 
-The Intel writer now recognizes an external D3D11 texture or VA-API surface,
-queries `mfxMemoryInterface` from its oneVPL session, requests only
-`MFX_SURFACE_FLAG_IMPORT_SHARED`, submits the imported `mfxFrameSurface1`, and
-releases the imported oneVPL reference after submission. Interface 1.0, a null
-`ImportFrameSurface`, `MFX_ERR_UNSUPPORTED`, and any copy-import result produce
-`MKVC_ERROR_NOT_SUPPORTED`; the path never silently maps or copies pixels.
+Correction to the September 1 result: `ImportFrameSurface` already exists in
+memory interface 1.0, as confirmed by the Intel v2.10.2 header. Requiring 1.1 was
+an implementation error, not a limitation of `linux-machine`. The contract test
+now accepts 1.0 and additive minor revisions and rejects unknown major versions
+and null import functions. [Intel v2.10.2 header](https://github.com/intel/libvpl/blob/v2.10.2/api/vpl/mfxmemory.h)
 
-The Linux Intel hardware test now performs decode -> borrowed VA handle -> common
-external frame -> separate writer import -> encode when the runtime exposes
-memory interface 1.1. Release builds execute all test API calls explicitly rather
-than hiding calls in disabled `assert` expressions. On `linux-machine`, oneVPL
-GPU runtime 25.4/API 2.15 reports memory interface 1.0, so the capability-negative
-case is verified and skipped by default. Setting
-`MKVC_REQUIRE_INTEL_EXTERNAL_IMPORT=1` turns that skip into a qualification
-failure. A positive VA/D3D11 run and producer fence/VA synchronization remain.
+The writer binds its first external input to a new video-memory encoder using
+the resource's VA display (or D3D11 device), requests only shared import, and
+rejects a different device/display before vendor submission. CPU/direct input
+must be flushed before changing to external input. The first external frame is
+retained as a device lifetime anchor until flush/close; applications must allow
+one retained pool slot. Native producer fences/VA completion adapters remain
+pending; the existing producer query callback is waited before import.
+
+On `linux-machine`, runtime 25.4/API 2.15/interface 1.0 now passes VP9 external VA
+import -> encode -> CPU decode: eight frames, flush/rebind, delayed producer query,
+different-display rejection, caller-first release, exactly-once owner release,
+frame count, increasing PTS and luma PSNR > 25 dB against the fixture gradient.
+`MKVC_REQUIRE_INTEL_EXTERNAL_IMPORT=1` is enabled for this positive qualification.
+Missing runtime support still skips ordinary runs and fails required runs.
+Windows D3D11 and external AV1 hardware qualification, external GPU processing
+kernels, and independent driver/API trace proof remain unqualified.
+
+Validation: Linux Intel build passes all 20 CTests (the optional CPU AV1 reference
+decoder is explicitly disabled by build configuration; Intel AV1 tests still run).
+FFmpeg independently decodes the external-import output and ffprobe confirms
+eight VP9 frames. Windows NVIDIA/.NET regression passes 20 tests with one expected
+AV1 NVENC transcode skip on RTX 2060. The Windows D3D11 encoder translation unit
+also compiles under MSVC `/W4 /WX` with vendor-header warnings excluded. Docgen
+validation passes; this does not qualify Windows Intel hardware execution.
 
 ## 2026-08-29: CPU VP9/AV1 and Intel writer slice
 
@@ -148,7 +163,7 @@ and an OS/oneVPL trace has not yet independently proven zero host pixel transfer
 | `EXT-FRAME-011` | `WriteBorrowedI420` short-duration managed pin plus `MkvCpuFramePool` writable unmanaged spans and `MkvSubmission` completion lease | `.NET` native-load, borrowed and pooled async round-trip smoke | synchronous short-pin and asynchronous unmanaged pool complete; optional OS page-lock metrics remain pending |
 | `EXT-ENC-013`, `EXT-FRAME-010..012` native-pool subset | fixed-capacity C ABI pool, generation-checked slot lease, nonblocking/timed backpressure, Python NumPy/.NET Span views, async encoder ownership transfer | `mkvc_cpu_frame_pool`, Python/.NET capacity/generation/view-lifetime/round-trip coverage | native allocation slice complete; OS page-lock, strict fallback and detailed copy trace remain pending |
 | C++ RAII facade | header-only move-only `Encoder`, `Decoder`, CPU/GPU `Frame`, `CpuFramePool`, `CpuBuffer`, `Submission` over the stable C ABI; typed `ResultError` retains the native result | `mkvc_cpp_raii` move/lifetime/generation/async encode/decode round-trip | common CPU path complete and GPU source/sink facade compile-qualified; Intel/NVIDIA C++ hardware round-trip remains pending |
-| `EXT-GPU-004..005`, `INT-GPU-005/008/010` external-frame subset | `mkvc_gpu_frame_import_external` and `mkvc_gpu_frame_import_cuda_event`, C++ RAII factories, .NET managed-owner adapters and Python stable-ABI pointer/array adapters; CUDA pointer/array bind to NVENC and Intel D3D11/VA descriptors bind to oneVPL shared import when memory interface 1.1 is exposed | native/C++/.NET/Python callback lifecycle tests, Windows real CUDA context/event/array import, and Linux oneVPL interface-1.0 negative hardware test | CUDA linear/array/event path complete; Intel adapter and fail-closed runtime/copy gate complete, but positive Intel interface-1.1 encode and producer fence/VA sync qualification remain |
+| `EXT-GPU-004..005`, `INT-GPU-005/008/010` external-frame subset | common external leases and CUDA event import; CUDA pointer/array bind to NVENC; Intel D3D11/VA bind to same-device video-memory encoder and oneVPL interface-1.x shared import | callback lifecycle tests, CUDA context/event/array tests, Intel version gate and Linux VP9 external VA eight-frame encode/flush/CPU-decode test | Linux Intel VA positive and CUDA interop qualified; Windows Intel, external Intel AV1, native fence/VA sync and NVIDIA AV1 positive encode remain |
 | `EXT-ENC-006` | bounded queue/pool; blocking write; nonblocking try-write; ordered flush/close; explicit cancel wakeup | native async failure/cancel and Python round-trip | complete for CPU writer; queued submissions receive a distinct cancelled terminal state while an already-active codec call finishes safely |
 | `EXT-ENC-007` | CQ quality 0..63, default contract 32 | integration config uses 32 | backend mapping complete; binding default pending |
 | `EXT-ENC-009` | four-second keyframe default, auto threads | code review/build | complete for libvpx writer |
@@ -221,7 +236,7 @@ operation before releasing its bitstream/surface and closing the oneVPL session.
 - SVT-AV1 `4.1.0`
 - libaom `3.15.0`
 - oneVPL dispatcher/headers `2.17.0`; Intel GPU runtime 25.4/API 2.15,
-  `mfxMemoryInterface 1.0` (external shared import requires 1.1 and is unavailable)
+  `mfxMemoryInterface 1.0` (external VA shared import verified on 2026-09-02)
 - nv-codec-headers `n13.1.15.0`, source archive SHA-256 `2255bc74d038b95aa4be30f5f66322c2176acbdb90ada1851db6993536fbeaf7`
 - Windows NVIDIA probe host: GeForce RTX 2060, compute capability 7.5, CUDA driver API 13.3, NVENC API 13.1
 - Linux test host: `linux-machine`, GCC 13.3, CMake 3.28, Ninja

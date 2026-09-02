@@ -157,7 +157,7 @@ AV1 decode: supported GPU backend -> libaom -> error
 - `EXT-GPU-001`: 共通opaque handle `mkvc_gpu_frame`はbackend、device identity、memory type、pixel format、dimensions、planes/pitch、color metadata、PTSを問い合わせ可能にする。
 - `EXT-GPU-002`: `mkvc_gpu_frame`はretain/release可能なleaseとし、producer completionと全consumer lease解放の両方が成立するまでnative resourceを再利用・破棄しない。
 - `EXT-GPU-003`: completionはquery/wait(timeout)/dependency登録を提供し、通常経路でdevice-wide synchronizationを要求しない。
-- `EXT-GPU-004`: IntelではoneVPL decode surfaceをD3D11/VA-API/対応時USMとして外部libraryへexportし、外部処理済みresourceをoneVPL encodeへimportする。D3D11/VA importはruntimeが`mfxMemoryInterface 1.1`とshared importを公開する場合だけ利用可能とし、interface 1.0、未公開function、copy-only runtimeでは`NOT_SUPPORTED`を返す。
+- `EXT-GPU-004`: IntelではoneVPL decode surfaceをD3D11/VA-API/対応時USMとして外部libraryへexportし、外部処理済みresourceをoneVPL encodeへimportする。D3D11/VA importはmemory interface 1.0と互換minor revisionの`ImportFrameSurface`を使い、未公開function、未知major ABI、copy-only runtimeでは`NOT_SUPPORTED`を返す。最初の外部入力で同じdevice/displayのvideo-memory encoderへ紐づけ、既存CPU/direct sequenceからの切替やdevice/display変更にはflushを要求する。borrowed device保護のため最初の外部frameをflush/closeまで保持するので、利用者はその分のpool容量を確保する。
 - `EXT-GPU-005`: NVIDIAではNVDEC outputをCUDA/DLPackとして外部libraryへexportし、外部処理済みCUDA resourceをNVENCへimportする。
 - `EXT-GPU-006`: Intel GPU frameからWindows D3D11 texture/subresourceおよびLinux VA display/surfaceのborrowed native handleを取得できる。D3D11/VA resourceの所有権はlibraryに残す。
 - `EXT-GPU-007`: NVIDIA GPU frameからCUDA device pointerまたはCUarray、pitch、CUDA context/device、producer stream/eventをborrowed viewとして取得できる。

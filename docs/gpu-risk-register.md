@@ -14,7 +14,7 @@ GPU decode→external export→外部処理→import→encode、native handle、
 | `RISK-GPU-008` | oneVPL decode/import surfaceをexternal/encode完了前にRelease | external leaseとencode SyncPoint完了までsurface refを保持 | TEST-GPU-006, TEST-GPU-019 |
 | `RISK-GPU-009` | driver reset/device lostでwaitが永久block | timeout、terminal failure伝播、全waiter wakeup | TEST-GPU-012 |
 | `RISK-GPU-010` | hidden CPU readback/fallbackで性能・契約違反 | operation単位のcopy traceとstrict policy gate | TEST-GPU-011, TEST-GPU-013 |
-| `RISK-GPU-011` | bounded pool枯渇によるdeadlockまたはVRAM増加 | backpressure、cancel wakeup、固定上限、soak計測 | TEST-GPU-014 |
+| `RISK-GPU-011` | bounded pool枯渇によるdeadlockまたはVRAM増加 | backpressure、cancel wakeup、固定上限、soak計測。Intel external encoderはdevice lifetimeのため最初のframeをflush/closeまで保持するので、その1 slotをpool容量へ算入する。1-slot poolでの連続decode/importにはframeとは独立したdevice owner設計が必要 | TEST-GPU-014, TEST-GPU-019 |
 | `RISK-GPU-012` | pitch、plane offset、P010 alignmentの誤り | format別layout検証とguard領域付きgolden test | TEST-GPU-005, TEST-GPU-008 |
 | `RISK-GPU-013` | export/import境界で色metadata/PTS消失 | immutable metadata伝播と境界assert | TEST-GPU-008 |
 | `RISK-GPU-014` | native handleを利用者がlease後も保持して破損 | borrowed/export-lease API分離とreleased access拒否 | TEST-GPU-001, TEST-GPU-003 |

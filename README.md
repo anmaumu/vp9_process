@@ -46,9 +46,12 @@ AV1 NVENC対応GPUでのpositive encode検証は未完です。NVIDIA VP9 decode
 surfaceを公開でき、NVDEC surface→NVENC registered-resource経路と、各NV12 planeを
 DLPackへ渡すnative/Python APIを実装済みです。外部CUDA pointerはproducer CUDA event
 付きで再importでき、consumer-stream dependencyとCuPy実機検証も完了しています。
-Intel外部D3D11/VA surfaceはoneVPL `mfxMemoryInterface 1.1`のshared importが必要です。
-`linux-machine`のIntel GPU runtime 25.4はinterface 1.0のため、copyへ降格せず
-`NOT_SUPPORTED`になることを確認済みです。対応Intel runtimeでのpositive E2E、
+Intel外部D3D11/VA surfaceはoneVPL memory interface 1.0以降の`ImportFrameSurface`
+を使用します。`linux-machine`のruntime 25.4/interface 1.0で、同じVA displayに
+紐づくvideo-memory encoderへの外部surface importとVP9 E2Eを確認済みです。
+最初の外部frameはdevice/displayの寿命のためflush/closeまでretainされます。
+CPU/direct入力済みのsequenceから外部入力へ切り替える場合は先にflushしてください。
+Windows Intel実機検証、
 NVIDIA AV1対応GPU検証、
 10-bit public frame APIは未完です。
 .NET 8 bindingではABI version/capability query、型付きerror、SafeHandleに加え、

@@ -81,6 +81,11 @@ def main() -> None:
             surface.close()
 
             for backend, prefetch in (("intel", 0), ("intel", 4), ("cpu", 4)):
+                if backend == "cpu" and os.environ.get(
+                    f"MKVC_TEST_CPU_{codec.upper()}", "1"
+                ) == "0":
+                    print(f"CPU {codec} reference decoder disabled in this build")
+                    continue
                 with mkvcodec.VideoCapture(
                     path, codec=codec, backend=backend, prefetch=prefetch
                 ) as capture:
