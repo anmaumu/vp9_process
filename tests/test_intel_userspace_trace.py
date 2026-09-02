@@ -53,6 +53,13 @@ class UserspaceTraceTests(unittest.TestCase):
         report = analyze(lines, records, 1)
         self.assertEqual(report["isa_gpu_address_handle_matched_binds"][0]["count"], 1)
 
+    def test_reuse_mode_requires_two_isa_allocations_not_per_frame(self):
+        records, lines = fixture()
+        report = analyze(lines, records, 32, reuse=True)
+        self.assertTrue(report["opencl_reuse_program"])
+        with self.assertRaises(ValueError):
+            analyze(lines, records, 32)
+
 
 if __name__ == "__main__":
     unittest.main()

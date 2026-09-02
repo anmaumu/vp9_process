@@ -204,6 +204,8 @@ if(MKVC_BUILD_TESTS)
             COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_media_oracle.py")
         add_test(NAME mkvc_intel_userspace_trace_report
             COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_intel_userspace_trace.py")
+        add_test(NAME mkvc_opencl_reuse_session
+            COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_opencl_reuse_session.py")
         add_test(NAME mkvc_compliance_source
             COMMAND "${Python3_EXECUTABLE}"
                 "${CMAKE_CURRENT_SOURCE_DIR}/tools/compliance_gate.py" source)
@@ -502,6 +504,14 @@ if(MKVC_BUILD_TESTS)
                     set_tests_properties(mkvc_intel_opencl_av1_roundtrip PROPERTIES
                         FIXTURES_REQUIRED intel_av1_source SKIP_RETURN_CODE 77 TIMEOUT 120
                         ENVIRONMENT "MKVC_OPENCL_OUTPUT_CODEC=av1;MKVC_OPENCL_TEST_FRAMES=32")
+                    add_test(NAME mkvc_intel_opencl_reuse_av1_roundtrip
+                        COMMAND "${Python3_EXECUTABLE}"
+                            "${CMAKE_CURRENT_SOURCE_DIR}/tests/python_intel_opencl_roundtrip.py"
+                            "$<TARGET_FILE:mkvcodec>" "$<TARGET_FILE_DIR:mkvc_python_dlpack>"
+                            "${CMAKE_CURRENT_SOURCE_DIR}/python" "${MKVC_INTEL_AV1_SOURCE}")
+                    set_tests_properties(mkvc_intel_opencl_reuse_av1_roundtrip PROPERTIES
+                        FIXTURES_REQUIRED intel_av1_source SKIP_RETURN_CODE 77 TIMEOUT 120
+                        ENVIRONMENT "MKVC_OPENCL_OUTPUT_CODEC=av1;MKVC_OPENCL_TEST_FRAMES=32;MKVC_OPENCL_REUSE_PROGRAM=1")
                 endif()
                 add_test(NAME mkvc_intel_opencl_soak_smoke
                     COMMAND "${Python3_EXECUTABLE}"

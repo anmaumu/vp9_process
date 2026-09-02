@@ -11,6 +11,54 @@
 - GitHub Actions builds strict MkDocs HTML and stores `mkvcodec-documentation` for 30 days.
 - GitHub Pages publication remains disabled until an explicit public-release decision.
 
+## 2026-09-03: Controlled OpenCL program-reuse comparison
+
+Added an opt-in, test-only `OpenClReuseSession`. Context, command queue, program
+and kernels live for one batch; shared image objects remain per-frame and all
+kernel arguments are reset before each enqueue. Each frame still performs
+acquire -> two kernels -> release -> finish before returning the VA surface to
+the encoder. A source anchor preserves display lifetime through cached-object
+teardown. Overlapping use/close, changed display/device and reuse after failure
+are rejected. Setup/processing failures make the session terminal and release
+partially initialized cached resources. No OpenCL processing API was added to
+the product and the default test path still recreates resources per frame.
+
+Autonomous Arc 32-frame AV1 captures compare baseline
+`/tmp/mkvc-userspace-pf6v5i5o` with reuse `/tmp/mkvc-userspace-1zwhqlby`:
+
+| Observation | Recreate each frame | Reuse within batch |
+|---|---:|---:|
+| 64 KiB application `KERNEL_ISA` allocation records | 64 | 2 |
+| Internal ISA allocation records | 1 | 1 |
+| GPU-VA/handle matched ISA MAP requests (including internal) | 65 | 3 |
+| 24 KiB shared-image import records | 64 | 64 |
+| Image/PTS/count/owner oracle | passed | passed |
+
+This controlled intervention strengthens the instruction-preparation explanation.
+These are allocation/MAP-request counts, **not new kernel migration counts** or
+completed copy bytes. We have not repeated the privileged kernel trace for this
+comparison and do not infer full-path zero-copy from the reduced counts.
+
+The reuse 128x128 AV1 same-process soak passed **60.632 seconds / 16,560 frames /
+69 batches**, peak retained VA owners 3. Post-close RSS baseline/high-water was
+191,660,032 bytes, ending at 178,556,928; FDs stayed 6 and threads 26. Post-close
+Arc resident VRAM baseline 77,123,584 bytes, high-water/end 81,317,888 (+4 MiB).
+Engineering growth budgets passed; this is not a 30-minute reuse qualification,
+a throughput baseline or proof of zero leaks. Evidence: `opencl_reuse_soak_60.json`.
+
+The independent exported-API audit of the reuse AV1 path also passed: 64 kernel
+calls, 32 acquire/release/derive calls, no watched host transfer/map calls and no
+binding conflicts. Unbound/private driver APIs remain outside coverage. Evidence:
+`opencl_reuse_av1_copy_audit.json`. Arc VP9 encoding of the small default fixture
+was unavailable; this explicit Arc qualification uses AV1 and 128x128 input.
+
+Added four GPU-free cache-lifetime/failure tests, a reuse-mode analyzer test and
+`mkvc_intel_opencl_reuse_av1_roundtrip`. All seven selected Linux CTests passed;
+the GPU-free cache and analyzer tests also passed on Windows. Run comparisons
+with `tools/capture_intel_userspace_trace.py` and its `--reuse-program` option.
+
+Traceability: INT-OBS-004 / INT-PERF-003 -> TEST-GPU-013/014/019/020.
+
 ## 2026-09-03: Autonomous userspace attribution of OpenCL instruction buffers
 
 Status: `PARTIAL` (strong evidence for instruction-code preparation, not a

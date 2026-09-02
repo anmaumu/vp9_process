@@ -9,6 +9,7 @@ import json
 from pathlib import Path
 import time
 from media_oracle import run_oracle
+from contextlib import nullcontext
 
 native_library, extension_dir, package_dir, fixture = sys.argv[1:5]
 os.environ["MKVC_LIBRARY_PATH"] = native_library
@@ -17,7 +18,7 @@ import numpy as np
 import _dlpack
 import mkvcodec
 import mkvcodec._api as api
-from intel_va_opencl_support import Unsupported, VaOwner, invert_luma
+from intel_va_opencl_support import Unsupported, VaOwner, invert_luma, OpenClReuseSession
 from gpu_resource_monitor import ResourceMonitor
 from gpu_trace_journal import journal
 api._dlpack = _dlpack
@@ -55,15 +56,17 @@ def roundtrip(frames, monitor=None):
         codec = os.environ.get("MKVC_OPENCL_OUTPUT_CODEC", "vp9")
         if codec not in ("vp9", "av1"):
             raise ValueError("Unsupported qualification codec")
+        reuse = os.environ.get("MKVC_OPENCL_REUSE_PROGRAM", "0") == "1"
         with mkvcodec.VideoWriter(path, backend="intel", codec=codec, fps=30,
                                  frame_size=(width, height), queue_size=0,
-                                 require_gpu_resident=True) as writer:
+                                 require_gpu_resident=True) as writer, \
+                (OpenClReuseSession() if reuse else nullcontext()) as session:
             for index in range(frames):
                 journal.mark("external_allocate", frame=index)
                 owner = VaOwner(source, width, height)
                 journal.surface("processed", owner.display, owner.surface.value, index)
                 journal.mark("external_opencl", frame=index)
-                identity = invert_luma(source, owner, width, height, frame_index=index)
+                identity = invert_luma(source, owner, width, height, frame_index=index, session=session)
                 if monitor:
                     monitor.set_processing_device(identity)
                 journal.mark("encoder_import", frame=index)
@@ -84,6 +87,8 @@ def roundtrip(frames, monitor=None):
                 gc.collect()
                 # Display anchor plus runtime-referenced imports; no unbounded owners.
                 assert 1 <= VaOwner.live <= 65
+            if session is not None:
+                assert session.builds == 1 and session.completed_calls == frames
             del source
             gc.collect()
             assert source_ref() is not None
@@ -135,6 +140,9 @@ def main():
     if report_path:
         Path(report_path).write_text('{"validation":"not_completed"}\n')
     frames = int(os.environ.get("MKVC_OPENCL_TEST_FRAMES", "32"))
+    reuse_mode = os.environ.get("MKVC_OPENCL_REUSE_PROGRAM", "0")
+    if reuse_mode not in ("0", "1"):
+        raise ValueError("MKVC_OPENCL_REUSE_PROGRAM must be 0 or 1")
     seconds = float(os.environ.get("MKVC_OPENCL_SOAK_SECONDS", "0"))
     assert 1 <= frames <= 10000 and 0 <= seconds <= 86400
     # Conservative engineering regression budgets, not approved performance SLAs.
@@ -144,6 +152,7 @@ def main():
               "requested_seconds": seconds, "frames_per_batch": frames, "batches": 0,
               "total_frames": 0, "owner_peak": 0, "growth_budgets": budgets,
               "output_codec": os.environ.get("MKVC_OPENCL_OUTPUT_CODEC", "vp9"),
+              "opencl_reuse_program": reuse_mode == "1",
               "scope": "sampled DRM memory and post-close RSS/FD/threads; no driver-copy proof"}
     report["gpu_memory"] = monitor.report
 

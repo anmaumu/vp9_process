@@ -4,6 +4,7 @@ No perf, sudo, system settings or driver replacement. The installed NEO runtime
 must support the requested logging; missing evidence fails closed. Linux only.
 """
 import json
+import argparse
 import os
 from pathlib import Path
 import platform
@@ -17,6 +18,9 @@ FLAGS = ("PrintBOCreateDestroyResult", "LogAllocationMemoryPool", "LogAllocation
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--reuse-program", action="store_true", help="Reuse the test's context/program/kernels within a batch")
+    args = parser.parse_args()
     if sys.platform != "linux" or os.geteuid() == 0:
         raise SystemExit("Run as an ordinary Linux user")
     build = ROOT / "build/intel"
@@ -31,12 +35,14 @@ def main():
                 "MKVC_TEST_INTEL_DRM_RENDER_NODE": "129", "MKVC_TEST_GPU_PCI": "0000:83:00.0",
                 "MKVC_REQUIRE_INTEL_EXTERNAL_IMPORT": "1", "MKVC_OPENCL_OUTPUT_CODEC": "av1",
                 "MKVC_OPENCL_TEST_FRAMES": "32", "MKVC_OPENCL_SOAK_SECONDS": "0",
+                "MKVC_OPENCL_REUSE_PROGRAM": "1" if args.reuse_program else "0",
                 "MKVC_GPU_TRACE_JOURNAL": str(output / "phases.jsonl"), "MKVC_GPU_TRACE_STDOUT": "1",
                 "MKVC_OPENCL_SOAK_REPORT": str(output / "workload.json"), "LIBVA_MESSAGING_LEVEL": "0"})
     command = ["timeout", "120s", "/usr/bin/python3", "-u", str(ROOT / "tests/python_intel_opencl_roundtrip.py"),
                str(build / "libmkvcodec.so"), str(build), str(ROOT / "python"), str(build / "intel_av1_source.webm")]
     manifest = {"version": 1, "status": "not_completed", "kernel": platform.release(),
                 "command": command, "neo_runtime_package": runtime,
+                "opencl_reuse_program": args.reuse_program,
                 "neo_logging_flags": list(FLAGS), "sudo": False}
     manifest_path = output / "capture.json"
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")

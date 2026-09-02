@@ -4,7 +4,8 @@ ABI source: Khronos cl_intel_va_api_media_sharing, OpenCL 1.2.
 The shared objects are images, NOT USM pointers or DLPack tensors.
 """
 import ctypes as ct
-from contextlib import ExitStack
+from contextlib import ExitStack, contextmanager
+import threading
 
 P, U, I, Z = ct.c_void_p, ct.c_uint, ct.c_int, ct.c_size_t
 
@@ -58,7 +59,80 @@ class VaOwner:
             self.close()
 
 
-def invert_luma(source, output, width, height, *, frame_index=None):
+class OpenClReuseSession:
+    """Test-only, single-consumer context/program cache with explicit teardown.
+
+    Per-frame shared images are never cached. The source anchor keeps the VA
+    display alive until all cached CL objects have been released.
+    """
+    def __init__(self):
+        self.stack = ExitStack()
+        self.resources = None
+        self.key = None
+        self.anchor = None
+        self.closed = False
+        self.completed_calls = 0
+        self.builds = 0
+        self.lock = threading.Lock()
+
+    def __enter__(self):
+        if self.closed:
+            raise RuntimeError("OpenCL reuse session is closed")
+        return self
+
+    def __exit__(self, *_):
+        self.close()
+
+    def _close_locked(self):
+        self.closed = True
+        try:
+            self.stack.close()
+        finally:
+            self.resources = None
+            self.anchor = None
+
+    def close(self):
+        if not self.lock.acquire(blocking=False):
+            raise RuntimeError("OpenCL reuse session is busy")
+        try:
+            self._close_locked()
+        finally:
+            self.lock.release()
+
+    @contextmanager
+    def use(self):
+        if not self.lock.acquire(blocking=False):
+            raise RuntimeError("OpenCL reuse session is busy")
+        try:
+            if self.closed:
+                raise RuntimeError("OpenCL reuse session is closed")
+            try:
+                yield
+                self.completed_calls += 1
+            except BaseException:
+                self._close_locked()
+                raise
+        finally:
+            self.lock.release()
+
+    def bind_device(self, source, display, device):
+        if self.closed:
+            raise RuntimeError("OpenCL reuse session is closed")
+        key = (display, device)
+        if self.key is not None and self.key != key:
+            raise RuntimeError("OpenCL reuse session cannot change VA display/device")
+        self.key, self.anchor = key, source
+
+
+def invert_luma(source, output, width, height, *, frame_index=None, session=None):
+    """Process one shared image, optionally reusing a caller-scoped CL session."""
+    if session is None:
+        return _invert_luma(source, output, width, height, frame_index=frame_index)
+    with session.use():
+        return _invert_luma(source, output, width, height, frame_index=frame_index, session=session)
+
+
+def _invert_luma(source, output, width, height, *, frame_index=None, session=None):
     """Write an inverted Y plane and neutral UV into another shared VA surface.
 
     Does not call read/map/write-buffer APIs; explicit clFinish covers the
@@ -94,6 +168,8 @@ def invert_luma(source, output, width, height, *, frame_index=None):
             break
     if selected is None:
         raise Unsupported("No preferred OpenCL device shares the decoder VA display")
+    if session is not None:
+        session.bind_device(source, output.display, device.value)
     info = bind(cl, "clGetDeviceInfo", I, P, U, Z, P, ct.POINTER(Z))
     device_name = ct.create_string_buffer(512)
     check(info(device, 0x102B, len(device_name), device_name, None))
@@ -141,34 +217,43 @@ def invert_luma(source, output, width, height, *, frame_index=None):
     with ExitStack() as stack:
         error = I()
 
-        def own(handle, release_name):
+        def own(handle, release_name, persistent=False):
             check(error.value)
             if not handle:
                 raise RuntimeError("OpenCL returned a null object")
-            stack.callback(bind(cl, release_name, I, P), handle)
+            target = session.stack if persistent and session is not None else stack
+            target.callback(bind(cl, release_name, I, P), handle)
             return handle
 
         props = (ct.c_ssize_t * 5)(0x1084, selected, 0x4097, output.display, 0)
         stage("context_queue")
-        context = own(context_fn(props, 1, ct.byref(device), None, None, ct.byref(error)),
-                      "clReleaseContext")
-        queue = own(queue_fn(context, device, 0, ct.byref(error)), "clReleaseCommandQueue")
+        cached = session.resources if session is not None else None
+        if cached:
+            context, queue, invert, neutral = cached
+        else:
+            context = own(context_fn(props, 1, ct.byref(device), None, None, ct.byref(error)),
+                          "clReleaseContext", True)
+            queue = own(queue_fn(context, device, 0, ct.byref(error)), "clReleaseCommandQueue", True)
         source_id = U(source.native_handle["handles"][1])
         stage("image_share")
         src = own(create_image(context, 4, ct.byref(source_id), 0, ct.byref(error)), "clReleaseMemObject")
         dst = own(create_image(context, 2, ct.byref(output.surface), 0, ct.byref(error)), "clReleaseMemObject")
         uv = own(create_image(context, 2, ct.byref(output.surface), 1, ct.byref(error)), "clReleaseMemObject")
-        stage("program_create")
-        program = own(program_fn(context, 1, (ct.c_char_p * 1)(code), None, ct.byref(error)),
-                      "clReleaseProgram")
-        stage("program_build")
-        if build(program, 1, ct.byref(device), b"-cl-std=CL1.2", None, None) != 0:
-            log = ct.create_string_buffer(8192)
-            build_log(program, device, 0x1183, len(log), log, None)
-            raise RuntimeError(log.value.decode(errors="replace"))
-        stage("kernel_create")
-        invert = own(kernel_fn(program, b"invert", ct.byref(error)), "clReleaseKernel")
-        neutral = own(kernel_fn(program, b"neutral", ct.byref(error)), "clReleaseKernel")
+        if not cached:
+            stage("program_create")
+            program = own(program_fn(context, 1, (ct.c_char_p * 1)(code), None, ct.byref(error)),
+                          "clReleaseProgram", True)
+            stage("program_build")
+            if build(program, 1, ct.byref(device), b"-cl-std=CL1.2", None, None) != 0:
+                log = ct.create_string_buffer(8192)
+                build_log(program, device, 0x1183, len(log), log, None)
+                raise RuntimeError(log.value.decode(errors="replace"))
+            stage("kernel_create")
+            invert = own(kernel_fn(program, b"invert", ct.byref(error)), "clReleaseKernel", True)
+            neutral = own(kernel_fn(program, b"neutral", ct.byref(error)), "clReleaseKernel", True)
+            if session is not None:
+                session.resources = context, queue, invert, neutral
+                session.builds += 1
         for kernel, values in ((invert, (src, dst)), (neutral, (uv,))):
             for index, value in enumerate(values):
                 argument = P(value)

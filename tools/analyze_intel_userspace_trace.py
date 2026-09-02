@@ -11,7 +11,7 @@ PRIME = re.compile(r"Created BO-(\d+) range: ([0-9a-f]+) - [0-9a-f]+, size: (\d+
 BIND = re.compile(r"vm=(\d+) obj=(0x[0-9a-f]+) off=0x0 range=(0x[0-9a-f]+) addr=(0x[0-9a-f]+) operation=0\(MAP\).*?ret=(-?\d+)")
 
 
-def analyze(lines, journal, frames):
+def analyze(lines, journal, frames, reuse=False):
     if not isinstance(frames, int) or not 1 <= frames <= 32:
         raise ValueError("Userspace qualification requires 1..32 frames")
     counts, binds, imports = Counter(), Counter(), Counter()
@@ -58,10 +58,11 @@ def analyze(lines, journal, frames):
     if markers != journal:
         raise ValueError("Driver log and journal markers differ")
     expected = sum(v for k, v in counts.items() if k[1] == "KERNEL_ISA" and k[3] == 0)
-    if expected != 2 * frames or not imports or not binds:
+    if expected != (2 if reuse else 2 * frames) or not imports or not binds:
         raise ValueError("Missing expected per-frame ISA/shared-image evidence")
     return {
         "version": 1, "status": "observed_partial", "complete_copy_proof": False,
+        "opencl_reuse_program": reuse,
         "allocations": [dict(phase=k[0], type=k[1], pool=k[2], root_index=k[3], size=k[4], count=v)
                         for k, v in sorted(counts.items())],
         "isa_gpu_address_handle_matched_binds": [dict(phase=k[0], type=k[1], count=v) for k, v in sorted(binds.items())],
@@ -92,7 +93,10 @@ def main():
                 or workload.get("gpu_memory", {}).get("processing_device", {}).get("pci") != "0000:83:00.0"):
             raise ValueError("Missing matching successful Arc workload")
         with args.log.open() as stream:
-            report = analyze(stream, journal, workload["total_frames"])
+            reuse = workload.get("opencl_reuse_program", False)
+            if not isinstance(reuse, bool):
+                raise ValueError("Invalid reuse-mode evidence")
+            report = analyze(stream, journal, workload["total_frames"], reuse=reuse)
         args.output.write_text(json.dumps(report, indent=2) + "\n")
     except (ValueError, KeyError, TypeError, OSError) as error:
         args.output.write_text(json.dumps({"status": "failed", "error": str(error)}) + "\n")
