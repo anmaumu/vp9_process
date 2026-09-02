@@ -11,6 +11,45 @@
 - GitHub Actions builds strict MkDocs HTML and stores `mkvcodec-documentation` for 30 days.
 - GitHub Pages publication remains disabled until an explicit public-release decision.
 
+## 2026-09-03: User-authorized kernel trace and phase-correlation tooling
+
+Status: `PARTIAL` (kernel events obtained; image-buffer identity and complete
+driver copy attribution remain unresolved).
+
+The user ran a bounded privileged perf capture with an unprivileged 32-frame
+Arc AV1 workload. `/tmp/mkvc-kernel-trace.OUr7vA/events.txt` has 3,295 events:
+1,956 `xe_sched_job_exec`, 874 `xe_bo_move`, and 465 `xe_bo_cpu_fault` events.
+Of the moves, 809 have `move_lacks_source=yes` (source-absent/clear path), while
+65 have `move_lacks_source=no`, GTT -> VRAM0, each with 65,536-byte BO size.
+Those 65 records contain eight distinct kernel address values; address reuse
+prevents interpreting that as eight unique objects. BO sizes are not completed
+transfer-byte measurements. CPU faults do not establish pixel downloads.
+Interpretation reference: [Linux v7.0 Xe BO implementation](https://github.com/torvalds/linux/blob/v7.0/drivers/gpu/drm/xe/xe_bo.c).
+The host runs Ubuntu kernel 7.0.0-28-generic; distro-specific source differences
+and independent kernel-worker activity remain outside this qualification.
+
+Added an opt-in CLOCK_MONOTONIC phase journal and metadata-only VA export
+observations around decode, external processing, import, encode, teardown and
+the CPU oracle. Export overhead is explicitly marked; instrumentation can
+perturb allocation behavior. A separate 32-frame hardware smoke passed with
+one decoded and 32 processed exports, each reporting 24,576-byte DMA-BUF
+objects and modifier `0x0100000000000009`. This is a different run, and neither
+size comparison nor a DMA-BUF inode identifies the kernel BO in the old trace.
+
+`tools/capture_intel_kernel_trace.py` uses sudo only for fixed perf commands,
+runs the workload as the invoking user, selects `--clockid mono`, preserves
+capture diagnostics/workload status and produces a fresh private result directory.
+No system permission settings are changed. `tools/analyze_intel_kernel_trace.py`
+rejects malformed/lost-text records, wrong devices, job errors, failed journals
+and clock/thread non-overlap. It reports main-thread phase coincidence, leaves
+other threads unattributed and never returns a complete-copy-proof status.
+Legacy-log analysis and four GPU-free unit tests passed on Windows/Linux;
+six affected Linux CTests (including fixtures, AV1, VP9, soak and exported-API
+audit) passed. Combined privileged phase capture still requires the user's
+interactive sudo execution; sudo authorization does not carry across SSH sessions.
+
+Traceability: INT-OBS-004 / INT-PERF-003 -> TEST-GPU-013/014.
+
 ## 2026-09-03: Arc AV1, DRM memory telemetry and experimental USM return path
 
 Status: `PARTIAL` (real USM/DLPack experiment succeeds; public USM adapter and

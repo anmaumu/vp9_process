@@ -19,6 +19,7 @@ import mkvcodec
 import mkvcodec._api as api
 from intel_va_opencl_support import Unsupported, VaOwner, invert_luma
 from gpu_resource_monitor import ResourceMonitor
+from gpu_trace_journal import journal
 api._dlpack = _dlpack
 original_check = api.native.check
 
@@ -36,14 +37,18 @@ def roundtrip(frames, monitor=None):
     """One bounded batch, including teardown and an independent CPU oracle."""
     assert VaOwner.live == 0
     VaOwner.peak = VaOwner.released = 0
+    journal.mark("cpu_reference")
     with mkvcodec.VideoCapture(fixture, backend="cpu", prefetch=0) as reference:
         reference_y = reference.read_i420().y.astype(np.float32)
+    journal.mark("gpu_decode")
     with mkvcodec.VideoCapture(fixture, backend="intel", prefetch=0,
                               require_gpu_resident=True) as capture:
         source = capture.read_surface()
         source.wait(5000)
         desc = source.descriptor
         width, height = desc["width"], desc["height"]
+    journal.surface("decoded", *source.native_handle["handles"][:2])
+    journal.mark("encoder_open")
     source_ref = weakref.ref(source)
     with tempfile.TemporaryDirectory() as directory:
         path = os.path.join(directory, "opencl-inverted.webm")
@@ -54,10 +59,14 @@ def roundtrip(frames, monitor=None):
                                  frame_size=(width, height), queue_size=0,
                                  require_gpu_resident=True) as writer:
             for index in range(frames):
+                journal.mark("external_allocate", frame=index)
                 owner = VaOwner(source, width, height)
+                journal.surface("processed", owner.display, owner.surface.value, index)
+                journal.mark("external_opencl", frame=index)
                 identity = invert_luma(source, owner, width, height)
                 if monitor:
                     monitor.set_processing_device(identity)
+                journal.mark("encoder_import", frame=index)
                 imported = mkvcodec.GpuFrame.import_va_surface(
                     display=owner.display, surface_id=owner.surface.value,
                     device_id=desc["device_id"], frame_size=(width, height),
@@ -65,9 +74,11 @@ def roundtrip(frames, monitor=None):
                 del owner
                 assert imported.native_handle["handles"][0] == source.native_handle["handles"][0]
                 assert imported.native_handle["handles"][1] != source.native_handle["handles"][1]
+                journal.mark("encoder_submit", frame=index)
                 writer.write_surface(imported)
                 if monitor and index % 32 == 0:
                     monitor.sample("active")
+                journal.mark("frame_release", frame=index)
                 imported.close()
                 del imported
                 gc.collect()
@@ -77,10 +88,12 @@ def roundtrip(frames, monitor=None):
             gc.collect()
             assert source_ref() is not None
             assert writer.metrics.copy_path == "zero_copy"  # Library boundary only.
+            journal.mark("encoder_flush_close")
         gc.collect()
         assert source_ref() is None
         assert VaOwner.live == 0 and VaOwner.released == frames
         assert VaOwner.peak <= 65
+        journal.mark("cpu_output_oracle")
         count, previous_pts = 0, -1
         if codec == "av1":
             raw = subprocess.run(["ffmpeg", "-v", "error", "-hwaccel", "none", "-i", path,
@@ -141,6 +154,7 @@ def main():
             Path(report_path).write_text(json.dumps(report, indent=2) + "\n")
 
     started = time.monotonic()
+    journal.mark("run_start", frames=frames, fixture=fixture)
     save()
     try:
         while True:
@@ -163,9 +177,11 @@ def main():
             if seconds == 0 or (report["batches"] >= 2 and report["elapsed_seconds"] >= seconds):
                 break
         report["validation"] = "passed"
+        journal.mark("run_complete", validation="passed")
         save()
         print(json.dumps(report, sort_keys=True))
     except BaseException:
+        journal.mark("run_failed")
         report["validation"] = "failed"
         report["elapsed_seconds"] = time.monotonic() - started
         save()

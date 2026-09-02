@@ -336,6 +336,10 @@ Status: `PROPOSED`
 - `INT-OBS-002`: CPU timerとGPU event timerを区別する。
 - `INT-OBS-003`: input/encoded fps、drop、peak queue、prefetch hit/miss、RAM/VRAM概算を公開する。
 - `INT-OBS-004`: copy path判定は実際に実行したoperationから設定し、requested pathから推測しない。
+  Kernel観測はclear/migration/CPU faultを区別し、BO sizeを転送完了bytesと扱わない。
+  診断phaseは共通monotonic clockとthreadを照合するが、非同期jobの因果関係や
+  kernel BOと画像surfaceのidentityを時刻・サイズだけで推定しない。未対応づけは
+  unresolvedとし、部分traceからdriver全体のzero-copy合格を生成しない。
 - `INT-PERF-001`: benchmarkは1080p30/60、4K30、対応時4K60をbackend別に保存する。
 - `INT-PERF-002`: absolute target確定前は直近承認baselineに対する回帰でgateする。
 - `INT-PERF-003`: long-runでresource countが単調増加しないことをtraceする。

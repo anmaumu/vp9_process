@@ -198,6 +198,8 @@ if(MKVC_BUILD_TESTS)
             COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_gpu_resource_monitor.py")
         add_test(NAME mkvc_intel_prime_layout
             COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_intel_prime_layout.py")
+        add_test(NAME mkvc_intel_kernel_trace_report
+            COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_intel_kernel_trace.py")
         add_test(NAME mkvc_compliance_source
             COMMAND "${Python3_EXECUTABLE}"
                 "${CMAKE_CURRENT_SOURCE_DIR}/tools/compliance_gate.py" source)

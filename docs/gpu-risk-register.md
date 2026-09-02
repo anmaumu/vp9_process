@@ -41,6 +41,13 @@ fenceは永久pendingになり得るため、libraryのbounded waitで検出し�
 producerを完了させる。device removalはterminal failureへ変換する。Intel imported
 wrapper保持は最大64とし、上限時にWOULD_BLOCK/flushで無制限増加を防ぐ。
 
+Kernel trace追加リスク（TEST-GPU-013/014）: source-absent clearを画像copyとして
+集計する、BO sizeを転送bytesとみなす、CPU faultを画像downloadと断定する、
+再利用されるkernel pointerとDMA-BUF inodeを同一視する、別clock/runのphaseを
+対応づける。clear/migration分離、monotonic clock・thread照合、未知identityの
+未判定保持で防ぐ。metadata export自体がdriver挙動を変えるため診断区間を記録し、
+独立kernel workerや非同期jobの因果関係はphase一致だけで証明しない。
+
 ## CPU borrowed/import risk
 
 | Risk | Failure mode / impact | Required mitigation | Verification |

@@ -114,6 +114,9 @@ timeout 35m python3 tests/python_intel_opencl_roundtrip.py \
 
 Arc/USM追加検証（TEST-GPU-005/008/009/013/014/019/020）:
 
+- `mkvc_intel_kernel_trace_report`はclearとsource-present migrationの区別、不正/欠落/lost記録、別PCI、GPU job error、journal未完了/非単調/別runの拒否、main-threadのみのphase集計を検証する。phase一致、BOサイズ一致、DMA-BUF inodeからkernel BO identityを推測して画像copy合否を出さない。
+- `MKVC_GPU_TRACE_JOURNAL`指定時だけCLOCK_MONOTONIC phaseとVA export metadataを追加する。最大10000 recordsの短時間診断専用であり、通常soakでは無効とする。export自体の影響区間を分離する。perf側も`--clockid mono`で取得する。
+- `python3 tools/capture_intel_kernel_trace.py`はlinux-machineのArc B580/renderD129向け手動診断。通常ユーザーで実行し、必要なperf操作のみsudoする。子processを通常権限に戻し、120秒timeout、32-frame AV1 oracle、stderr/raw trace/journal/exit statusを新規private directoryへ保存する。全システム計測、sudoers/sysctl変更、画像copy完全証明は行わない。別kernel worker、非同期処理との因果関係、capture lossの完全性は別途確認する。
 - `mkvc_gpu_resource_monitor`はfdinfo単位変換、duplicate fd除外、必須VRAM欠落、増加budget超過をGPUなしで検証する。実機は32入力ごとにactive、batch終了時にpost-closeを記録し、OpenCL処理先PCIとVRAM対象PCIを一致させる。sampling間の瞬間peakやunique物理bytesは保証しない。
 - `mkvc_intel_prime_layout`はobject/plane count、object index、offset/pitch不正とlinear/tiled modifierの区別を検証する。`probe_intel_usm_layout.py`は実decoder/default/linear要求時のexportを観測するだけでUSM対応を広告しない。
 - `mkvc_intel_opencl_av1_roundtrip`は128x128入力、32 frames、CPU FFmpeg oracle、PTS増加、Y-PSNR>25 dBを確認し、非同期import wrapperのPTS早期復元を回帰検知する。GPU source/inputはVP9、outputはAV1。`ffmpeg/ffprobe`があるLinux Intel buildで登録する。
