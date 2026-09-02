@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import threading
 import time
+import sys
 
 
 class TraceJournal:
@@ -15,6 +16,7 @@ class TraceJournal:
         path = os.environ.get("MKVC_GPU_TRACE_JOURNAL")
         self.path = Path(path) if path else None
         self.sequence = 0
+        self.stdout = os.environ.get("MKVC_GPU_TRACE_STDOUT") == "1"
         if self.path:
             self.path.write_text("", encoding="utf-8")
 
@@ -29,6 +31,15 @@ class TraceJournal:
         self.sequence += 1
         with self.path.open("a", encoding="utf-8") as stream:
             stream.write(json.dumps(entry) + "\n")
+        if self.stdout:
+            # NEO uses C stdio as well as Python stdout. Drain buffered driver
+            # output before delimiting the next interval; timing is diagnostic.
+            import ctypes
+            libc = ctypes.CDLL(None)
+            flush = libc.fflush
+            flush.argtypes, flush.restype = [ctypes.c_void_p], ctypes.c_int
+            flush(None)
+            print("MKVC_PHASE " + json.dumps(entry), file=sys.stdout, flush=True)
 
     def surface(self, role, display, surface_id, index=None):
         if not self.path:

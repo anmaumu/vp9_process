@@ -11,6 +11,60 @@
 - GitHub Actions builds strict MkDocs HTML and stores `mkvcodec-documentation` for 30 days.
 - GitHub Pages publication remains disabled until an explicit public-release decision.
 
+## 2026-09-03: Autonomous userspace attribution of OpenCL instruction buffers
+
+Status: `PARTIAL` (strong evidence for instruction-code preparation, not a
+complete driver-internal image-copy proof).
+
+The corrected privileged run `/tmp/mkvc-kernel-phases-yld69ezz` completed its
+32-frame oracle and both perf commands with exit 0. All 65 source-present
+64 KiB GTT -> VRAM move records fell in the external OpenCL interval: three on
+frame 0 and two on each subsequent frame. The other 809 move records had no
+source (clear path). The trace also recorded 465 CPU faults and 1,949 GPU jobs.
+This localized the observation but did not identify kernel BO contents.
+
+Without any further user action or sudo, enabled diagnostic NEO logging only
+in child test processes and added finer OpenCL phase delimiters. The installed
+runtime is `intel-opencl-icd 26.09.37435.12-1~24.04~ppa1`; reference source tag
+`26.09.37435.12` is commit `58c78d46922d972cd386c45b910cb44b45be0b5b`.
+No driver replacement, host security change or new shipped dependency was made.
+
+Two complete 32-frame captures (`/tmp/mkvc-userspace-fnoh4d6r` and
+`/tmp/mkvc-userspace-kwh7nusy`) show:
+
+| Userspace observation | Count | Interval |
+|---|---:|---|
+| 64 KiB `KERNEL_ISA` local-memory allocations | 64 | program build (two per frame) |
+| 64 KiB `KERNEL_ISA_INTERNAL` allocation | 1 | initial discovery |
+| GPU-VA + handle matched ISA MAP requests | 32 + 1 internal | enqueue invert |
+| GPU-VA + handle matched ISA MAP requests | 32 | enqueue neutral |
+| 24 KiB PRIME shared-image import records | 64 | image sharing (two BOs per frame) |
+
+Thus the 65-count pattern is strongly consistent with instruction-code
+preparation/residency, not evidence of pixel downloads. This is cross-run
+corroboration, not a simultaneous kernel-pointer/BO-handle identity proof.
+The source explicitly creates ISA allocations from kernel heaps and transfers
+kernel bytes to them: [kernel_info.cpp](https://github.com/intel/compute-runtime/blob/26.09.37435.12/shared/source/program/kernel_info.cpp).
+The test recreates context/program/kernels each frame; program/context reuse is
+a potential future test/example optimization, not an implemented product change.
+
+`tools/capture_intel_userspace_trace.py` now runs the bounded capture autonomously
+as an ordinary user. Missing runtime logging, incomplete oracle, mismatched
+journals and malformed allocation records cannot produce accepted observations.
+The parser matches GPU VA and handle, invalidates labels on GEM close/recreate,
+and keeps `complete_copy_proof=false`. Numeric GEM handles, GPU addresses and
+kernel BO addresses remain different namespaces. C stdio is drained at phase
+boundaries; concurrent driver logging/timing perturbation remains a limitation.
+
+Four GPU-free parser tests pass on Windows/Linux, and all six affected Linux
+CTests (fixtures, VP9/AV1, soak, exported-API audit) pass. A separate unprivileged
+strace ioctl/backtrace probe also completed, but its undecoded ioctl payloads
+and symbol offsets were insufficient for buffer attribution. No further manual
+kernel capture is requested for this investigation.
+
+Traceability: INT-OBS-004 -> TEST-GPU-013/014; public USM API and complete driver
+copy qualification remain open.
+
 ## 2026-09-03: Terminal-dependent CPU oracle timeout fixed
 
 The user's `/tmp/mkvc-kernel-phases-akksa3y0` capture recorded 3,291 kernel

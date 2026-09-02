@@ -115,6 +115,7 @@ timeout 35m python3 tests/python_intel_opencl_roundtrip.py \
 Arc/USM追加検証（TEST-GPU-005/008/009/013/014/019/020）:
 
 - `mkvc_intel_kernel_trace_report`はclearとsource-present migrationの区別、不正/欠落/lost記録、別PCI、GPU job error、journal未完了/非単調/別runの拒否、main-threadのみのphase集計を検証する。phase一致、BOサイズ一致、DMA-BUF inodeからkernel BO identityを推測して画像copy合否を出さない。
+- `mkvc_intel_userspace_trace_report`はNEO allocation type、GPU VA/handleの一致、GEM close/recreate後の旧label無効化、log/journal不一致、driver logging欠落、bind error、malformed記録の拒否を検証する。`python3 tools/capture_intel_userspace_trace.py`で通常権限の32-frame Arc診断を実行できる。NEO logging flagは子processだけへ指定し、production依存物へ加えない。kernel traceとのcount一致はcross-run corroborationであって同一BO証明ではない。
 - `mkvc_media_oracle`はfile-based FFmpeg/ffprobeのstdin=DEVNULL、FFmpegの`-nostdin`指定、timeout/error伝播を検証する。SSH TTY + background process group + timeoutでも32-frame CPU oracleまで完了することを実機確認し、SIGTTINによるtest停止をGPU hangと誤認しない。capture timeout/未完了journalを成功へ読み替えない。
 - `MKVC_GPU_TRACE_JOURNAL`指定時だけCLOCK_MONOTONIC phaseとVA export metadataを追加する。最大10000 recordsの短時間診断専用であり、通常soakでは無効とする。export自体の影響区間を分離する。perf側も`--clockid mono`で取得する。
 - `python3 tools/capture_intel_kernel_trace.py`はlinux-machineのArc B580/renderD129向け手動診断。通常ユーザーで実行し、必要なperf操作のみsudoする。子processを通常権限に戻し、120秒timeout、32-frame AV1 oracle、stderr/raw trace/journal/exit statusを新規private directoryへ保存する。全システム計測、sudoers/sysctl変更、画像copy完全証明は行わない。別kernel worker、非同期処理との因果関係、capture lossの完全性は別途確認する。

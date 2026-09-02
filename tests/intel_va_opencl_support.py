@@ -58,13 +58,19 @@ class VaOwner:
             self.close()
 
 
-def invert_luma(source, output, width, height):
+def invert_luma(source, output, width, height, *, frame_index=None):
     """Write an inverted Y plane and neutral UV into another shared VA surface.
 
     Does not call read/map/write-buffer APIs; explicit clFinish covers the
     release of shared images before the caller declares producer_synchronized.
     API sharing does not by itself prove driver-internal zero-copy behavior.
     """
+    from gpu_trace_journal import journal
+
+    def stage(name):
+        journal.mark("opencl_" + name, frame=frame_index)
+
+    stage("discovery")
     try:
         cl = ct.CDLL("libOpenCL.so.1")
     except OSError as error:
@@ -143,19 +149,24 @@ def invert_luma(source, output, width, height):
             return handle
 
         props = (ct.c_ssize_t * 5)(0x1084, selected, 0x4097, output.display, 0)
+        stage("context_queue")
         context = own(context_fn(props, 1, ct.byref(device), None, None, ct.byref(error)),
                       "clReleaseContext")
         queue = own(queue_fn(context, device, 0, ct.byref(error)), "clReleaseCommandQueue")
         source_id = U(source.native_handle["handles"][1])
+        stage("image_share")
         src = own(create_image(context, 4, ct.byref(source_id), 0, ct.byref(error)), "clReleaseMemObject")
         dst = own(create_image(context, 2, ct.byref(output.surface), 0, ct.byref(error)), "clReleaseMemObject")
         uv = own(create_image(context, 2, ct.byref(output.surface), 1, ct.byref(error)), "clReleaseMemObject")
+        stage("program_create")
         program = own(program_fn(context, 1, (ct.c_char_p * 1)(code), None, ct.byref(error)),
                       "clReleaseProgram")
+        stage("program_build")
         if build(program, 1, ct.byref(device), b"-cl-std=CL1.2", None, None) != 0:
             log = ct.create_string_buffer(8192)
             build_log(program, device, 0x1183, len(log), log, None)
             raise RuntimeError(log.value.decode(errors="replace"))
+        stage("kernel_create")
         invert = own(kernel_fn(program, b"invert", ct.byref(error)), "clReleaseKernel")
         neutral = own(kernel_fn(program, b"neutral", ct.byref(error)), "clReleaseKernel")
         for kernel, values in ((invert, (src, dst)), (neutral, (uv,))):
@@ -163,13 +174,20 @@ def invert_luma(source, output, width, height):
                 argument = P(value)
                 check(set_arg(kernel, index, ct.sizeof(argument), ct.byref(argument)))
         objects = (P * 3)(src, dst, uv)
+        stage("image_acquire")
         check(acquire(queue, 3, objects, 0, None, None))
         try:
+            stage("enqueue_invert")
             check(enqueue(queue, invert, 2, None, (Z * 2)(width, height), None, 0, None, None))
+            stage("enqueue_neutral")
             check(enqueue(queue, neutral, 2, None, (Z * 2)(width // 2, height // 2), None, 0, None, None))
         finally:
+            stage("image_release")
             released = release(queue, 3, objects, 0, None, None)
+            stage("finish")
             finished = finish(queue)
             check(released)
             check(finished)
+        stage("cleanup")
+    stage("complete")
     return identity

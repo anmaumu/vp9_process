@@ -63,7 +63,7 @@ def roundtrip(frames, monitor=None):
                 owner = VaOwner(source, width, height)
                 journal.surface("processed", owner.display, owner.surface.value, index)
                 journal.mark("external_opencl", frame=index)
-                identity = invert_luma(source, owner, width, height)
+                identity = invert_luma(source, owner, width, height, frame_index=index)
                 if monitor:
                     monitor.set_processing_device(identity)
                 journal.mark("encoder_import", frame=index)
