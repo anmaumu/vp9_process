@@ -13,50 +13,74 @@
 #include <unistd.h>
 
 static atomic_uint conflicts;
-#define MKVC_AUDIT_API(name, ret, category, params, args) \
-    static _Atomic(uintptr_t) original_##name; \
-    static atomic_ullong calls_##name; \
-    static ret wrap_##name params { \
+static atomic_uint runtime_objects;
+static atomic_uint objects;
+#define SLOTS(M, name, ret, category, params, args) \
+    M(0,name,ret,category,params,args) M(1,name,ret,category,params,args) \
+    M(2,name,ret,category,params,args) M(3,name,ret,category,params,args) \
+    M(4,name,ret,category,params,args) M(5,name,ret,category,params,args) \
+    M(6,name,ret,category,params,args) M(7,name,ret,category,params,args) \
+    M(8,name,ret,category,params,args) M(9,name,ret,category,params,args) \
+    M(10,name,ret,category,params,args) M(11,name,ret,category,params,args) \
+    M(12,name,ret,category,params,args) M(13,name,ret,category,params,args) \
+    M(14,name,ret,category,params,args) M(15,name,ret,category,params,args)
+#define WRAP(n, name, ret, category, params, args) \
+    static ret wrap_##name##n params { \
         atomic_fetch_add(&calls_##name, 1); \
-        return ((ret (*) params)atomic_load(&original_##name)) args; \
+        return ((ret (*) params)atomic_load(&original_##name[n])) args; \
     }
+#define ADDRESS(n, name, ret, category, params, args) (uintptr_t)&wrap_##name##n,
+#define MKVC_AUDIT_API(name, ret, category, params, args) \
+    static _Atomic(uintptr_t) original_##name[16]; \
+    static atomic_ullong calls_##name; \
+    SLOTS(WRAP,name,ret,category,params,args) \
+    static const uintptr_t wrappers_##name[16] = {SLOTS(ADDRESS,name,ret,category,params,args)};
 #include "gpu_copy_audit_api.h"
 #undef MKVC_AUDIT_API
 
 /* Extension function pointers are returned by this API, not dlsym. */
-static _Atomic(uintptr_t) original_extension;
 static uintptr_t intercept(const char* name, uintptr_t address);
-static void* wrap_extension(void* platform, const char* name) {
-    void* address = ((void* (*)(void*, const char*))atomic_load(&original_extension))(platform, name);
-    return (void*)intercept(name, (uintptr_t)address);
-}
-
-static uintptr_t register_address(_Atomic(uintptr_t)* slot, uintptr_t address, uintptr_t wrapper) {
-    uintptr_t expected = 0;
-    if (address == wrapper) return wrapper;
-    if (!atomic_compare_exchange_strong(slot, &expected, address) && expected != address) {
-        /* Multiple implementations cannot share one forwarding slot safely. */
-        atomic_fetch_add(&conflicts, 1);
-        return address;
+static _Atomic(uintptr_t) original_extension[16];
+#define EXTENSION(n, symbol, ret, category, params, args) \
+    static void* wrap_extension##n(void* platform, const char* name) { \
+        void* address = ((void* (*)(void*, const char*))atomic_load(&original_extension[n]))(platform, name); \
+        return (void*)intercept(name, (uintptr_t)address); \
     }
-    return wrapper;
+SLOTS(EXTENSION,extension,void*,unused,(),())
+static const uintptr_t wrappers_extension[16] = {SLOTS(ADDRESS,extension,void*,unused,(),())};
+
+static uintptr_t register_address(_Atomic(uintptr_t)* slots, uintptr_t address, const uintptr_t* wrappers) {
+    for (int i = 0; i < 16; ++i) {
+        if (address == wrappers[i]) return address;
+    }
+    for (int i = 0; i < 16; ++i) {
+        uintptr_t expected = 0;
+        if (atomic_compare_exchange_strong(&slots[i], &expected, address) || expected == address)
+            return wrappers[i];
+    }
+    /* Namespace-isolated DSOs need distinct forwarding targets. Fail closed
+     * if the bounded table is exhausted; never forward into a different DSO. */
+    atomic_fetch_add(&conflicts, 1);
+    return address;
 }
 
 static uintptr_t intercept(const char* name, uintptr_t address) {
     if (!name || !address) return address;
 #define MKVC_AUDIT_API(symbol, ret, category, params, args) \
     if (strcmp(name, #symbol) == 0) \
-        return register_address(&original_##symbol, address, (uintptr_t)&wrap_##symbol);
+        return register_address(original_##symbol, address, wrappers_##symbol);
 #include "gpu_copy_audit_api.h"
 #undef MKVC_AUDIT_API
     if (strcmp(name, "clGetExtensionFunctionAddressForPlatform") == 0)
-        return register_address(&original_extension, address, (uintptr_t)&wrap_extension);
+        return register_address(original_extension, address, wrappers_extension);
     return address;
 }
 
 unsigned int la_version(unsigned int version) { return version >= LAV_CURRENT ? LAV_CURRENT : 0; }
 unsigned int la_objopen(struct link_map* map, Lmid_t lmid, uintptr_t* cookie) {
-    (void)map; (void)lmid; (void)cookie;
+    (void)lmid; (void)cookie;
+    atomic_fetch_add(&objects, 1);
+    if (map->l_name && strstr(map->l_name, "libmfx-gen")) atomic_fetch_add(&runtime_objects, 1);
     return LA_FLG_BINDTO | LA_FLG_BINDFROM;
 }
 uintptr_t la_symbind64(Elf64_Sym* symbol, unsigned int index,
@@ -76,9 +100,10 @@ __attribute__((destructor)) static void report(void) {
 #define MKVC_AUDIT_API(name, ret, category, params, args) \
     fprintf(output, "%s\"%s\":{\"category\":\"%s\",\"bound\":%s,\"count\":%llu}", \
             separator++ ? "," : "", #name, #category, \
-            atomic_load(&original_##name) ? "true" : "false", atomic_load(&calls_##name));
+            atomic_load(&original_##name[0]) ? "true" : "false", atomic_load(&calls_##name));
 #include "gpu_copy_audit_api.h"
 #undef MKVC_AUDIT_API
-    fputs("}}\n", output);
+    fprintf(output, "},\"coverage\":{\"scope\":\"exported_api_only\",\"objects\":%u,\"vpl_runtime_objects\":%u}}\n",
+            atomic_load(&objects), atomic_load(&runtime_objects));
     fclose(output);
 }

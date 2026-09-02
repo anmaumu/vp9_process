@@ -94,7 +94,7 @@ GPU補足（TEST-GPU-003/004/006/014/019/020）:
 コピー・耐久性の追加検証（TEST-GPU-013/014）:
 
 - `mkvc_gpu_copy_audit_report`: 全host transfer/map項目の検出時拒否、version/conflict/必須symbol/必要なkernel観測/負countの不正、report欠落時の古い合格結果の無効化、child PID不一致、timeout時のkill/reapをGPUなしで検査する。
-- `mkvc_gpu_copy_audit_selftest`: Linux glibc x86-64の独立audit moduleとfake libraryで全14 APIを各1回呼び、RTLD_LOCAL/dlsym、extension pointer、整数/pointer戻り値を検証する。意図的なhost transfer/mapをpositive gateが拒否することを確認する。
+- `mkvc_gpu_copy_audit_selftest`: Linux glibc x86-64の独立audit moduleとfake libraryで全14 APIを各1回、別dlmopen namespaceのvaGetImageを追加で1回呼び、RTLD_LOCAL/dlsym、extension pointer、整数/pointer戻り値を検証する。意図的なhost transfer/mapをpositive gateが拒否することを確認する。
 - `mkvc_intel_opencl_copy_audit`: 実機の外部OpenCL roundtripを独立観測する。watched host transfer/map 0回、kernel/acquire/release/vaDeriveImageの実観測、正しいreport/PID/schemaとbinding conflict 0を必須とする。missing report/timeoutは合格にしない。vaMapBuffer/vaMapBuffer2は未分類のまま残す。private driver/internal/vtable経路、byte数、GPU内copyは未検証であり、全体zero-copy受入れの代替にしない。
 - `mkvc_intel_opencl_soak_smoke`: 同一processで最低2 batchかつ2秒以上の開始・処理・終了を繰り返す。各batchでPTS/count/PSNR、全owner解放、owner peak<=65を検査する。warm-up後のRSS/FD/thread増分budgetは+256 MiB/+2/+4。固定サイズJSONは進捗、baseline/high-water/last、終了statusを保持する。短時間回帰用のbudgetであり性能SLAではない。
 - `MKVC_OPENCL_SOAK_SECONDS`は0（既定の単発）から86400まで、`MKVC_OPENCL_TEST_FRAMES`は1..10000。`MKVC_OPENCL_SOAK_REPORT`で結果保存先を指定する。長時間試験はCTest smokeとは別に実行し、要求時間未達・timeout・failed/not_completedを合格として扱わない。VRAM、pool枯渇、遅いconsumer、複数streamは別途検証が必要。
@@ -111,6 +111,35 @@ timeout 35m python3 tests/python_intel_opencl_roundtrip.py \
 
 この実行例を記載したことは30分試験の実施済みを意味しない。実測結果は
 `docs/implementation-status.md`に分けて記録する。
+
+Arc/USM追加検証（TEST-GPU-005/008/009/013/014/019/020）:
+
+- `mkvc_gpu_resource_monitor`はfdinfo単位変換、duplicate fd除外、必須VRAM欠落、増加budget超過をGPUなしで検証する。実機は32入力ごとにactive、batch終了時にpost-closeを記録し、OpenCL処理先PCIとVRAM対象PCIを一致させる。sampling間の瞬間peakやunique物理bytesは保証しない。
+- `mkvc_intel_prime_layout`はobject/plane count、object index、offset/pitch不正とlinear/tiled modifierの区別を検証する。`probe_intel_usm_layout.py`は実decoder/default/linear要求時のexportを観測するだけでUSM対応を広告しない。
+- `mkvc_intel_opencl_av1_roundtrip`は128x128入力、32 frames、CPU FFmpeg oracle、PTS増加、Y-PSNR>25 dBを確認し、非同期import wrapperのPTS早期復元を回帰検知する。GPU source/inputはVP9、outputはAV1。`ffmpeg/ffprobe`があるLinux Intel buildで登録する。
+- `MKVC_TEST_INTEL_DRM_RENDER_NODE=129`はtest build限定のLinux選択hookで、128..255のみ受理する。`MKVC_TEST_GPU_PCI=0000:83:00.0`は外部OpenCL deviceの実PCI照合、`MKVC_REQUIRE_VRAM_OBSERVATION=1`はその処理先のVRAM観測を必須化する。番号はlinux-machineの例であり一般的なdevice numberingを意味しない。
+- copy auditは各symbolに16個の独立forwarding slotを持ち、dlmopen別namespaceへの追加呼出しも実際に捕捉する。table exhaustionはbinding_conflictsとして拒否する。loaded-runtimeの存在は内部全copyを捕捉した証明ではない。
+- `python_intel_usm_roundtrip.py`はoptionalな実験であり製品APIではない。export flag付き専用device USM→DMA-BUF→VA linear NV12の同一object identity、DLPack pointer一致、実consumer queue完了、caller先行解放と全VA/USM owner解放、encode後のCPU画素/PTSを検証する。既定8 frames、`MKVC_USM_TEST_FRAMES=1..240`。decoder image→別linear USMはGPU materializationであり、strict zero-copyの成功例にしない。
+- pool由来のphysical extent/offset不明、nonlinear export、違うdevice/context、host/shared USM、export失敗、fd枯渇、device loss、DLPack別consumerのshutdown、正式pool/backpressure/asyncは公開USM API化までの追加gateとする。Linux試作の成功だけではWindows USMを完了としない。
+
+Optional USM実験の準備・実行例（Linux、oneVPL test build、Level Zero開発header/libraryが必要）:
+
+```sh
+python3 -m venv build/usm-env
+build/usm-env/bin/pip install dpctl==0.22.1 dpnp==0.20.0
+git clone --depth 1 https://github.com/KhronosGroup/OpenCL-Headers.git build/opencl-headers
+python3 tools/build_intel_usm_probe.py --runtime-root build/usm-env \
+  --opencl-headers build/opencl-headers --output build/intel/libmkvc_sycl_probe.so
+MKVC_TEST_INTEL_DRM_RENDER_NODE=129 LD_LIBRARY_PATH="$PWD/build/usm-env/lib" \
+build/usm-env/bin/python tests/python_intel_usm_roundtrip.py \
+  build/intel/libmkvcodec.so build/intel python build/intel/intel_av1_source.webm \
+  build/intel/libmkvc_sycl_probe.so build/intel/arc_usm_roundtrip.json
+```
+
+`intel_av1_source.webm`はCTestの`mkvc_intel_av1_source`で生成する。試験環境の依存物を
+wheel/NuGetへ同梱せず、実行時version/source revisionを成果とともに記録する。
+30分Arc試験は上の一般soak例にrender-node/PCI/VRAM必須指定と
+`MKVC_OPENCL_OUTPUT_CODEC=av1`を加え、128x128 fixtureを使う。
 
 ### 1.4 CPU Frame Interoperability
 

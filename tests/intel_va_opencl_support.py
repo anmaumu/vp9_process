@@ -29,14 +29,19 @@ class VaOwner:
     peak = 0
     released = 0
 
-    def __init__(self, source, width, height):
+    def __init__(self, source, width, height, *, linear=False):
         self.source = source  # Retains the display, even after Capture.close().
         self.display = source.native_handle["handles"][0]
         self.surface = U(0xFFFFFFFF)
         self.va = ct.CDLL("libva.so.2")
         self.destroy = bind(self.va, "vaDestroySurfaces", I, P, ct.POINTER(U), I)
         create = bind(self.va, "vaCreateSurfaces", I, P, U, U, U, ct.POINTER(U), U, P, U)
-        check(create(self.display, 1, width, height, ct.byref(self.surface), 1, None, 0))
+        if linear:
+            from intel_va_prime_support import linear_attributes
+            attributes, descriptor, modifiers = linear_attributes()
+            check(create(self.display, 1, width, height, ct.byref(self.surface), 1, attributes, 1))
+        else:
+            check(create(self.display, 1, width, height, ct.byref(self.surface), 1, None, 0))
         VaOwner.live += 1
         VaOwner.peak = max(VaOwner.peak, VaOwner.live)
 
@@ -83,6 +88,14 @@ def invert_luma(source, output, width, height):
             break
     if selected is None:
         raise Unsupported("No preferred OpenCL device shares the decoder VA display")
+    info = bind(cl, "clGetDeviceInfo", I, P, U, Z, P, ct.POINTER(Z))
+    device_name = ct.create_string_buffer(512)
+    check(info(device, 0x102B, len(device_name), device_name, None))
+    pci = (U * 4)()
+    pci_status = info(device, 0x410F, ct.sizeof(pci), pci, None)
+    identity = {"name": device_name.value.decode(), "pci": None}
+    if pci_status == 0:
+        identity["pci"] = f"{pci[0]:04x}:{pci[1]:02x}:{pci[2]:02x}.{pci[3]}"
 
     def extension(name, result, *args):
         pointer = address(selected, name.encode())
@@ -159,3 +172,4 @@ def invert_luma(source, output, width, height):
             finished = finish(queue)
             check(released)
             check(finished)
+    return identity

@@ -11,6 +11,83 @@
 - GitHub Actions builds strict MkDocs HTML and stores `mkvcodec-documentation` for 30 days.
 - GitHub Pages publication remains disabled until an explicit public-release decision.
 
+## 2026-09-03: Arc AV1, DRM memory telemetry and experimental USM return path
+
+Status: `PARTIAL` (real USM/DLPack experiment succeeds; public USM adapter and
+complete driver-internal copy qualification are not complete)
+
+Added test-only Linux render-node selection to distinguish integrated Intel
+Graphics (renderD128 / 0000:00:02.0) from Arc B580 (renderD129 / 0000:83:00.0).
+The OpenCL producer independently reports its PCI identity; VRAM-required tests
+require telemetry from that exact device, not another GPU enumerated in-process.
+No production device-selection API or global machine settings were changed.
+
+The Arc external AV1 test exposed a real timestamp bug: imported-surface PTS was
+restored immediately after asynchronous submission. The AV1 runtime read the
+restored zero later, producing valid images with every PTS equal to zero. Private
+imported wrappers now keep submitted metadata throughout their runtime lifetime.
+The direct decoder-owned path is unchanged and has separate qualification.
+CTest now generates a 128x128 VP9 fixture and checks external OpenCL -> AV1
+with CPU FFmpeg decoding, exact frame count, increasing PTS and Y-PSNR >25 dB.
+
+DRM fdinfo sampling records active and post-close client memory per PCI device,
+deduplicates duplicate file descriptors by client identity, and keeps a bounded
+baseline/high-water/last report. Resident/total/system/VRAM categories stay
+separate. Shared objects can overlap across clients, so these sums are not a
+claim about unique physical bytes or system-wide VRAM. Growth budget is +256 MiB
+per observed field; unavailable requested VRAM evidence fails rather than zeroing.
+The Arc B580 AV1 soak passed in **1801.335 seconds**, completing **131,040 frames
+in 546 batches** (240 frames/batch, 128x128). All owner releases and CPU image /
+PTS oracles passed; peak retained external owners was 3. Post-close RSS was
+190,652,416 bytes at baseline/high-water and 178,913,280 bytes at the end; FDs
+stayed at 6 and threads at 26. Arc resident VRAM was 77,123,584 bytes post-close
+at baseline and 81,317,888 bytes at high-water/end (+4 MiB); active resident VRAM
+peaked at 99,098,624 bytes. The 4,914 samples passed the engineering growth
+budgets, not a proof of zero leakage. This small-frame lifecycle qualification
+does not qualify 1080p/4K, other devices, slow consumers or driver-internal copies.
+Other diagnostic GPU workloads ran concurrently, so this is not a throughput
+benchmark. Evidence: `arc_soak_30m.json`, child PID 246231, output codec AV1
+(selected in the invocation; the running report version omits the codec field).
+
+Intel USM feasibility progressed to a real **240-frame** experimental roundtrip:
+VP9 decode tiled surface -> external OpenCL write to a separate linear device-USM
+allocation -> DLPack pointer-identical sharing -> dpnp GPU operation -> same
+allocation imported as VA NV12 -> oneVPL AV1 encode -> CPU golden decode.
+All 240 VA owners and all 240 explicit USM allocations are released. VA re-export
+preserves the DMA-BUF identity, linear modifier and plane layout. PTS is checked
+against index/30 within Matroska's millisecond resolution. This is a test harness,
+**not a shipped C/Python USM API** and not full-path zero-copy: the first image to
+linear-allocation edge is explicit GPU materialization.
+
+Safety findings: actual decoder/default NV12 exports have modifier
+`0x0100000000000009`, including a default-allocation request listing only linear.
+They cannot be presented as ordinary strided tensors. Dedicated Level Zero
+device allocations explicitly requesting DMA-BUF export produce modifier 0 VA
+imports. The experiment uses 2 MiB allocations to establish physical extent,
+not an optimized production pool. Arbitrary pooled USM is rejected when the
+logical extent differs from the exported buffer extent. Level Zero owns the
+exported fd: the adapter duplicates it and closes only the duplicate. VA's
+freshly exported fds have different ownership and are closed by the caller.
+[Level Zero export ownership](https://oneapi-src.github.io/level-zero-spec/level-zero/latest/core/api/apis/mem.html#ze-external-memory-export-fd-t)
+
+The optional helper is built by `tools/build_intel_usm_probe.py` against a local,
+matching SYCL runtime; nothing new is linked into mkvcodec or bundled in packages.
+The isolated test environment uses dpctl 0.22.1, dpnp 0.20.0 and SYCL 2026.1.1.
+OpenCL-Headers revision: `c4c8fd6f9556c92b212308880854e6294d61b314`.
+Evidence: `arc_usm_roundtrip_240.json`. Linux Intel CTest passed 31/31;
+Windows CTest passed 24 with one expected RTX 2060 AV1-encode skip (25 total).
+See the test specification for reproducible commands and pending acceptance work.
+
+Copy instrumentation now forwards up to 16 distinct implementations per symbol
+and tests a second dlmopen namespace. Exhaustion still fails closed. Reports
+include loaded-object/runtime coverage. This does not fill private driver gaps:
+kernel perf/tracefs access is denied (perf_event_paranoid=4, tracefs root-only,
+no passwordless sudo). An additional libva trace had missing/sparse regions and
+is not accepted as complete evidence. No host security/profiling settings changed.
+
+Traceability: EXT-GPU-004/008/010 -> INT-GPU-011/017 / INT-PERF-003 ->
+AC-GPU-001 / TEST-GPU-005/008/009/013/014/019/020; RISK-GPU-006/008/010/011.
+
 ## 2026-09-03: Independent copy observations and same-process soak
 
 Status: `PARTIAL` (exported-API instrumentation and short-soak gates implemented;

@@ -298,6 +298,7 @@ Source layoutは共通所有権・同期を`src/gpu/`、将来のvendor実装を
 - `INT-GPU-010`: DLPack producerはmanaged tensorのdeleterへGPU frame leaseを保持させ、`__dlpack__(stream=...)`でconsumer streamがproducer completionを待つdependencyを挿入する。CUDA eventがあるlinear pointerでは指定contextを一時pushし、`cuStreamWaitEvent`でhost/device-wide waitなしにdependencyを設定する。DLPack importはcapsuleを一度だけconsumeし、元deleterをimport frameの最終leaseまで保持する。
 - `INT-GPU-011`: Intel USM/DLPackは実memoryがUSM pointerとして安全に表現できる経路だけを公開し、D3D11 texture/VA surfaceを偽のlinear pointerとして公開しない。非対応時はnative surface APIを使用させる。
   cl_intel_va_api_media_sharingが返すのはOpenCL imageであり、cl_intel_unified_shared_memoryの存在だけではそのimageからUSM pointerへの無copy変換を保証しない。USM adapterの受入れには実allocation identity、device/context対応、pitch/layout、producer/consumer同期、解放順とoneVPLへの戻し経路を実機証明する。別USM allocationへのGPU copyが必要な場合はgpu_copyとして扱い、zero-copy契約へ暗黙に混入させない。
+  Linux DMA-BUF経路では実exportのDRM modifier、object extent、plane offset/pitchを検証し、非linear modifierのままstrided DLPackを作らない。allocatorへのlinear要求だけを根拠にしない。Level Zeroのexport fdはdriver所有なのでdupして自分の複製だけをcloseする。device USMはexport flag付き専用allocationを基本とし、任意pool allocationの物理offsetを推測しない。SYCL contextとdeviceの一致、実consumer queueの完了、VA owner→USM allocation→contextの寿命を束縛する。共有USMのhost migrationをstrict device-resident保証に代用しない。
 - `INT-GPU-012`: Python wrapperはGPU待機中GILを解放し、GC/finalizerは例外を出さず、interpreter shutdown後にPython APIへcallbackしない。
 - `INT-GPU-013`: copy-path recorderは各edgeを`shared_surface/zero_copy/gpu_copy/cpu_upload/cpu_readback`として実測記録し、要求値から推測しない。
 - `INT-GPU-014`: device lost/cancel/timeout時は全completionをterminal failureへ遷移させ、waiterを起床し、resourceを依存順に一度だけ解放する。
@@ -338,6 +339,7 @@ Status: `PROPOSED`
 - `INT-PERF-001`: benchmarkは1080p30/60、4K30、対応時4K60をbackend別に保存する。
 - `INT-PERF-002`: absolute target確定前は直近承認baselineに対する回帰でgateする。
 - `INT-PERF-003`: long-runでresource countが単調増加しないことをtraceする。
+  Linux fdinfoではdriver/PCI/clientでduplicate fdを除外し、処理GPUのidentityとresident VRAM項目を照合する。別GPUの項目や欠落を0として扱わない。active/post-closeを分け、shared objectの重複計上可能性とsampling間隔を結果へ明記する。
 
 検証実装補足（INT-OBS-004 / INT-PERF-003）:
 

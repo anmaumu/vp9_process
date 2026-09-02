@@ -1,4 +1,5 @@
 #include "intel_vpl_decoder.hpp"
+#include "gpu/intel/test_render_node_filter.hpp"
 #include "gpu/gpu_frame_pool.hpp"
 #if defined(MKVC_HAS_INTEL_ONEVPL)
 #include "gpu/intel/intel_surface_factory.hpp"
@@ -285,6 +286,12 @@ std::unique_ptr<IntelVplDecoder> IntelVplDecoder::create(
         return nullptr;
     }
     value.Data.U32 = vpl_codec(codec);
+#if defined(MKVC_ENABLE_TEST_HOOKS) && defined(__linux__)
+    if (!gpu::intel::test_render_node_filter(impl.loader)) {
+        error = "invalid or unsupported test Intel render-node filter";
+        return nullptr;
+    }
+#endif
     if (MFXSetConfigFilterProperty(
             codec_filter,
             reinterpret_cast<const mfxU8*>(

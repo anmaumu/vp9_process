@@ -29,6 +29,13 @@ RISK-GPU-010/011の追加対策: Linux公開APIの独立LD_AUDIT観測には
 未bind/private driver経路は未検証のまま残す。同一processの反復試験ではowner全解放と
 post-close RSS/FD/thread増分を計測するが、60秒の合格を30分/VRAM受入れへ代用しない。
 
+USM追加リスク（RISK-GPU-006/010/015）: allocatorへのlinear要求が無視される、
+pooled USMのlogical extentとDMA-BUF物理extentが一致しない、Level Zero所有fdを
+直接closeして再exportを壊す、DLPack consumerが別queueを選ぶ、別GPUのVRAMを
+測定する。実modifier/extent/PCI検査、export専用allocation、fd複製、実consumer queue
+完了待ち、対象PCIのfdinfo必須化で防ぐ。private imported wrapperのPTSも非同期利用中は
+復元しない。32-frameの実験合格だけで正式USM APIの全fault/lifetime受入れとはしない。
+
 D3D11 fenceはproducer側でSignal/dispatchを済ませ、値を巻き戻さない。未dispatchの
 fenceは永久pendingになり得るため、libraryのbounded waitで検出し、最終release前には
 producerを完了させる。device removalはterminal failureへ変換する。Intel imported

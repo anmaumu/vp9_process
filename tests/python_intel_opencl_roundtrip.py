@@ -8,6 +8,7 @@ import faulthandler
 import json
 from pathlib import Path
 import time
+import subprocess
 
 native_library, extension_dir, package_dir, fixture = sys.argv[1:5]
 os.environ["MKVC_LIBRARY_PATH"] = native_library
@@ -17,6 +18,7 @@ import _dlpack
 import mkvcodec
 import mkvcodec._api as api
 from intel_va_opencl_support import Unsupported, VaOwner, invert_luma
+from gpu_resource_monitor import ResourceMonitor
 api._dlpack = _dlpack
 original_check = api.native.check
 
@@ -30,7 +32,7 @@ def checked(result):
 api.native.check = checked
 
 
-def roundtrip(frames):
+def roundtrip(frames, monitor=None):
     """One bounded batch, including teardown and an independent CPU oracle."""
     assert VaOwner.live == 0
     VaOwner.peak = VaOwner.released = 0
@@ -45,12 +47,17 @@ def roundtrip(frames):
     source_ref = weakref.ref(source)
     with tempfile.TemporaryDirectory() as directory:
         path = os.path.join(directory, "opencl-inverted.webm")
-        with mkvcodec.VideoWriter(path, backend="intel", fps=30,
+        codec = os.environ.get("MKVC_OPENCL_OUTPUT_CODEC", "vp9")
+        if codec not in ("vp9", "av1"):
+            raise ValueError("Unsupported qualification codec")
+        with mkvcodec.VideoWriter(path, backend="intel", codec=codec, fps=30,
                                  frame_size=(width, height), queue_size=0,
                                  require_gpu_resident=True) as writer:
             for index in range(frames):
                 owner = VaOwner(source, width, height)
-                invert_luma(source, owner, width, height)
+                identity = invert_luma(source, owner, width, height)
+                if monitor:
+                    monitor.set_processing_device(identity)
                 imported = mkvcodec.GpuFrame.import_va_surface(
                     display=owner.display, surface_id=owner.surface.value,
                     device_id=desc["device_id"], frame_size=(width, height),
@@ -59,6 +66,8 @@ def roundtrip(frames):
                 assert imported.native_handle["handles"][0] == source.native_handle["handles"][0]
                 assert imported.native_handle["handles"][1] != source.native_handle["handles"][1]
                 writer.write_surface(imported)
+                if monitor and index % 32 == 0:
+                    monitor.sample("active")
                 imported.close()
                 del imported
                 gc.collect()
@@ -73,13 +82,27 @@ def roundtrip(frames):
         assert VaOwner.live == 0 and VaOwner.released == frames
         assert VaOwner.peak <= 65
         count, previous_pts = 0, -1
-        with mkvcodec.VideoCapture(path, backend="cpu", prefetch=0) as capture:
-            while (frame := capture.read_i420()) is not None:
-                difference = frame.y.astype(np.float32) - (255 - reference_y)
-                assert float(np.mean(difference * difference)) < 205.63  # Y PSNR > 25 dB.
-                assert frame.pts_ns > previous_pts
-                previous_pts = frame.pts_ns
-                count += 1
+        if codec == "av1":
+            raw = subprocess.run(["ffmpeg", "-v", "error", "-hwaccel", "none", "-i", path,
+                                  "-fps_mode", "passthrough", "-f", "rawvideo", "-pix_fmt", "yuv420p", "pipe:1"],
+                                 check=True, capture_output=True, timeout=60).stdout
+            pixels = np.frombuffer(raw, dtype=np.uint8).reshape(frames, height * 3 // 2, width)
+            difference = pixels[:, :height].astype(np.float32) - (255 - reference_y)
+            assert np.all(np.mean(difference * difference, axis=(1, 2)) < 205.63)
+            probe = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_frames",
+                                    "-show_entries", "frame=best_effort_timestamp_time", "-of", "json", path],
+                                   check=True, capture_output=True, timeout=60)
+            timestamps = [float(f["best_effort_timestamp_time"]) for f in json.loads(probe.stdout)["frames"]]
+            assert len(timestamps) == frames and all(b > a for a, b in zip(timestamps, timestamps[1:])), timestamps
+            count = frames
+        else:
+            with mkvcodec.VideoCapture(path, backend="cpu", prefetch=0) as capture:
+                while (frame := capture.read_i420()) is not None:
+                    difference = frame.y.astype(np.float32) - (255 - reference_y)
+                    assert float(np.mean(difference * difference)) < 205.63  # Y PSNR > 25 dB.
+                    assert frame.pts_ns > previous_pts
+                    previous_pts = frame.pts_ns
+                    count += 1
         assert count == frames
     print(f"External OpenCL inversion roundtrip: {frames} frames; owner peak={VaOwner.peak}; "
           "no host pixel transfer in producer; driver-internal copy path unqualified")
@@ -105,10 +128,13 @@ def main():
     assert 1 <= frames <= 10000 and 0 <= seconds <= 86400
     # Conservative engineering regression budgets, not approved performance SLAs.
     budgets = {"rss_bytes": 256 * 1024 * 1024, "fds": 2, "threads": 4}
+    monitor = ResourceMonitor(required=os.environ.get("MKVC_REQUIRE_VRAM_OBSERVATION") == "1")
     report = {"version": 1, "validation": "not_completed", "pid": os.getpid(),
               "requested_seconds": seconds, "frames_per_batch": frames, "batches": 0,
               "total_frames": 0, "owner_peak": 0, "growth_budgets": budgets,
-              "scope": "post-close RSS/FD/thread samples; no VRAM or driver-copy proof"}
+              "output_codec": os.environ.get("MKVC_OPENCL_OUTPUT_CODEC", "vp9"),
+              "scope": "sampled DRM memory and post-close RSS/FD/threads; no driver-copy proof"}
+    report["gpu_memory"] = monitor.report
 
     def save():
         if report_path:
@@ -118,8 +144,9 @@ def main():
     save()
     try:
         while True:
-            report["owner_peak"] = max(report["owner_peak"], roundtrip(frames))
+            report["owner_peak"] = max(report["owner_peak"], roundtrip(frames, monitor))
             gc.collect()
+            monitor.sample("post_close")
             sample = process_resources()
             report["batches"] += 1
             report["total_frames"] += frames

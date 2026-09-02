@@ -43,3 +43,16 @@ for name, result, types, values in (
 ):
     call = ct.CFUNCTYPE(result, *types)(lookup(None, name.encode()))
     assert call(*values) == 7, name
+
+# oneVPL may isolate its runtime with dlmopen; that namespace must be visible too.
+loader = ct.CDLL(None)
+loader.dlmopen.argtypes, loader.dlmopen.restype = [ct.c_long, ct.c_char_p, ct.c_int], p
+loader.dlsym.argtypes, loader.dlsym.restype = [p, ct.c_char_p], p
+loader.dlclose.argtypes, loader.dlclose.restype = [p], ct.c_int
+handle = loader.dlmopen(-1, sys.argv[1].encode(), 2)
+assert handle
+try:
+    get_isolated = ct.CFUNCTYPE(ct.c_int, p, u, ct.c_int, ct.c_int, u, u, u)(loader.dlsym(handle, b"vaGetImage"))
+    assert get_isolated(None, 1, 2, 3, 4, 5, 6) == 7
+finally:
+    assert loader.dlclose(handle) == 0

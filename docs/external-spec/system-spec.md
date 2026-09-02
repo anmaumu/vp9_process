@@ -171,6 +171,9 @@ AV1 decode: supported GPU backend -> libaom -> error
 検証結果の説明では、library境界のcopy metric、公開APIの独立観測、driver内部まで含む
 完全なtraceを区別する。監視対象APIのCPU転送0件だけで経路全体のzero-copy保証へ
 格上げしない。OpenCL image共有が動作してもIntel USM/DLPack対応とは表示しない。
+Intel USM対応を提供する際、decode済みのtiled imageから別linear allocationへの書き出しは
+GPU内だけでも`gpu_copy`として明示する。無copy要求なら拒否する。実験用の
+USM/DLPack往復成功を、正式なC ABI/Python APIの提供済み表示へ代用しない。
 
 C/C++/C#利用者はversioned `mkvc_copy_policy`を作成直後に
 `mkvc_encoder_set_copy_policy` / `mkvc_decoder_set_copy_policy`へ渡す。

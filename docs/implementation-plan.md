@@ -95,6 +95,8 @@
 - [x] native NVIDIA linear CUDA-pointer DLPack plane adapter and native lease deleter
 - [x] Python stable-ABI DLPack capsule and `GpuFrame.plane()` protocol source API
 - [ ] Intel safe USM adapter（CuPy linear-NV12 DLPack import/exportとnative CUDA consumer-stream dependencyはRTX 2060で実機確認済み）
+- [x] experimental Linux Arc device-USM -> DLPack/dpnp -> linear VA shared import -> AV1 encode; explicit tiled-to-linear GPU materialization
+- [ ] promote the experimental USM path to versioned C ABI/Python APIs with copy policy, allocator pool, layout/context validation and fault/lifetime qualification
 - [x] backend-neutral external GPU frame wrapper with producer-query and single-shot release callbacks; CUDA-pointer NV12 is NVIDIA-encode compatible
 - [x] Python stable-ABI owner holder and synchronized/CUDA-event CUDA-pointer NV12 import adapter
 - [x] external CUDA CUarray/linear-DLPack import with producer event/deleter ownership（CUarray NVENC positive encodeはAV1対応GPU待ち）
@@ -107,7 +109,9 @@
 - [x] Linux external OpenCL VP9 roundtrip with 10000-frame repetition and owner-retention bound
 - [x] Linux glibc exported-API copy audit with GPU-free injected-transfer selftest and real OpenCL observations (driver internals remain unqualified)
 - [x] configurable same-process OpenCL soak with bounded JSON, owner/FD/thread/RSS gates; 60-second qualification
-- [ ] 30-minute soak, VRAM growth, slow-consumer and complete driver-internal copy qualification
+- [x] processing-device PCI checks and active/post-close DRM fdinfo memory sampling; AV1 imported-input PTS lifetime fix
+- [x] Arc B580 128x128 external OpenCL -> AV1 30-minute lifecycle soak and per-process VRAM growth-budget qualification (131040 frames)
+- [ ] 1080p/4K and other-device soak, slow-consumer and complete driver-internal copy qualification
 - [ ] VA pending real-workload/race, missing-symbol loader fault injection and independent trace qualification
 - [ ] strict GPU-resident policy and export/import edge copy-path trace
 - [x] Python CuPy contiguous-NV12 DLPack processed-resource import/export hardware qualification

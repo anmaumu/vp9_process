@@ -194,6 +194,10 @@ if(MKVC_BUILD_TESTS)
     if(Python3_Interpreter_FOUND)
         add_test(NAME mkvc_gpu_copy_audit_report
             COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_gpu_copy_audit.py")
+        add_test(NAME mkvc_gpu_resource_monitor
+            COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_gpu_resource_monitor.py")
+        add_test(NAME mkvc_intel_prime_layout
+            COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_intel_prime_layout.py")
         add_test(NAME mkvc_compliance_source
             COMMAND "${Python3_EXECUTABLE}"
                 "${CMAKE_CURRENT_SOURCE_DIR}/tools/compliance_gate.py" source)
@@ -477,6 +481,22 @@ if(MKVC_BUILD_TESTS)
                         "${CMAKE_CURRENT_SOURCE_DIR}/python" "${MKVC_VP9_TEST_OUTPUT}")
                 set_tests_properties(mkvc_python_intel_opencl_roundtrip PROPERTIES
                     FIXTURES_REQUIRED cpu_vp9_sample SKIP_RETURN_CODE 77 TIMEOUT 60)
+                if(FFMPEG_EXECUTABLE AND FFPROBE_EXECUTABLE)
+                    set(MKVC_INTEL_AV1_SOURCE "${CMAKE_CURRENT_BINARY_DIR}/intel_av1_source.webm")
+                    add_test(NAME mkvc_intel_av1_source
+                        COMMAND "${FFMPEG_EXECUTABLE}" -v error -f lavfi
+                            -i testsrc2=size=128x128:rate=30 -frames:v 2 -c:v libvpx-vp9
+                            -y "${MKVC_INTEL_AV1_SOURCE}")
+                    set_tests_properties(mkvc_intel_av1_source PROPERTIES FIXTURES_SETUP intel_av1_source TIMEOUT 30)
+                    add_test(NAME mkvc_intel_opencl_av1_roundtrip
+                        COMMAND "${Python3_EXECUTABLE}"
+                            "${CMAKE_CURRENT_SOURCE_DIR}/tests/python_intel_opencl_roundtrip.py"
+                            "$<TARGET_FILE:mkvcodec>" "$<TARGET_FILE_DIR:mkvc_python_dlpack>"
+                            "${CMAKE_CURRENT_SOURCE_DIR}/python" "${MKVC_INTEL_AV1_SOURCE}")
+                    set_tests_properties(mkvc_intel_opencl_av1_roundtrip PROPERTIES
+                        FIXTURES_REQUIRED intel_av1_source SKIP_RETURN_CODE 77 TIMEOUT 120
+                        ENVIRONMENT "MKVC_OPENCL_OUTPUT_CODEC=av1;MKVC_OPENCL_TEST_FRAMES=32")
+                endif()
                 add_test(NAME mkvc_intel_opencl_soak_smoke
                     COMMAND "${Python3_EXECUTABLE}"
                         "${CMAKE_CURRENT_SOURCE_DIR}/tests/python_intel_opencl_roundtrip.py"

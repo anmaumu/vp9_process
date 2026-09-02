@@ -87,7 +87,7 @@ def main():
             validate(report, positive=False)
             calls = report["calls"]
             for name in EXPECTED:
-                assert calls[name]["bound"] and calls[name]["count"] == 1, name
+                assert calls[name]["bound"] and calls[name]["count"] == (2 if name == "vaGetImage" else 1), name
             try:
                 validate(report)
             except ValueError as error:
