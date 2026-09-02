@@ -49,11 +49,12 @@ def main():
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
     try:
         with (output / "workload.log").open("w") as stdout, (output / "perf-record.log").open("w") as stderr:
-            result = subprocess.run(command, cwd=ROOT, stdout=stdout, stderr=stderr, timeout=180)
+            result = subprocess.run(command, cwd=ROOT, stdin=subprocess.DEVNULL,
+                                    stdout=stdout, stderr=stderr, timeout=180)
         manifest["record_exit_code"] = result.returncode
         with (output / "events.txt").open("w") as stdout, (output / "perf-script.log").open("w") as stderr:
             script = subprocess.run(["sudo", "/usr/bin/perf", "script", "--ns", "-i", str(output / "perf.data")],
-                                    stdout=stdout, stderr=stderr, timeout=60)
+                                    stdin=subprocess.DEVNULL, stdout=stdout, stderr=stderr, timeout=60)
         manifest["script_exit_code"] = script.returncode
         if result.returncode or script.returncode:
             raise RuntimeError("Capture/workload failed; inspect logs, do not accept partial output")

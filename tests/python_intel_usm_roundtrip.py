@@ -9,7 +9,7 @@ import gc
 import json
 import os
 from pathlib import Path
-import subprocess
+from media_oracle import run_oracle
 import sys
 import tempfile
 import weakref
@@ -158,15 +158,13 @@ def main():
         assert UsmVaOwner.released == frames and owner_ref() is None
         assert ExportableAllocation.released == frames
         source.close()
-        raw = subprocess.run(["ffmpeg", "-v", "error", "-hwaccel", "none", "-i", path,
-                              "-fps_mode", "passthrough", "-f", "rawvideo", "-pix_fmt", "yuv420p", "pipe:1"],
-                             check=True, capture_output=True, timeout=60).stdout
+        raw = run_oracle(["ffmpeg", "-v", "error", "-hwaccel", "none", "-i", path,
+                          "-fps_mode", "passthrough", "-f", "rawvideo", "-pix_fmt", "yuv420p", "pipe:1"]).stdout
         pixels = np.frombuffer(raw, np.uint8).reshape(frames, height * 3 // 2, width)
         mse = np.mean((pixels[:, :height].astype(np.float32) - reference)**2, axis=(1, 2))
         assert np.all(mse < 205.63), mse
-        probe = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_frames",
-                                "-show_entries", "frame=best_effort_timestamp_time", "-of", "json", path],
-                               check=True, capture_output=True, timeout=60)
+        probe = run_oracle(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_frames",
+                            "-show_entries", "frame=best_effort_timestamp_time", "-of", "json", path])
         timestamps = [float(f["best_effort_timestamp_time"]) for f in json.loads(probe.stdout)["frames"]]
         assert len(timestamps) == frames
         assert all(abs(value - index / 30) <= .001 for index, value in enumerate(timestamps)), timestamps

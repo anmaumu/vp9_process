@@ -11,6 +11,30 @@
 - GitHub Actions builds strict MkDocs HTML and stores `mkvcodec-documentation` for 30 days.
 - GitHub Pages publication remains disabled until an explicit public-release decision.
 
+## 2026-09-03: Terminal-dependent CPU oracle timeout fixed
+
+The user's `/tmp/mkvc-kernel-phases-akksa3y0` capture recorded 3,291 kernel
+samples, but the workload exited 124 after its 120-second timeout. Its journal
+reached frame 31, encoder flush/close, then `cpu_output_oracle`; the workload
+report remained `not_completed`. This capture is not a passing validation and
+has not been retroactively marked successful.
+
+Reproduced without sudo using SSH with a controlling terminal and `timeout`:
+the Python parent and FFmpeg child both entered stopped (`T`) state in a
+background process group at the CPU oracle. FFmpeg's inherited terminal stdin
+caused job-control stopping, not a demonstrated GPU encode hang. The normal
+non-TTY SSH/CTest runs had not exposed this harness defect.
+
+File-based FFmpeg/ffprobe oracles now use stdin=DEVNULL; FFmpeg also receives
+`-nostdin`. The capture runner disconnects workload stdin after interactive
+sudo authentication. A shared test helper covers both OpenCL and USM tests.
+The same SSH-TTY/background-group 32-frame roundtrip now exits zero and records
+`run_complete`; three GPU-free oracle tests and six affected Linux CTests pass.
+The privileged combined capture must be rerun; existing failed evidence remains
+untouched. Reference: [FFmpeg stdin interaction](https://ffmpeg.org/ffmpeg.html#Advanced-options).
+
+Traceability: TEST-GPU-013/014, TEST-ERR-001 (test harness, not product ABI).
+
 ## 2026-09-03: User-authorized kernel trace and phase-correlation tooling
 
 Status: `PARTIAL` (kernel events obtained; image-buffer identity and complete
