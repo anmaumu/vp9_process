@@ -17,10 +17,19 @@ FLAGS = ("PrintBOCreateDestroyResult", "LogAllocationMemoryPool", "LogAllocation
          "LogAllocationStdout", "PrintXeLogs")
 
 
-def main():
+def parse_args(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--reuse-program", action="store_true", help="Reuse the test's context/program/kernels within a batch")
-    args = parser.parse_args()
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--reuse-program", dest="reuse_program", action="store_true",
+                      help="Reuse context/program/kernels within a batch (default)")
+    mode.add_argument("--recreate-program", dest="reuse_program", action="store_false",
+                      help="Diagnostic baseline: recreate context/program/kernels each frame")
+    parser.set_defaults(reuse_program=True)
+    return parser.parse_args(argv)
+
+
+def main():
+    args = parse_args()
     if sys.platform != "linux" or os.geteuid() == 0:
         raise SystemExit("Run as an ordinary Linux user")
     build = ROOT / "build/intel"

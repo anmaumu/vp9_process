@@ -351,6 +351,7 @@ Status: `PROPOSED`
 
 検証実装補足（INT-OBS-004 / INT-PERF-003）:
 
+- 外部OpenCL往復/USM検証ではbatch単位のcontext/queue/program/kernel再利用を既定とする。sessionは同一VA display/device・単一consumerに限定し、共有imageはframeごとに取得/解放、encoderへ渡す前にrelease/finishを完了する。session破棄までdisplay anchorを保持し、失敗後は再利用しない。これは検証producerの構成であり、製品に画像処理APIやOpenCL依存物を追加しない。`MKVC_OPENCL_REUSE_PROGRAM=0`は明示的な再構築比較で、reportに実行modeを残す。旧reportのmode欠落は旧既定（再構築）として扱い、新既定へ読み替えない。
 - Linux glibc x86-64のtest専用LD_AUDIT moduleで、libva/OpenCLの公開API呼出しをlibrary metricsとは独立に観測する。RTLD_LOCAL/dlsymとOpenCL extension function pointerを対象とし、試験子processだけに適用する。製品library、wheel、NuGetには収録しない。
 - host transfer/mapは試行回数を数える。byte数やdriver内部コピーの推定値へ変換しない。vaDeriveImageはmetadata、vaMapBuffer/vaMapBuffer2はbitstream等の可能性もある未分類mapとして記録し、pixel readbackと断定しない。未bind APIの0件を観測済みとみなさない。
 - reportはversion、child PID、symbol/category/bound/count、binding conflictを検証する。欠落、曖昧な別実装へのbinding、必要なkernel/acquire/release/derive観測の欠落、host transfer/map検出では合格にしない。結果artifactは開始時にnot_completedへ戻し、検証成功後だけpassedへ変更する。

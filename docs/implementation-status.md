@@ -11,6 +11,50 @@
 - GitHub Actions builds strict MkDocs HTML and stores `mkvcodec-documentation` for 30 days.
 - GitHub Pages publication remains disabled until an explicit public-release decision.
 
+## 2026-09-03: Default external-producer reuse and USM integration
+
+Promoted the validated batch-scoped OpenCL reuse to the default in both external
+OpenCL and experimental USM/DLPack roundtrips. No codec-core, public ABI or
+packaged dependency change: the repeated compilation was in the external test
+producer, not in the library. The low-level helper still requires an explicit
+caller-owned session, avoiding a global cache with an unbounded display lifetime.
+
+`MKVC_OPENCL_REUSE_PROGRAM=0` retains the explicit recreate baseline. Unprivileged
+capture now defaults to reuse; `--recreate-program` selects the comparison and
+`--reuse-program` remains accepted. Invalid/conflicting modes are rejected. The
+privileged capture explicitly retains mode 0 for reproduction of its historical
+baseline; no new privileged capture or permission change was performed.
+
+Arc B580 captures with default arguments (`/tmp/mkvc-userspace-znqzmr2v`) and
+`--recreate-program` (`/tmp/mkvc-userspace-5bwgp61t`) both passed their 32-frame
+oracle. Application ISA allocations were 2 versus 64; matched ISA MAP requests
+including the internal kernel were 3 versus 65; shared-image imports remained
+64 in each. These remain partial allocation observations, not migration bytes.
+
+The default USM path passed 240 frames with a single OpenCL build, identical
+DLPack pointers, all 240 VA owners and all 240 USM allocations released, and the
+CPU image/PTS oracle (`build/intel/usm_reuse_default_240.json`). Tiled decode to
+linear USM still requires explicit GPU materialization; this is not a public
+USM API or full decoder-to-tensor zero-copy.
+The explicit recreate USM comparison also passed 8 frames
+(`build/intel/usm_recreate_8.json`). Copies of these reports, the soak report and
+both userspace capture directories are retained locally under
+`build/qualification/opencl-default-reuse/` (untracked evidence).
+
+The default 128x128 AV1 soak passed **60.440 seconds / 16,320 frames / 68 batches**,
+peak retained owners 3. Post-close FDs stayed 6 and threads 26; RSS baseline/high
+was 191,496,192 bytes, ending at 178,716,672. Arc resident VRAM baseline was
+77,115,392 bytes and high/end 81,309,696 (+4 MiB). Engineering growth budgets
+passed (`build/intel/opencl_default_reuse_soak_60.json`); this is not a 30-minute
+qualification of the changed default or proof of no leaks/private driver copies.
+
+All 37 configured Linux CTests passed, including the new explicit-recreate AV1
+case, default/reuse cases, API copy audit and soak smoke. On Windows, the seven
+session/config tests, five userspace parser tests, four kernel parser tests and
+three oracle tests passed. Docgen check and its three unit tests also passed.
+
+Traceability: INT-OBS-004 / INT-PERF-003 -> TEST-GPU-013/014/019/020.
+
 ## 2026-09-03: Controlled OpenCL program-reuse comparison
 
 Added an opt-in, test-only `OpenClReuseSession`. Context, command queue, program
@@ -21,7 +65,8 @@ the encoder. A source anchor preserves display lifetime through cached-object
 teardown. Overlapping use/close, changed display/device and reuse after failure
 are rejected. Setup/processing failures make the session terminal and release
 partially initialized cached resources. No OpenCL processing API was added to
-the product and the default test path still recreates resources per frame.
+the product. At this comparison stage the default still recreated resources;
+the subsequent default change is recorded above.
 
 Autonomous Arc 32-frame AV1 captures compare baseline
 `/tmp/mkvc-userspace-pf6v5i5o` with reuse `/tmp/mkvc-userspace-1zwhqlby`:
@@ -93,8 +138,8 @@ preparation/residency, not evidence of pixel downloads. This is cross-run
 corroboration, not a simultaneous kernel-pointer/BO-handle identity proof.
 The source explicitly creates ISA allocations from kernel heaps and transfers
 kernel bytes to them: [kernel_info.cpp](https://github.com/intel/compute-runtime/blob/26.09.37435.12/shared/source/program/kernel_info.cpp).
-The test recreates context/program/kernels each frame; program/context reuse is
-a potential future test/example optimization, not an implemented product change.
+At this capture stage the test recreated context/program/kernels each frame;
+the subsequent test-only reuse implementation and default change are recorded above.
 
 `tools/capture_intel_userspace_trace.py` now runs the bounded capture autonomously
 as an ordinary user. Missing runtime logging, incomplete oracle, mismatched

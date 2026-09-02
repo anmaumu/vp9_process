@@ -18,7 +18,7 @@ import numpy as np
 import _dlpack
 import mkvcodec
 import mkvcodec._api as api
-from intel_va_opencl_support import Unsupported, VaOwner, invert_luma, OpenClReuseSession
+from intel_va_opencl_support import Unsupported, VaOwner, invert_luma, OpenClReuseSession, reuse_program_enabled
 from gpu_resource_monitor import ResourceMonitor
 from gpu_trace_journal import journal
 api._dlpack = _dlpack
@@ -56,7 +56,7 @@ def roundtrip(frames, monitor=None):
         codec = os.environ.get("MKVC_OPENCL_OUTPUT_CODEC", "vp9")
         if codec not in ("vp9", "av1"):
             raise ValueError("Unsupported qualification codec")
-        reuse = os.environ.get("MKVC_OPENCL_REUSE_PROGRAM", "0") == "1"
+        reuse = reuse_program_enabled()
         with mkvcodec.VideoWriter(path, backend="intel", codec=codec, fps=30,
                                  frame_size=(width, height), queue_size=0,
                                  require_gpu_resident=True) as writer, \
@@ -140,9 +140,7 @@ def main():
     if report_path:
         Path(report_path).write_text('{"validation":"not_completed"}\n')
     frames = int(os.environ.get("MKVC_OPENCL_TEST_FRAMES", "32"))
-    reuse_mode = os.environ.get("MKVC_OPENCL_REUSE_PROGRAM", "0")
-    if reuse_mode not in ("0", "1"):
-        raise ValueError("MKVC_OPENCL_REUSE_PROGRAM must be 0 or 1")
+    reuse = reuse_program_enabled()
     seconds = float(os.environ.get("MKVC_OPENCL_SOAK_SECONDS", "0"))
     assert 1 <= frames <= 10000 and 0 <= seconds <= 86400
     # Conservative engineering regression budgets, not approved performance SLAs.
@@ -152,7 +150,7 @@ def main():
               "requested_seconds": seconds, "frames_per_batch": frames, "batches": 0,
               "total_frames": 0, "owner_peak": 0, "growth_budgets": budgets,
               "output_codec": os.environ.get("MKVC_OPENCL_OUTPUT_CODEC", "vp9"),
-              "opencl_reuse_program": reuse_mode == "1",
+              "opencl_reuse_program": reuse,
               "scope": "sampled DRM memory and post-close RSS/FD/threads; no driver-copy proof"}
     report["gpu_memory"] = monitor.report
 

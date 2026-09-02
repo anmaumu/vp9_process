@@ -5,6 +5,7 @@ GPU allocation by the external OpenCL kernel. This edge is NOT zero-copy.
 No adapter in this file is a shipped/public mkvcodec API.
 """
 import ctypes as ct
+from contextlib import nullcontext
 import gc
 import json
 import os
@@ -27,7 +28,7 @@ import mkvcodec
 import mkvcodec._api as api
 import _dlpack
 api._dlpack = _dlpack
-from intel_va_opencl_support import bind, check, invert_luma, P, U, I
+from intel_va_opencl_support import bind, check, invert_luma, P, U, I, OpenClReuseSession, reuse_program_enabled
 from intel_va_prime_support import Prime, Attribute, export_layout
 
 
@@ -102,6 +103,7 @@ class UsmVaOwner:
 
 def main():
     Path(output).write_text('{"validation":"not_completed"}\n')
+    reuse = reuse_program_enabled()
     library = ct.CDLL(helper)
     queue = dpctl.SyclQueue("level_zero:gpu:0")
     if "B580" not in queue.name:
@@ -118,7 +120,8 @@ def main():
     with tempfile.TemporaryDirectory() as directory:
         path = str(Path(directory) / "usm.webm")
         with mkvcodec.VideoWriter(path, backend="intel", codec="av1", frame_size=(width, height),
-                                 fps=30, queue_size=0, require_gpu_resident=True) as writer:
+                                 fps=30, queue_size=0, require_gpu_resident=True) as writer, \
+                (OpenClReuseSession() if reuse else nullcontext()) as session:
             for index in range(frames):
                 allocation = ExportableAllocation(queue, library, 2 * 1024**2)
                 memory = dpctl.memory.as_usm_memory(allocation)
@@ -135,7 +138,7 @@ def main():
                 assert [layer["planes"] for layer in layout["layers"]] == [
                     [{"object": 0, "offset": 0, "pitch": width}],
                     [{"object": 0, "offset": width * height, "pitch": width}]]
-                identity = invert_luma(source, owner, width, height)
+                identity = invert_luma(source, owner, width, height, frame_index=index, session=session)
                 if identity["pci"] != "0000:83:00.0":
                     raise RuntimeError("OpenCL and SYCL are not using the expected same GPU")
                 # DLPack sharing must preserve the pointer; the producer has finished.
@@ -154,6 +157,8 @@ def main():
                 gc.collect()
                 # Runtime may have already retired non-anchor owners.
             assert writer.metrics.copy_path == "zero_copy"  # Final import boundary only.
+            if session is not None:
+                assert session.builds == 1 and session.completed_calls == frames
         gc.collect()
         assert UsmVaOwner.released == frames and owner_ref() is None
         assert ExportableAllocation.released == frames
@@ -169,6 +174,7 @@ def main():
         assert len(timestamps) == frames
         assert all(abs(value - index / 30) <= .001 for index, value in enumerate(timestamps)), timestamps
     report = {"validation": "passed", "frames": frames, "device": identity, "layout": layout,
+              "opencl_reuse_program": reuse,
               "dpctl": dpctl.__version__, "dpnp": dpnp.__version__, "owners_released": UsmVaOwner.released,
               "allocations_released": ExportableAllocation.released,
               "edges": {"decode_to_linear_usm": "gpu_materialization", "usm_to_dlpack": "pointer_identical",

@@ -6,12 +6,21 @@ The shared objects are images, NOT USM pointers or DLPack tensors.
 import ctypes as ct
 from contextlib import ExitStack, contextmanager
 import threading
+import os
 
 P, U, I, Z = ct.c_void_p, ct.c_uint, ct.c_int, ct.c_size_t
 
 
 class Unsupported(RuntimeError):
     pass
+
+
+def reuse_program_enabled():
+    """Reuse per batch by default; only an explicit 0 selects the diagnostic baseline."""
+    value = os.environ.get("MKVC_OPENCL_REUSE_PROGRAM", "1")
+    if value not in ("0", "1"):
+        raise ValueError("MKVC_OPENCL_REUSE_PROGRAM must be 0 or 1")
+    return value == "1"
 
 
 def check(code):

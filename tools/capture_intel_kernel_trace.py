@@ -38,13 +38,15 @@ def main():
                "MKVC_TEST_INTEL_DRM_RENDER_NODE=129", "MKVC_TEST_GPU_PCI=0000:83:00.0",
                "MKVC_REQUIRE_INTEL_EXTERNAL_IMPORT=1", "MKVC_OPENCL_OUTPUT_CODEC=av1",
                "MKVC_OPENCL_TEST_FRAMES=32", "MKVC_OPENCL_SOAK_SECONDS=0", "LIBVA_MESSAGING_LEVEL=0",
+               "MKVC_OPENCL_REUSE_PROGRAM=0",  # Preserve the original privileged comparison baseline.
                f"MKVC_GPU_TRACE_JOURNAL={output / 'phases.jsonl'}",
                f"MKVC_OPENCL_SOAK_REPORT={output / 'workload.json'}",
                "timeout", "120s", "/usr/bin/python3", str(ROOT / "tests/python_intel_opencl_roundtrip.py"),
                str(build / "libmkvcodec.so"), str(build), str(ROOT / "python"), str(fixture)]
     manifest = {"version": 1, "status": "not_completed", "kernel": platform.release(),
                 "clock": "CLOCK_MONOTONIC", "scope": "process and inherited tasks, not system-wide",
-                "command": command, "surface_export_instrumentation": True}
+                "command": command, "surface_export_instrumentation": True,
+                "opencl_reuse_program": False}
     manifest_path = output / "capture.json"
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
     try:
