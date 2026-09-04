@@ -141,11 +141,25 @@ def main():
                 identity = invert_luma(source, owner, width, height, frame_index=index, session=session)
                 if identity["pci"] != "0000:83:00.0":
                     raise RuntimeError("OpenCL and SYCL are not using the expected same GPU")
-                # DLPack sharing must preserve the pointer; the producer has finished.
-                shared = dpnp.from_dlpack(array)
+                # Promote the synchronized device-USM allocation through the
+                # public frame/DLPack lease. This preserves pointer identity;
+                # the earlier tiled decode -> linear USM edge remains a GPU copy.
+                array.sycl_queue.wait()
+                pointer = array.__sycl_usm_array_interface__["data"][0]
+                usm_frame = mkvcodec.GpuFrame.import_usm_nv12(
+                    pointer=pointer,
+                    context=array.sycl_queue.sycl_context.addressof_ref(),
+                    queue=array.sycl_queue.addressof_ref(),
+                    device_id=0, frame_size=(width, height), pitch=width,
+                    owner=owner, pts_ns=index * 33333333,
+                    producer_synchronized=True)
+                shared = dpnp.from_dlpack(usm_frame.plane(0))
                 assert shared.__sycl_usm_array_interface__["data"][0] == array.__sycl_usm_array_interface__["data"][0]
-                shared[:height] = 255 - shared[:height]  # External Python GPU processing.
+                shared[:] = 255 - shared[:]  # External Python GPU processing.
                 shared.sycl_queue.wait()  # The DLPack consumer may choose another queue.
+                del shared
+                gc.collect()
+                usm_frame.close()
                 imported = mkvcodec.GpuFrame.import_va_surface(
                     display=owner.display, surface_id=owner.surface.value, device_id=desc["device_id"],
                     frame_size=(width, height), pts_ns=index * 33333333,
@@ -153,7 +167,7 @@ def main():
                 owner_ref = weakref.ref(owner)
                 writer.write_surface(imported)
                 imported.close()
-                del imported, owner, array, shared, allocation, view, memory
+                del imported, owner, array, usm_frame, allocation, view, memory
                 gc.collect()
                 # Runtime may have already retired non-anchor owners.
             assert writer.metrics.copy_path == "zero_copy"  # Final import boundary only.
@@ -178,7 +192,7 @@ def main():
               "dpctl": dpctl.__version__, "dpnp": dpnp.__version__, "owners_released": UsmVaOwner.released,
               "allocations_released": ExportableAllocation.released,
               "edges": {"decode_to_linear_usm": "gpu_materialization", "usm_to_dlpack": "pointer_identical",
-                        "usm_to_va_encode": "shared_import"}, "public_api": False}
+                        "usm_to_va_encode": "shared_import"}, "public_api": True}
     Path(output).write_text(json.dumps(report, indent=2) + "\n")
     print(json.dumps(report))
 

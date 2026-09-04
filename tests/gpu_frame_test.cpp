@@ -173,6 +173,35 @@ int main() {
     tensor->deleter(tensor);
     assert(dl_core->external_leases() == 0 && dl_recycled == 1);
 
+    // Linear Intel device-USM is a real oneAPI DLPack pointer. Native
+    // D3D11/VA resources must never enter this branch.
+    auto usm_desc = desc;
+    usm_desc.backend = MKVC_BACKEND_INTEL;
+    usm_desc.memory_type = MKVC_GPU_MEMORY_USM;
+    usm_desc.device_id = 3;
+    usm_desc.generation = 43;
+    auto usm_native = native;
+    usm_native.type = MKVC_GPU_NATIVE_USM_POINTER;
+    usm_native.device_id = usm_desc.device_id;
+    usm_native.generation = usm_desc.generation;
+    usm_native.handles[0] = 0x22340000;
+    usm_native.handles[1] = 0x66780000;
+    usm_native.handles[2] = 0x77890000;
+    usm_native.handles[3] = 0;
+    auto usm_ready = std::make_shared<mkvc::gpu::ManualCompletion>();
+    usm_ready->complete();
+    auto usm_core = std::make_shared<mkvc::gpu::GpuFrameCore>(
+        usm_desc, usm_ready, [](uint64_t) {}, usm_native);
+    mkvc_gpu_frame* usm_handle = mkvc::gpu::make_handle(usm_core);
+    opaque_tensor = nullptr;
+    assert(mkvc_gpu_frame_export_dlpack(usm_handle, 0, 0, &opaque_tensor) == MKVC_OK);
+    tensor = static_cast<TestDLManagedTensor*>(opaque_tensor);
+    assert(tensor->dl_tensor.data == reinterpret_cast<void*>(usm_native.handles[0]));
+    assert(tensor->dl_tensor.device.type == 14 && tensor->dl_tensor.device.id == 3);
+    assert(tensor->dl_tensor.shape[0] == 1080 && tensor->dl_tensor.shape[1] == 1920);
+    mkvc_gpu_frame_release(usm_handle);
+    tensor->deleter(tensor);
+
     mkvc_gpu_native_handle_desc platform{};
     assert(mkvc::gpu::intel::make_d3d11_handle(
         1, 2, 0x1000, 3, platform, error) == MKVC_OK);

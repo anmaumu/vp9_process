@@ -70,16 +70,22 @@ extern "C" mkvc_result mkvc_gpu_frame_export_dlpack(
     native.struct_version = 1;
     result = mkvc_gpu_frame_get_native_handle(frame, &native);
     if (result != MKVC_OK) return result;
-    if (desc.memory_type != MKVC_GPU_MEMORY_CUDA_POINTER ||
-        native.type != MKVC_GPU_NATIVE_CUDA_POINTER || native.handles[0] == 0)
-        return fail(MKVC_ERROR_NOT_SUPPORTED, "GPU memory is not a linear CUDA pointer");
+    const bool cuda = desc.backend == MKVC_BACKEND_NVIDIA &&
+        desc.memory_type == MKVC_GPU_MEMORY_CUDA_POINTER &&
+        native.type == MKVC_GPU_NATIVE_CUDA_POINTER;
+    const bool usm = desc.backend == MKVC_BACKEND_INTEL &&
+        desc.memory_type == MKVC_GPU_MEMORY_USM &&
+        native.type == MKVC_GPU_NATIVE_USM_POINTER;
+    if ((!cuda && !usm) || native.handles[0] == 0)
+        return fail(MKVC_ERROR_NOT_SUPPORTED,
+                    "GPU memory is not a linear CUDA or Intel device-USM pointer");
     if (desc.device_id > static_cast<uint64_t>(std::numeric_limits<int32_t>::max()) ||
         desc.pitches[plane_index] >
             static_cast<uint64_t>(std::numeric_limits<int64_t>::max()) ||
         desc.plane_offsets[plane_index] >
             std::numeric_limits<uint64_t>::max() - native.handles[0])
         return fail(MKVC_ERROR_INVALID_ARGUMENT, "DLPack metadata exceeds its ABI range");
-    if (consumer_stream != 0 && native.handles[3] != 0) {
+    if (cuda && consumer_stream != 0 && native.handles[3] != 0) {
 #if defined(MKVC_HAS_NVIDIA)
         std::string error;
         result = mkvc::gpu::nvidia::cuda_stream_wait_event(
@@ -93,6 +99,8 @@ extern "C" mkvc_result mkvc_gpu_frame_export_dlpack(
                     "CUDA stream dependencies are disabled in this build");
 #endif
     } else {
+        // Public USM import is synchronized-only. Waiting here proves the
+        // producer is complete before any oneAPI consumer queue sees it.
         result = mkvc_gpu_frame_wait(frame, std::numeric_limits<uint32_t>::max());
         if (result != MKVC_OK) return result;
     }
@@ -111,7 +119,7 @@ extern "C" mkvc_result mkvc_gpu_frame_export_dlpack(
     state->managed.dl_tensor.data = reinterpret_cast<void*>(
         static_cast<uintptr_t>(native.handles[0] + desc.plane_offsets[plane_index]));
     state->managed.dl_tensor.device = {
-        kDLCUDA, static_cast<int32_t>(desc.device_id)};
+        cuda ? kDLCUDA : kDLOneAPI, static_cast<int32_t>(desc.device_id)};
     state->managed.dl_tensor.ndim = 2;
     state->managed.dl_tensor.dtype = {1, 8, 1};  // kDLUInt, uint8, one lane.
     state->managed.dl_tensor.shape = state->shape;

@@ -136,8 +136,8 @@ Arc/USM追加検証（TEST-GPU-005/008/009/013/014/019/020）:
 - `mkvc_intel_opencl_av1_roundtrip`は128x128入力、32 frames、CPU FFmpeg oracle、PTS増加、Y-PSNR>25 dBを確認し、非同期import wrapperのPTS早期復元を回帰検知する。GPU source/inputはVP9、outputはAV1。`ffmpeg/ffprobe`があるLinux Intel buildで登録する。
 - `MKVC_TEST_INTEL_DRM_RENDER_NODE=129`はtest build限定のLinux選択hookで、128..255のみ受理する。`MKVC_TEST_GPU_PCI=0000:83:00.0`は外部OpenCL deviceの実PCI照合、`MKVC_REQUIRE_VRAM_OBSERVATION=1`はその処理先のVRAM観測を必須化する。番号はlinux-machineの例であり一般的なdevice numberingを意味しない。
 - copy auditは各symbolに16個の独立forwarding slotを持ち、dlmopen別namespaceへの追加呼出しも実際に捕捉する。table exhaustionはbinding_conflictsとして拒否する。loaded-runtimeの存在は内部全copyを捕捉した証明ではない。
-- `python_intel_usm_roundtrip.py`はoptionalな実験であり製品APIではない。export flag付き専用device USM→DMA-BUF→VA linear NV12の同一object identity、DLPack pointer一致、実consumer queue完了、caller先行解放と全VA/USM owner解放、encode後のCPU画素/PTSを検証する。既定8 frames、`MKVC_USM_TEST_FRAMES=1..240`。decoder image→別linear USMはGPU materializationであり、strict zero-copyの成功例にしない。
-- pool由来のphysical extent/offset不明、nonlinear export、違うdevice/context、host/shared USM、export失敗、fd枯渇、device loss、DLPack別consumerのshutdown、正式pool/backpressure/asyncは公開USM API化までの追加gateとする。Linux試作の成功だけではWindows USMを完了としない。
+- `python_intel_usm_roundtrip.py`は公開済みの同期linear device-USM/DLPack sliceを実機検証するoptional試験である。export flag付き専用device USM→DMA-BUF→VA linear NV12の同一object identity、kDLOneAPI DLPack pointer一致、実consumer queue完了、caller先行解放と全VA/USM owner解放、encode後のCPU画素/PTSを検証する。既定8 frames、`MKVC_USM_TEST_FRAMES=1..240`。decoder image→別linear USMはGPU materializationであり、strict zero-copyの成功例にしない。
+- pool由来のphysical extent/offset不明、nonlinear export、違うdevice/context、host/shared USM、export失敗、fd枯渇、device loss、DLPack別consumerのshutdown、native SYCL event、正式pool/backpressure/asyncは追加gateとする。Linux同期sliceの成功だけではWindows USMや完全非同期USMを完了としない。
 
 Optional USM実験の準備・実行例（Linux、oneVPL test build、Level Zero開発header/libraryが必要）:
 

@@ -94,8 +94,8 @@
 - [ ] NVIDIA CUarray/stream decode export（外部CUarray importとCUDA event dependencyは完了）
 - [x] native NVIDIA linear CUDA-pointer DLPack plane adapter and native lease deleter
 - [x] Python stable-ABI DLPack capsule and `GpuFrame.plane()` protocol source API
-- [ ] Intel safe USM adapter（CuPy linear-NV12 DLPack import/exportとnative CUDA consumer-stream dependencyはRTX 2060で実機確認済み）
-- [x] experimental Linux Arc device-USM -> DLPack/dpnp -> linear VA shared import -> AV1 encode; explicit tiled-to-linear GPU materialization
+- [ ] Intel safe USM adapter（同期linear device-USM sliceは完了。native SYCL event、pool/backpressure、cross-context/fault/soakは残る）
+- [x] versioned C ABI/Python synchronized device-USM import -> kDLOneAPI DLPack/dpnp -> linear VA shared import -> AV1 encode on Arc; explicit tiled-to-linear GPU materialization
 - [ ] promote the experimental USM path to versioned C ABI/Python APIs with copy policy, allocator pool, layout/context validation and fault/lifetime qualification
 - [x] backend-neutral external GPU frame wrapper with producer-query and single-shot release callbacks; CUDA-pointer NV12 is NVIDIA-encode compatible
 - [x] Python stable-ABI owner holder and synchronized/CUDA-event CUDA-pointer NV12 import adapter

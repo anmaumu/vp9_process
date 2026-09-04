@@ -114,6 +114,34 @@ frame.close()
 gc.collect()
 assert owner_ref() is None
 
+owner = Owner()
+usm_owner_ref = weakref.ref(owner)
+usm = mkvcodec.GpuFrame.import_usm_nv12(
+    pointer=0x3000, context=0x4000, queue=0x5000, device_id=0,
+    frame_size=(64, 48), pitch=64, owner=owner,
+    producer_synchronized=True)
+del owner
+gc.collect()
+assert usm_owner_ref() is not None
+assert usm.descriptor["memory_type"] == api.native.MKVC_GPU_MEMORY_USM
+assert usm.native_handle["handles"][:3] == (0x3000, 0x4000, 0x5000)
+assert usm.interop.backend == "intel" and usm.interop.dlpack_export
+assert usm.interop.completion == "synchronized"
+assert usm.supports_interop("sycl_usm") and usm.supports_interop("dlpack")
+assert usm.plane(0).__dlpack_device__() == (14, 0)
+usm.close()
+gc.collect()
+assert usm_owner_ref() is None
+
+try:
+    mkvcodec.GpuFrame.import_usm_nv12(
+        pointer=0x3000, context=0x4000, queue=0x5000, device_id=0,
+        frame_size=(64, 48), pitch=64, owner=Owner())
+except ValueError:
+    pass
+else:
+    raise AssertionError("unsynchronized external USM import was accepted")
+
 try:
     mkvcodec.GpuFrame.import_cuda_pointer(
         pointer=0x1000,

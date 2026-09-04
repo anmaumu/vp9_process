@@ -204,8 +204,11 @@ frame.close()
 ownerはsurfaceとdisplayの両方を保持する必要があります。import後は新たな書込みを
 投入せず、ownerを明示的にcloseしないでください。encoderは最初の外部frameを
 flush/closeまでdevice寿命のため保持するので、pool容量に1 slot分を見込みます。
-Linux実機でnative/Python経路のencodeとowner解放順を確認済みです。Windows Intelの
-encode実機検証、Intel USM/DLPack変換は未完了です。
+Linux実機でnative/Python経路のencodeとowner解放順を確認済みです。同期済みlinear
+device-USMは`GpuFrame.import_usm_nv12()`でowner/context/queue/layoutを保持したまま
+kDLOneAPI DLPackへ公開でき、Arc B580でdpnp処理とVA→oneVPL AV1 encodeまで確認済みです。
+decode tiled imageからlinear USMへのmaterializationはGPU copyです。Windows Intelの
+encode実機検証、native SYCL eventによる完全非同期USMは未完了です。
 
 Windows D3D11のproducer fenceは`mkvc_gpu_frame_import_d3d11_fence()`、C++の
 `GpuFrame::import_d3d11_fence()`、.NETの`MkvGpuFrame.ImportD3D11Fence()`、Pythonの

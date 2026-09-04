@@ -171,7 +171,7 @@ C#は同じC ABI queryを`MkvCodecInfo.SelectBackend`として公開する。
 - `EXT-GPU-006`: Intel GPU frameからWindows D3D11 texture/subresourceおよびLinux VA display/surfaceのborrowed native handleを取得できる。D3D11/VA resourceの所有権はlibraryに残す。
   外部importの元ownerは、出力SyncPoint完了後もruntime入力参照がある間保持する。参照中のimport wrapperの上限は64とし、上限でwriteはWOULD_BLOCKを返す。呼出側はflushでdrainしてから再試行する。最初のdevice anchorの保持と合わせてpool容量を見積もる。
 - `EXT-GPU-007`: NVIDIA GPU frameからCUDA device pointerまたはCUarray、pitch、CUDA context/device、producer stream/eventをborrowed viewとして取得できる。
-- `EXT-GPU-008`: PythonではIntel USM対応経路およびNVIDIA CUDA対応経路をDLPack protocolで受け渡しでき、consumer指定streamへ正しいdependencyを設定する。
+- `EXT-GPU-008`: PythonではIntel USM対応経路およびNVIDIA CUDA対応経路をDLPack protocolで受け渡しでき、consumer指定streamへ正しいdependencyを設定する。初期Intel USM sliceはnative SYCL eventを受け取らないため、producer queue完了後の同期済みlinear device-USMだけを許可する。非同期USMはevent adapter実装までfail closedとする。
 - `EXT-GPU-009`: CUDA pointer/CUarray、D3D11 texture、VA surface、対応時USM/DLPackのimport APIはresource owner、layout、device/context、producer completion、release callbackを受け取る。
   Windows D3D11 NV12の`mkvc_gpu_frame_import_d3d11_fence`はhandles=(texture, subresource=0, fence, target)を受け取り、targetは1..UINT64_MAX-1、queryはnull必須とする。同一device、GPU-only、single-subresource、寸法一致を検査しCOM参照を保持する。producerは処理後のSignalとcommand dispatchを完了させ、fenceの巻戻し/target再利用やconsumer完了前の書込みを禁止する。library側ではfence値のみpollし、Flush/Map/copy/device-wide waitを行わない。非WindowsはNOT_SUPPORTED、descriptor不正はINVALID_ARGUMENT、device removalはCODECとし、失敗時はownerを受け取らない。C++/Python/.NETに同等入口を設ける。oneVPL encoderの対応可否は同期の対応可否と独立に判定する。
   Linux Intel NV12 VA surfaceは`mkvc_gpu_frame_import_va_surface`でVAに投入済みのproducer処理をnative同期できる。query callbackはnull必須。C++/Python/.NETにも同等入口を公開する。surface ID 0は有効、`UINT32_MAX`は無効とし、ownerはdisplayとsurfaceの両方を最終leaseまで保持する。未対応platform/build、libva symbol不足、driver未実装は`NOT_SUPPORTED`で失敗し、失敗時にowner/release callbackの所有権を受け取らない。import後の追加書込みは禁止。VA同期はOpenCL/SYCL等の独立した処理を保証せず、汎用producer queryまたは明示的な外部同期を必要とする。Pythonの`producer_synchronized=True`は利用者がその同期を完了した場合だけ許可する。
@@ -184,7 +184,7 @@ C#は同じC ABI queryを`MkvCodecInfo.SelectBackend`として公開する。
 格上げしない。OpenCL image共有が動作してもIntel USM/DLPack対応とは表示しない。
 Intel USM対応を提供する際、decode済みのtiled imageから別linear allocationへの書き出しは
 GPU内だけでも`gpu_copy`として明示する。無copy要求なら拒否する。実験用の
-USM/DLPack往復成功を、正式なC ABI/Python APIの提供済み表示へ代用しない。
+実験用USM/DLPack往復成功だけを完全非同期USM対応の表示へ代用しない。
 
 C/C++/C#利用者はversioned `mkvc_copy_policy`を作成直後に
 `mkvc_encoder_set_copy_policy` / `mkvc_decoder_set_copy_policy`へ渡す。

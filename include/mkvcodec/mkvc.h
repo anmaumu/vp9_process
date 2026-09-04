@@ -532,6 +532,11 @@ MKVC_API mkvc_result mkvc_gpu_frame_get_native_handle(
  * Additional imported owners remain retained until the runtime releases its
  * input references (not merely until an output SyncPoint completes). At 64
  * outstanding imported wrappers, write returns WOULD_BLOCK; flush to drain.
+ * Linear Intel device-USM NV12 may also be imported for external DLPack
+ * processing with handles=(pointer, SYCL context, SYCL queue, 0). Generic USM
+ * import currently requires the producer to be fully synchronized and is not
+ * directly accepted by oneVPL encode; use an explicitly shared VA/D3D11 view
+ * for the encode boundary and account for any materialization as a GPU copy.
  */
 MKVC_API mkvc_result mkvc_gpu_frame_import_external(
     const mkvc_gpu_external_frame_config* config,
@@ -586,6 +591,8 @@ MKVC_API mkvc_result mkvc_gpu_frame_import_cuda_event(
  * the source GPU-frame lease entirely in native code. NV12 planes are exposed
  * as uint8 matrices: Y=(height,width), UV=(height/2,width). A nonzero consumer
  * stream is accepted only when the producer dependency can be satisfied.
+ * Linear Intel device-USM is exported as kDLOneAPI after producer completion;
+ * no VA/D3D11 surface is ever represented as a false linear tensor.
  */
 MKVC_API mkvc_result mkvc_gpu_frame_export_dlpack(
     mkvc_gpu_frame* frame, uint32_t plane_index,

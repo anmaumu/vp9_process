@@ -255,10 +255,22 @@ bool valid_external_layout(const mkvc_gpu_external_frame_config& config,
             native.type == MKVC_GPU_NATIVE_D3D11_TEXTURE;
         const bool va = desc.memory_type == MKVC_GPU_MEMORY_VA_SURFACE &&
                         native.type == MKVC_GPU_NATIVE_VA_SURFACE;
-        if ((!d3d11 && !va) || native.handles[0] == 0 ||
+        const bool usm = desc.memory_type == MKVC_GPU_MEMORY_USM &&
+                         native.type == MKVC_GPU_NATIVE_USM_POINTER;
+        if ((!d3d11 && !va && !usm) || native.handles[0] == 0 ||
             desc.pixel_format != MKVC_PIXEL_FORMAT_NV12 ||
             desc.plane_count != 2) {
-            error = "external Intel import requires a D3D11 or VA resource";
+            error = "external Intel import requires a D3D11, VA, or device-USM resource";
+            return false;
+        }
+        if (usm && (native.handles[1] == 0 || native.handles[2] == 0 ||
+                    desc.pitches[0] < desc.width ||
+                    desc.pitches[0] != desc.pitches[1] ||
+                    desc.pitches[0] > std::numeric_limits<uint32_t>::max() ||
+                    desc.plane_offsets[0] != 0 ||
+                    desc.plane_offsets[1] != desc.pitches[0] * desc.height ||
+                    config.query != nullptr)) {
+            error = "external Intel USM import requires synchronized linear NV12, context, and queue identity";
             return false;
         }
         return true;

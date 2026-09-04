@@ -637,6 +637,78 @@ class GpuFrame:
         return cls(result_handle)
 
     @classmethod
+    def import_usm_nv12(
+        cls, *, pointer: int, context: int, queue: int, device_id: int,
+        frame_size: tuple[int, int], pitch: int, owner: object,
+        pts_ns: int = -1, producer_synchronized: bool = False,
+    ) -> "GpuFrame":
+        """Import a linear Intel device-USM NV12 allocation for DLPack sharing.
+
+        ``pointer``, ``context`` and ``queue`` must describe the same oneAPI
+        device allocation. The allocation remains owned by ``owner`` until all
+        frame/DLPack leases are released. The current ABI cannot import a SYCL
+        event, so the producer queue must be fully complete and callers must set
+        ``producer_synchronized=True`` explicitly. This representation is for
+        external processing; oneVPL encode still requires a shared VA/D3D11
+        resource and any tiled-to-linear materialization is a GPU copy.
+        """
+        if _dlpack is None:
+            raise RuntimeError(
+                "external USM import requires the mkvcodec stable-ABI extension"
+            )
+        if owner is None:
+            raise ValueError("USM import requires an allocation owner")
+        if not producer_synchronized:
+            raise ValueError(
+                "USM producer must be synchronized before import"
+            )
+        if (not isinstance(frame_size, tuple) or len(frame_size) != 2 or
+                any(not isinstance(value, int) for value in frame_size)):
+            raise ValueError("frame_size must contain integer width and height")
+        width, height = frame_size
+        values = (pointer, context, queue, device_id, width, height, pitch, pts_ns)
+        if any(not isinstance(value, int) for value in values):
+            raise ValueError("USM import descriptors must be integers")
+        if (pointer <= 0 or context <= 0 or queue <= 0 or device_id < 0 or
+                width <= 0 or height <= 0 or width & 1 or height & 1 or
+                pitch < width or pitch > 0xFFFFFFFF or
+                any(value > 0xFFFFFFFFFFFFFFFF for value in
+                    (pointer, context, queue, device_id)) or
+                width > 0xFFFFFFFF or height > 0xFFFFFFFF or
+                pts_ns < -0x8000000000000000 or pts_ns > 0x7FFFFFFFFFFFFFFF):
+            raise ValueError("USM import descriptor is invalid")
+        generation = next(_external_gpu_generations)
+        config = native.GpuExternalFrameConfig()
+        config.struct_size, config.struct_version = ct.sizeof(config), 1
+        desc = config.frame
+        desc.struct_size, desc.struct_version = ct.sizeof(desc), 1
+        desc.backend = native.MKVC_BACKEND_INTEL
+        desc.memory_type = native.MKVC_GPU_MEMORY_USM
+        desc.device_id, desc.generation = device_id, generation
+        desc.pixel_format = native.MKVC_PIXEL_FORMAT_NV12
+        desc.width, desc.height, desc.plane_count = width, height, 2
+        desc.plane_offsets[1] = pitch * height
+        desc.pitches[0] = desc.pitches[1] = pitch
+        desc.pts = pts_ns
+        handle_desc = config.native_handle
+        handle_desc.struct_size, handle_desc.struct_version = ct.sizeof(handle_desc), 1
+        handle_desc.type = native.MKVC_GPU_NATIVE_USM_POINTER
+        handle_desc.borrowed = 1
+        handle_desc.device_id, handle_desc.generation = device_id, generation
+        handle_desc.handles[0], handle_desc.handles[1] = pointer, context
+        handle_desc.handles[2] = queue
+        user_data, release = _dlpack.external_owner_create(owner)
+        config.release, config.user_data = release, user_data
+        result_handle = native.GpuFrameHandle()
+        try:
+            native.check(native.lib.mkvc_gpu_frame_import_external(
+                ct.byref(config), ct.byref(result_handle)))
+        except Exception:
+            _dlpack.external_owner_cancel(user_data)
+            raise
+        return cls(result_handle)
+
+    @classmethod
     def import_dlpack_nv12(
         cls, tensor: object, *, context: int,
         frame_size: tuple[int, int], pts_ns: int = -1,
@@ -802,9 +874,7 @@ class GpuFrame:
             interfaces = ("cuda", "dlpack") if dlpack else ("cuda",)
             completion = "cuda_event"
         elif memory == "usm":
-            # The descriptor vocabulary is reserved, but public USM/DLPack export
-            # is not implemented yet and must not be advertised here.
-            interfaces, dlpack, completion = ("sycl_usm",), False, "external"
+            interfaces, dlpack, completion = ("sycl_usm", "dlpack"), True, "synchronized"
         else:
             interfaces, dlpack, completion = (), False, "unknown"
         return GpuInteropInfo(
@@ -855,9 +925,14 @@ class GpuPlane:
 
     def __dlpack_device__(self) -> tuple[int, int]:
         descriptor = self._frame.descriptor
-        if descriptor["memory_type"] != 3:
-            raise BufferError("this GPU surface is not a linear CUDA pointer")
-        return 2, int(descriptor["device_id"])
+        memory_type = int(descriptor["memory_type"])
+        if memory_type == native.MKVC_GPU_MEMORY_CUDA_POINTER:
+            device_type = 2  # kDLCUDA
+        elif memory_type == native.MKVC_GPU_MEMORY_USM:
+            device_type = 14  # kDLOneAPI
+        else:
+            raise BufferError("this GPU surface is not a linear CUDA/USM pointer")
+        return device_type, int(descriptor["device_id"])
 
     def __dlpack__(
         self, *, stream: int | None = None, max_version: tuple[int, int] | None = None,
