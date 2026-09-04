@@ -11,7 +11,8 @@ def main() -> None:
     width, height = 320, 240
     with tempfile.TemporaryDirectory() as directory:
         for codec in ("vp9", "av1"):
-            path = os.path.join(directory, f"intel-{codec}.webm")
+            extension = "mkv" if codec == "av1" else "webm"
+            path = os.path.join(directory, f"intel-{codec}.{extension}")
             try:
                 writer = mkvcodec.VideoWriter(
                     path,

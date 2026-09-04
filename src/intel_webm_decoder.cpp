@@ -1,4 +1,5 @@
 #include "intel_webm_decoder.hpp"
+#include "container_format.hpp"
 
 #if defined(MKVC_HAS_INTEL_ONEVPL)
 #include <webm/mkvparser/mkvparser.h>
@@ -46,6 +47,9 @@ namespace {
 
 bool open_parser(const mkvc_decoder_config& config,
                  IntelWebmDecoder::Impl& impl, std::string& error) {
+    ContainerFormat format;
+    if (!resolve_container_format(config.input_path_utf8, format, error) ||
+        !validate_container_doc_type(config.input_path_utf8, format, error)) return false;
     impl.reader = std::make_unique<mkvparser::MkvReader>();
     if (impl.reader->Open(config.input_path_utf8) != 0) {
         error = "failed to open Intel Matroska/WebM input";

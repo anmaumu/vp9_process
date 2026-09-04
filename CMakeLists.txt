@@ -47,6 +47,7 @@ endif()
 add_library(mkvcodec SHARED
     src/c_api.cpp
     src/backend_registry.cpp
+    src/container_format.cpp
     src/cpu_vp9_encoder.cpp
     src/cpu_vp9_decoder.cpp
     src/cpu_frame_pool.cpp
@@ -387,6 +388,7 @@ if(MKVC_BUILD_TESTS)
                 tests/nvidia_webm_decoder_test.cpp
                 tests/nvidia_gpu_test_support.cpp
                 src/nvidia_webm_decoder.cpp src/nvidia_probe.cpp
+                src/container_format.cpp
                 src/gpu/gpu_frame.cpp src/gpu/gpu_frame_pool.cpp
                 src/gpu/intel/va_completion.cpp
                 src/gpu/intel/d3d11_completion.cpp

@@ -11,6 +11,25 @@
 - GitHub Actions builds strict MkDocs HTML and stores `mkvcodec-documentation` for 30 days.
 - GitHub Pages publication remains disabled until an explicit public-release decision.
 
+## 2026-09-04: WebM/Matroska DocType enforcement
+
+Container selection now follows the output/input extension at every CPU, Intel and
+NVIDIA backend boundary. `.webm` is finalized and validated with EBML DocType
+`webm`; `.mkv` is finalized as DocType `matroska`. Because libwebm derives WebM
+from the VP9/AV1 track codec, Matroska output is installed by a bounded streaming
+EBML-header rewrite after successful mux finalization. The replacement uses a
+temporary sibling file and atomic rename, never buffers the media payload, and
+keeps its 1 MiB transfer buffer off worker-thread stacks.
+
+Decoders fail closed when the extension is unsupported, the EBML header is
+malformed, or extension and DocType disagree. Python CPU coverage verifies both
+formats, deliberate mismatch rejection and unsupported-extension rejection. The
+Linux Intel suite also performs the AV1 hardware encode/decode roundtrip as actual
+Matroska. Linux passed 37/37 tests; the Windows CPU/NVIDIA suite and independent
+Python Matroska roundtrip pass after the worker-stack regression test.
+
+Traceability: EXT-CONT-001/002 -> INT-CONT-001/002/004 -> TEST-CONT-001/002.
+
 ## 2026-09-04: Python auto backend and normalized GPU interop discovery
 
 Implemented the previously specified Python `backend="auto"` path using the
@@ -634,7 +653,7 @@ and an OS/oneVPL trace has not yet independently proven zero host pixel transfer
 |---|---|---|---|
 | `EXT-CODEC-001` / `AC-CODEC-001` | libvpx VP9 CPU encode/decode | `mkvc_cpu_vp9_encode` | synchronous I420 round-trip passing with PSNR >= 28 dB |
 | `EXT-CODEC-002` / `AC-CODEC-002` | SVT-AV1 encode and libaom decode | `mkvc_python_av1_encode` | 8-bit internal round-trip, FFmpeg decode and Y-PSNR >= 28 dB passing; SSIM pending |
-| `EXT-CONT-001..003` / `AC-CONT-001` | libwebm WebM mux/finalize/demux | `mkvc_cpu_vp9_external_decode`, `mkvc_cpu_vp9_metadata` | WebM VP9 path complete; MKV distinction pending |
+| `EXT-CONT-001..003` / `AC-CONT-001` | libwebm mux/finalize/demux plus extension-selected EBML DocType validation and bounded atomic Matroska header installation | `mkvc_python_roundtrip`, `mkvc_python_intel_roundtrip`, `mkvc_cpu_vp9_external_decode`, `mkvc_cpu_vp9_metadata` | WebM and Matroska distinction complete for CPU/Intel/NVIDIA backend entry points; external oracle currently covers VP9 WebM |
 | `EXT-ENC-001` | create/write/flush/idempotent close/destroy | `mkvc_cpu_vp9_encode` | synchronous and bounded asynchronous CPU paths complete |
 | `EXT-ENC-002` | BGR/RGB/BGRA/I420/NV12 CPU input | VP9/AV1 Python round-trips | complete for both CPU writers |
 | `EXT-ENC-005` | asynchronous input deep-copied before return | mutable reused inputs in native/Python round-trip | complete for supported CPU formats |
@@ -659,10 +678,10 @@ and an OS/oneVPL trace has not yet independently proven zero host pixel transfer
 | `EXT-ABI-002..005` | `mkvc_`, opaque encoder handle, versioned structs, stable result | `mkvc_c_api_tests` | encoder subset complete |
 | `EXT-ERR-002..003` | exception containment and thread-local detail | C ABI tests/integration | encoder subset complete |
 | `INT-CPU-001` | libvpx VP9 encode/decode | Linux GCC build and round-trip | VP9 synchronous subset complete |
-| `INT-CONT-001/003` | libwebm mux/demux, `V_VP9`, PTS/duration/keyframe | FFmpeg/ffprobe tests | WebM VP9 subset complete |
+| `INT-CONT-001..004` | libwebm mux/demux, VP9/AV1 track IDs, PTS/duration/keyframe and bounded extension-selected DocType enforcement | FFmpeg/ffprobe plus Python CPU/Intel roundtrips and negative mismatch cases | WebM/Matroska container distinction complete; broader malformed-input fuzzing remains pending |
 | `INT-CPU-004` / `INT-PIPE-001/005/006` | bounded worker queue, reusable frame buffers, cancel/close wakeups, owned input and cumulative metrics | native/Python nonblocking, cancel and flush tests | CPU writer complete for current queue/metric contract |
 | `INT-STATE-001..003` | running/flushing/closed behavior | close/write-after-close checks | CPU writer subset complete |
-| `TEST-CONT-001` | independent decode and metadata verification | FFmpeg + ffprobe | VP9 WebM encode case passing |
+| `TEST-CONT-001/002` | independent decode/metadata plus DocType, mismatch and unsupported-extension verification | FFmpeg + ffprobe and Python CPU/Intel integration | VP9 WebM oracle and CPU/Intel WebM/Matroska roundtrips passing |
 | `TEST-CODEC-001` | VP9 encode/decode round-trip with quality metrics | internal decode and Y-PSNR >= 28 dB | SSIM pending |
 | `TEST-CODEC-002` | SVT-AV1 to libaom/FFmpeg round-trip | 30-frame PTS/order/count, Y-PSNR >= 28 dB, all 8-bit inputs | SSIM pending |
 | `INT-INTEL-001/002` | oneVPL 2.x hardware session, internal NV12 surfaces, VP9/AV1 encode/decode and libwebm mux/demux | `mkvc_intel_vpl_probe`, `mkvc_intel_vpl_encode`, `mkvc_python_intel_roundtrip` in required-hardware mode | Linux VA-API public Writer/Capture passing for both codecs with ordered multi-SyncPoint encode/decode; zero-copy and Windows hardware run pending |

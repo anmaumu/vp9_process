@@ -1,4 +1,5 @@
 #include "nvidia_webm_encoder.hpp"
+#include "container_format.hpp"
 #include "nvidia_probe.hpp"
 #include "gpu/gpu_frame.hpp"
 
@@ -93,6 +94,8 @@ struct NvidiaWebmEncoder::Impl {
   uint64_t frame_index = 0;
   int64_t next_pts = 0;
   bool closed = false;
+  std::string output_path;
+  ContainerFormat container = ContainerFormat::WebM;
   std::vector<uint8_t> i420;
   std::vector<uint8_t> nv12;
 };
@@ -343,6 +346,9 @@ NvidiaWebmEncoder::create(const mkvc_encoder_config &config,
   }
   auto result = std::unique_ptr<NvidiaWebmEncoder>(new NvidiaWebmEncoder());
   auto &state = *result->impl_;
+  if (!resolve_container_format(config.output_path_utf8, state.container, error))
+    return nullptr;
+  state.output_path = config.output_path_utf8;
   state.width = config.width;
   state.height = config.height;
   state.fps_num = config.fps_num;
@@ -682,6 +688,10 @@ mkvc_result NvidiaWebmEncoder::close(std::string &error) {
   }
   if (state.writer_open)
     state.writer.Close();
+  if (result == MKVC_OK && !finalize_container_doc_type(
+          state.output_path.c_str(), state.container, error)) {
+    result = MKVC_ERROR_IO;
+  }
 #endif
   impl_->closed = true;
   return result;

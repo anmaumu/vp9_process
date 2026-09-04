@@ -1,4 +1,5 @@
 #include "cpu_av1_decoder.hpp"
+#include "container_format.hpp"
 
 #if defined(MKVC_HAS_CPU_AV1)
 #include <aom/aom_decoder.h>
@@ -49,6 +50,9 @@ namespace {
 
 bool open_parser(const char* path, CpuAv1Decoder::Impl& impl,
                  std::string& error) {
+    ContainerFormat format;
+    if (!resolve_container_format(path, format, error) ||
+        !validate_container_doc_type(path, format, error)) return false;
     impl.reader = std::make_unique<mkvparser::MkvReader>();
     if (impl.reader->Open(path) != 0) {
         error = "failed to open Matroska/WebM input";

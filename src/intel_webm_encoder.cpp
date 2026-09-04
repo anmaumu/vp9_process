@@ -1,4 +1,5 @@
 #include "intel_webm_encoder.hpp"
+#include "container_format.hpp"
 #include "gpu/gpu_frame.hpp"
 
 #if defined(MKVC_HAS_INTEL_ONEVPL)
@@ -36,6 +37,8 @@ struct IntelWebmEncoder::Impl {
     uint64_t frames_in_sequence = 0;
     uint32_t hardware_pending_peak = 0;
     bool closed = false;
+    std::string output_path;
+    ContainerFormat container = ContainerFormat::WebM;
     bool external_gpu_mode = false;
     std::vector<uint8_t> i420;
     std::vector<uint8_t> nv12;
@@ -196,6 +199,9 @@ std::unique_ptr<IntelWebmEncoder> IntelWebmEncoder::create(
 #else
     auto encoder = std::unique_ptr<IntelWebmEncoder>(new IntelWebmEncoder());
     auto& impl = *encoder->impl_;
+    if (!resolve_container_format(config.output_path_utf8, impl.container, error))
+        return nullptr;
+    impl.output_path = config.output_path_utf8;
     impl.codec = config.codec;
     impl.width = config.width;
     impl.height = config.height;
@@ -369,6 +375,10 @@ mkvc_result IntelWebmEncoder::close(std::string& error) {
     }
     if (impl.writer_open) impl.writer.Close();
     impl.writer_open = false;
+    if (result == MKVC_OK && !finalize_container_doc_type(
+            impl.output_path.c_str(), impl.container, error)) {
+        result = MKVC_ERROR_IO;
+    }
 #endif
     impl_->closed = true;
     return result;

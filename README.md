@@ -12,6 +12,8 @@ PythonからOpenCVに近い感覚で利用できるAPIと.NET bindingを提供�
 - Container: libwebmによるWebM/Matroska
 
 H.264とHEVCは対象外です。
+出力拡張子がcontainerを決定し、`.webm`はEBML DocType `webm`、`.mkv`は
+`matroska`として生成します。入力時も拡張子とDocTypeの矛盾をエラーにします。
 
 ## Frame interopの方針
 

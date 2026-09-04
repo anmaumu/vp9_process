@@ -1,4 +1,5 @@
 #include "cpu_av1_encoder.hpp"
+#include "container_format.hpp"
 
 #if defined(MKVC_HAS_CPU_AV1)
 #include <svt-av1/EbSvtAv1Enc.h>
@@ -35,6 +36,8 @@ struct CpuAv1Encoder::Impl {
     uint64_t frames_in_sequence = 0;
     bool eos_sent = false;
     bool closed = false;
+    std::string output_path;
+    ContainerFormat container = ContainerFormat::WebM;
     std::vector<uint8_t> image;
 };
 
@@ -254,6 +257,9 @@ std::unique_ptr<CpuAv1Encoder> CpuAv1Encoder::create(
 #else
     auto encoder = std::unique_ptr<CpuAv1Encoder>(new CpuAv1Encoder());
     auto& impl = *encoder->impl_;
+    if (!resolve_container_format(config.output_path_utf8, impl.container, error))
+        return nullptr;
+    impl.output_path = config.output_path_utf8;
     impl.width = config.width;
     impl.height = config.height;
     impl.fps_num = config.fps_num;
@@ -380,6 +386,10 @@ mkvc_result CpuAv1Encoder::close(std::string& error) {
         result = MKVC_ERROR_IO;
     }
     if (impl.writer_open) impl.writer.Close();
+    if (result == MKVC_OK && !finalize_container_doc_type(
+            impl.output_path.c_str(), impl.container, error)) {
+        result = MKVC_ERROR_IO;
+    }
     destroy_codec(impl);
     impl.writer_open = false;
     impl.closed = true;

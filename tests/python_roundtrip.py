@@ -2,6 +2,7 @@ import os
 import tempfile
 import gc
 import weakref
+import shutil
 
 import numpy as np
 
@@ -44,6 +45,25 @@ def main() -> None:
         assert [frame.pts_ns for frame in frames] == sorted(
             frame.pts_ns for frame in frames
         )
+
+        # Extension selects an actual EBML DocType; mismatches fail closed.
+        matroska_path = os.path.join(directory, "python.mkv")
+        with mkvcodec.VideoWriter(
+            matroska_path, fps=30, frame_size=(width, height), quality=32
+        ) as writer:
+            for index in range(3):
+                writer.write((frames[index].y, frames[index].u, frames[index].v))
+        with open(matroska_path, "rb") as matroska:
+            header = matroska.read(64)
+        assert b"matroska" in header and b"webm" not in header
+        with mkvcodec.VideoCapture(matroska_path, prefetch=0) as capture:
+            assert sum(1 for _ in capture) == 3
+        mismatched_path = os.path.join(directory, "mismatched.mkv")
+        shutil.copyfile(path, mismatched_path)
+        expect_value_error(lambda: mkvcodec.VideoCapture(mismatched_path, prefetch=0))
+        expect_value_error(lambda: mkvcodec.VideoWriter(
+            os.path.join(directory, "unsupported.mp4"), fps=30,
+            frame_size=(width, height)))
 
         with mkvcodec.VideoCapture(path, prefetch=0) as capture:
             borrowed = capture.read_borrowed()

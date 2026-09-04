@@ -1,4 +1,5 @@
 #include "cpu_vp9_encoder.hpp"
+#include "container_format.hpp"
 
 #if defined(MKVC_HAS_CPU_VP9)
 #include <vpx/vp8cx.h>
@@ -32,6 +33,8 @@ struct CpuVp9Encoder::Impl {
     uint32_t fps_den = 0;
     int64_t next_pts = 0;
     bool closed = false;
+    std::string output_path;
+    ContainerFormat container = ContainerFormat::WebM;
     std::vector<uint8_t> image;
 };
 
@@ -109,6 +112,9 @@ std::unique_ptr<CpuVp9Encoder> CpuVp9Encoder::create(
 #else
     auto encoder = std::unique_ptr<CpuVp9Encoder>(new CpuVp9Encoder());
     auto& impl = *encoder->impl_;
+    if (!resolve_container_format(config.output_path_utf8, impl.container, error))
+        return nullptr;
+    impl.output_path = config.output_path_utf8;
     impl.width = config.width;
     impl.height = config.height;
     impl.fps_num = config.fps_num;
@@ -337,6 +343,10 @@ mkvc_result CpuVp9Encoder::close(std::string& error) {
     if (impl_->writer_open) {
         impl_->writer.Close();
         impl_->writer_open = false;
+    }
+    if (result == MKVC_OK && !finalize_container_doc_type(
+            impl_->output_path.c_str(), impl_->container, error)) {
+        result = MKVC_ERROR_IO;
     }
     if (impl_->codec_initialized) {
         vpx_codec_destroy(&impl_->codec);

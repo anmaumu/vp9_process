@@ -1,4 +1,5 @@
 #include "nvidia_webm_decoder.hpp"
+#include "container_format.hpp"
 #include "nvidia_probe.hpp"
 #include "gpu/gpu_frame_pool.hpp"
 #include "gpu/nvidia/nvidia_native_handle.hpp"
@@ -342,6 +343,9 @@ int CUDAAPI display_callback(void* opaque, CUVIDPARSERDISPINFO* display) {
 
 bool open_container(const mkvc_decoder_config& config,
                     NvidiaWebmDecoder::Impl& state, std::string& error) {
+    ContainerFormat format;
+    if (!resolve_container_format(config.input_path_utf8, format, error) ||
+        !validate_container_doc_type(config.input_path_utf8, format, error)) return false;
     state.reader = std::make_unique<mkvparser::MkvReader>();
     if (state.reader->Open(config.input_path_utf8) != 0) {
         error = "failed to open NVIDIA Matroska/WebM input";
