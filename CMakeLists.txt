@@ -199,6 +199,8 @@ if(MKVC_BUILD_TESTS)
             COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_gpu_copy_audit.py")
         add_test(NAME mkvc_gpu_resource_monitor
             COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_gpu_resource_monitor.py")
+        add_test(NAME mkvc_usm_soak_report
+            COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_usm_soak_report.py")
         add_test(NAME mkvc_intel_prime_layout
             COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_intel_prime_layout.py")
         add_test(NAME mkvc_intel_kernel_trace_report
