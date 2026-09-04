@@ -29,6 +29,91 @@ class CpuFrame:
     pts_ns: int
 
 
+@dataclass(frozen=True)
+class BackendCapability:
+    """One runtime-supported codec direction reported by the native core."""
+    backend: str
+    codec: str
+    can_decode: bool
+    can_encode: bool
+    is_hardware: bool
+
+
+@dataclass(frozen=True)
+class GpuInteropInfo:
+    """Backend-neutral description used to choose an external processor adapter."""
+    backend: str
+    memory_type: str
+    native_handle_type: str
+    processing_interfaces: tuple[str, ...]
+    dlpack_export: bool
+    completion: str
+
+
+def backend_capabilities() -> tuple[BackendCapability, ...]:
+    """Return runtime capabilities without creating an encoder or decoder."""
+    count = ct.c_size_t()
+    native.check(native.lib.mkvc_get_backend_capabilities(None, ct.byref(count)))
+    if count.value == 0:
+        return ()
+    values = (native.BackendCapability * count.value)()
+    requested = count.value
+    for value in values:
+        value.struct_size = ct.sizeof(value)
+    native.check(native.lib.mkvc_get_backend_capabilities(values, ct.byref(count)))
+    if count.value > requested:
+        raise RuntimeError("backend capability set changed during query")
+    backend_names = {native.MKVC_BACKEND_CPU: "cpu", native.MKVC_BACKEND_INTEL: "intel",
+                     native.MKVC_BACKEND_NVIDIA: "nvidia"}
+    codec_names = {native.MKVC_CODEC_VP9: "vp9", native.MKVC_CODEC_AV1: "av1"}
+    result = []
+    for value in values[:count.value]:
+        if value.backend not in backend_names or value.codec not in codec_names:
+            continue
+        result.append(BackendCapability(
+            backend_names[value.backend], codec_names[value.codec],
+            bool(value.can_decode), bool(value.can_encode), bool(value.is_hardware)))
+    return tuple(result)
+
+
+def select_backend(
+    codec: str, *, decode: bool = True, encode: bool = True,
+    require_gpu_resident: bool = False,
+) -> str:
+    """Select one backend satisfying every requested pipeline direction."""
+    if codec not in ("vp9", "av1"):
+        raise ValueError("codec must be vp9 or av1")
+    if not decode and not encode:
+        raise ValueError("at least one of decode or encode must be requested")
+    available = {
+        row.backend for row in backend_capabilities()
+        if row.codec == codec and (not decode or row.can_decode)
+        and (not encode or row.can_encode)
+        and (not require_gpu_resident or row.is_hardware)
+    }
+    if encode and codec == "vp9":
+        preference = ("intel", "cpu")
+    elif encode:
+        preference = ("nvidia", "intel", "cpu")
+    else:
+        preference = ("nvidia", "intel", "cpu")
+    for candidate in preference:
+        if candidate in available:
+            return candidate
+    residence = " GPU-resident" if require_gpu_resident else ""
+    directions = "/".join(name for name, enabled in
+                          (("decode", decode), ("encode", encode)) if enabled)
+    raise RuntimeError(f"no{residence} {codec} {directions} backend is available")
+
+
+def _select_backend(codec: str, direction: str, require_gpu: bool) -> str:
+    if direction not in ("decode", "encode"):
+        raise ValueError("direction must be decode or encode")
+    return select_backend(
+        codec, decode=direction == "decode", encode=direction == "encode",
+        require_gpu_resident=require_gpu)
+
+
 class _CpuFrameLease:
     """Pure-native decoded-frame owner retained by borrowed ndarray views."""
     def __init__(self, handle: native.FrameHandle) -> None:
@@ -686,6 +771,52 @@ class GpuFrame:
             "handles": tuple(value.handles),
         }
 
+    @property
+    def interop(self) -> GpuInteropInfo:
+        """Describe the adapter family for external processing without probing it."""
+        descriptor, handle = self.descriptor, self.native_handle
+        backends = {native.MKVC_BACKEND_INTEL: "intel",
+                    native.MKVC_BACKEND_NVIDIA: "nvidia"}
+        memories = {
+            native.MKVC_GPU_MEMORY_D3D11_TEXTURE: "d3d11_texture",
+            native.MKVC_GPU_MEMORY_VA_SURFACE: "va_surface",
+            native.MKVC_GPU_MEMORY_CUDA_POINTER: "cuda_pointer",
+            native.MKVC_GPU_MEMORY_CUDA_ARRAY: "cuda_array",
+            native.MKVC_GPU_MEMORY_USM: "usm",
+        }
+        handles = {
+            native.MKVC_GPU_NATIVE_D3D11_TEXTURE: "d3d11_texture",
+            native.MKVC_GPU_NATIVE_VA_SURFACE: "va_surface",
+            native.MKVC_GPU_NATIVE_CUDA_POINTER: "cuda_pointer",
+            native.MKVC_GPU_NATIVE_CUDA_ARRAY: "cuda_array",
+            native.MKVC_GPU_NATIVE_USM_POINTER: "usm_pointer",
+        }
+        memory = memories.get(int(descriptor["memory_type"]), "unknown")
+        handle_type = handles.get(int(handle["type"]), "unknown")
+        if memory == "d3d11_texture":
+            interfaces, dlpack, completion = ("d3d11",), False, "d3d11_fence"
+        elif memory == "va_surface":
+            interfaces, dlpack, completion = ("va_api",), False, "va_surface"
+        elif memory in ("cuda_pointer", "cuda_array"):
+            dlpack = memory == "cuda_pointer" and _dlpack is not None
+            interfaces = ("cuda", "dlpack") if dlpack else ("cuda",)
+            completion = "cuda_event"
+        elif memory == "usm":
+            # The descriptor vocabulary is reserved, but public USM/DLPack export
+            # is not implemented yet and must not be advertised here.
+            interfaces, dlpack, completion = ("sycl_usm",), False, "external"
+        else:
+            interfaces, dlpack, completion = (), False, "unknown"
+        return GpuInteropInfo(
+            backends.get(int(descriptor["backend"]), "unknown"), memory,
+            handle_type, interfaces, dlpack, completion)
+
+    def supports_interop(self, interface: str) -> bool:
+        """Return whether this frame representation can be offered to an adapter family."""
+        if not isinstance(interface, str):
+            raise TypeError("interface must be a string")
+        return interface.lower() in self.interop.processing_interfaces
+
     def wait(self, timeout_ms: int = 0xFFFFFFFF) -> None:
         if self._closed:
             raise RuntimeError("GPU frame is released")
@@ -806,15 +937,19 @@ class VideoWriter:
         quality: int = 32,
         keyframe_interval_frames: int = 0,
         threads: int = 0,
-        queue_size: int = 8,
+        queue_size: int | None = None,
         require_gpu_resident: bool = False,
     ) -> None:
         if codec not in ("vp9", "av1") or backend not in (
-            "cpu", "intel", "nvidia"
+            "auto", "cpu", "intel", "nvidia"
         ):
             raise ValueError(
                 "the Python writer supports VP9/AV1 on CPU, Intel or NVIDIA"
             )
+        if backend == "auto":
+            backend = _select_backend(codec, "encode", require_gpu_resident)
+        if queue_size is None:
+            queue_size = 0 if require_gpu_resident else 8
         if require_gpu_resident and backend not in ("intel", "nvidia"):
             raise ValueError(
                 "require_gpu_resident requires the Intel or NVIDIA backend"
@@ -865,6 +1000,7 @@ class VideoWriter:
                 native.check(result)
         self._width = width
         self._height = height
+        self.backend = backend
         self._closed = False
         self._require_gpu_resident = bool(require_gpu_resident)
         self._last_metrics: PipelineMetrics | None = None
@@ -962,6 +1098,15 @@ class VideoWriter:
             raise RuntimeError("writer is closed")
         if not isinstance(frame, GpuFrame) or not frame._handle:
             raise ValueError("frame must be an open GpuFrame")
+        descriptor = frame.descriptor
+        expected_backend = {"intel": native.MKVC_BACKEND_INTEL,
+                            "nvidia": native.MKVC_BACKEND_NVIDIA}.get(self.backend)
+        if expected_backend is None or descriptor["backend"] != expected_backend:
+            raise ValueError(
+                f"GPU frame backend is incompatible with the {self.backend} writer"
+            )
+        if (descriptor["width"], descriptor["height"]) != (self._width, self._height):
+            raise ValueError("GPU frame dimensions do not match the writer")
         native.check(native.lib.mkvc_encoder_write_gpu_frame(
             self._handle, frame._handle
         ))
@@ -1178,11 +1323,15 @@ class VideoCapture(Iterator[U8Plane]):
         codec: str = "vp9",
         backend: str = "cpu",
         threads: int = 0,
-        prefetch: int = 4,
+        prefetch: int | None = None,
         require_gpu_resident: bool = False,
     ) -> None:
-        if codec not in ("vp9", "av1") or backend not in ("cpu", "intel", "nvidia"):
+        if codec not in ("vp9", "av1") or backend not in ("auto", "cpu", "intel", "nvidia"):
             raise ValueError("the Python capture supports VP9/AV1 on CPU, Intel, or NVIDIA")
+        if backend == "auto":
+            backend = _select_backend(codec, "decode", require_gpu_resident)
+        if prefetch is None:
+            prefetch = 0 if require_gpu_resident else 4
         if require_gpu_resident and backend not in ("intel", "nvidia"):
             raise ValueError(
                 "require_gpu_resident requires the Intel or NVIDIA backend"
@@ -1222,6 +1371,7 @@ class VideoCapture(Iterator[U8Plane]):
                 self._handle = native.DecoderHandle()
                 native.check(result)
         self._closed = False
+        self.backend = backend
         self._require_gpu_resident = bool(require_gpu_resident)
         self._last_metrics: PipelineMetrics | None = None
         self.last_pts_ns: int | None = None

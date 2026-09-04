@@ -30,6 +30,10 @@ foreach (MkvBackendCapability capability in capabilities)
         (capability.CanDecode == 0 && capability.CanEncode == 0))
         throw new InvalidOperationException("Invalid native capability row");
 }
+MkvBackend selectedCpuPipeline = MkvCodecInfo.SelectBackend(MkvCodecKind.Vp9);
+if (!capabilities.Any(item => item.Backend == selectedCpuPipeline &&
+    item.Codec == MkvCodecKind.Vp9 && item.CanDecode != 0 && item.CanEncode != 0))
+    throw new InvalidOperationException(".NET pipeline backend selection was inconsistent");
 
 Console.WriteLine($"mkvcodec ABI {version.AbiVersion}: {capabilities.Count} capabilities");
 
@@ -150,6 +154,9 @@ try
     {
         if (imported.Descriptor.Width != width)
             throw new InvalidOperationException(".NET external GPU import failed");
+        if (imported.Interop.Backend != MkvBackend.Nvidia ||
+            !imported.SupportsInterop("CUDA") || imported.SupportsInterop("d3d11"))
+            throw new InvalidOperationException(".NET GPU interop discovery failed");
         try
         {
             imported.Wait(0);

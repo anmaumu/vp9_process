@@ -11,6 +11,39 @@
 - GitHub Actions builds strict MkDocs HTML and stores `mkvcodec-documentation` for 30 days.
 - GitHub Pages publication remains disabled until an explicit public-release decision.
 
+## 2026-09-04: Python auto backend and normalized GPU interop discovery
+
+Implemented the previously specified Python `backend="auto"` path using the
+native two-call runtime capability query. Selection is deterministic by codec and
+direction; strict GPU residency excludes CPU before object creation and fails
+instead of silently falling back. Capture/Writer expose the resolved `backend`.
+The public `select_backend()` can require the decode/encode capability intersection
+so one backend can be fixed across a complete externally processed pipeline.
+When strict GPU residency is requested and queue/prefetch are omitted, the current
+synchronous GPU requirement selects zero; an explicitly supplied nonzero value is
+still rejected.
+
+`GpuFrame.interop` now normalizes backend, memory/native-handle type, external
+processor adapter family, DLPack availability and completion model.
+`supports_interop()` permits adapter dispatch without an Intel/NVIDIA branch in
+application control flow. It describes an already-created frame only and does not
+claim that an external runtime, kernel, encoder or driver-internal zero-copy path
+is available. Writer performs backend and dimension checks before native submit.
+
+The Windows RTX 2060 exact auto/strict capture path selected NVIDIA and returned a
+CUDA-pointer frame with CUDA/DLPack interop. Linux Intel auto/strict acquisition,
+the OpenCL roundtrip and external import tests pass. Public Intel USM, asynchronous
+GPU pipeline overlap and automatic propagation of one plan across separately
+constructed Capture/Writer objects remain pending; `select_backend()` covers the
+explicit shared-plan path.
+The .NET binding exposes the same capability-intersection selector and normalized
+`MkvGpuFrame.Interop` / `SupportsInterop` view; its build and native-load smoke pass.
+The Linux suite passed 37/37. The Windows NVIDIA suite passed 24 tests with the
+expected AV1 NVENC transcode skip on RTX 2060; docgen check and its three unit
+tests passed.
+
+Traceability: EXT-BACK-004 / EXT-GPU-001/005..010 -> TEST-BACK-001/002 / TEST-GPU-003/009.
+
 ## 2026-09-03: Default external-producer reuse and USM integration
 
 Promoted the validated batch-scoped OpenCL reuse to the default in both external

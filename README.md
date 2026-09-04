@@ -148,6 +148,25 @@ encoder.close();
 NVIDIA GPU surfaceはY/UV planeごとにDLPack consumerへ渡せます。consumerが
 managed tensorを解放するまでnative GPU leaseも保持されます。
 
+Pythonではruntime capabilityから共通backendを先に選べます。外部処理を挟む
+decode→encodeでは両方向を満たすbackendを一度だけ選び、Capture/Writerへ同じ値を
+渡します。GPU候補がなければCPUへ黙って降格しません。
+
+```python
+backend = mkvcodec.select_backend(
+    "vp9", decode=True, encode=True, require_gpu_resident=True,
+)
+capture = mkvcodec.VideoCapture(
+    "input.webm", backend=backend, require_gpu_resident=True,
+)
+surface = capture.read_surface()
+print(surface.interop)  # cuda/dlpack、d3d11、va_api等のadapter選択情報
+```
+
+個別のCapture/Writerで`backend="auto"`も利用できます。選択結果は`.backend`で
+確認できます。経路全体を同一GPUに固定する場合は上記`select_backend()`を使います。
+C#では`MkvCodecInfo.SelectBackend()`と`MkvGpuFrame.Interop`が同じ役割を持ちます。
+
 外部CUDA pointerは`mkvc_gpu_frame_import_external()`またはC++
 `GpuFrame::import_external()`で共通leaseへ取り込めます。producer queryとrelease
 callbackは必須の寿命契約で、CUDA-pointer NV12は対応NVENCへ直接submitできます。

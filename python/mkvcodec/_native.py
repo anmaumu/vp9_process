@@ -30,10 +30,12 @@ MKVC_GPU_MEMORY_CUDA_POINTER = 3
 MKVC_GPU_MEMORY_CUDA_ARRAY = 4
 MKVC_GPU_MEMORY_VA_SURFACE = 2
 MKVC_GPU_MEMORY_D3D11_TEXTURE = 1
+MKVC_GPU_MEMORY_USM = 5
 MKVC_GPU_NATIVE_D3D11_TEXTURE = 1
 MKVC_GPU_NATIVE_VA_SURFACE = 2
 MKVC_GPU_NATIVE_CUDA_POINTER = 3
 MKVC_GPU_NATIVE_CUDA_ARRAY = 4
+MKVC_GPU_NATIVE_USM_POINTER = 5
 MKVC_FRAME_FIT_STRETCH = 0
 MKVC_FRAME_FIT_CONTAIN = 1
 MKVC_FRAME_FIT_COVER = 2
@@ -54,6 +56,15 @@ class EncoderConfig(ct.Structure):
         ("keyframe_interval_frames", ct.c_uint32),
         ("threads", ct.c_uint32),
         ("queue_size", ct.c_uint32),
+    ]
+
+
+class BackendCapability(ct.Structure):
+    _fields_ = [
+        ("struct_size", ct.c_uint32), ("backend", ct.c_uint32),
+        ("codec", ct.c_uint32), ("can_decode", ct.c_uint8),
+        ("can_encode", ct.c_uint8), ("is_hardware", ct.c_uint8),
+        ("reserved", ct.c_uint8),
     ]
 
 
@@ -229,6 +240,11 @@ GpuFrameHandle = ct.c_void_p
 SubmissionHandle = ct.c_void_p
 CpuFramePoolHandle = ct.c_void_p
 CpuBufferHandle = ct.c_void_p
+
+lib.mkvc_get_backend_capabilities.argtypes = [
+    ct.POINTER(BackendCapability), ct.POINTER(ct.c_size_t)
+]
+lib.mkvc_get_backend_capabilities.restype = ct.c_int
 
 lib.mkvc_encoder_create.argtypes = [ct.POINTER(EncoderConfig), ct.POINTER(EncoderHandle)]
 lib.mkvc_encoder_create.restype = ct.c_int

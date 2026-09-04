@@ -40,8 +40,8 @@ profile: test-spec@1.0
 
 | ID | Test requirement | Level | Environment |
 |---|---|---|---|
-| `TEST-BACK-001` | device/decoder/encoder capabilityがruntime queryと一致 | hardware | Intel/NVIDIA |
-| `TEST-BACK-002` | auto selectionとdevice_preferenceの順序 | unit/hardware | all |
+| `TEST-BACK-001` | device/decoder/encoder capabilityがruntime queryと一致し、Python公開値へ欠落なく変換される | hardware | Intel/NVIDIA |
+| `TEST-BACK-002` | auto selectionとdevice_preferenceの順序、strict GPU時のCPU fallback拒否、実選択backend公開 | unit/hardware | all |
 | `TEST-BACK-003` | GPUなし/driverなしでもloadし利用不可理由を返す | integration | CPU-only CI |
 | `TEST-FRAME-001` | retain/release、double release、released access拒否 | unit | CPU CI |
 | `TEST-FRAME-002` | consumer完了前にSurfaceがpool再利用されない | concurrency | Intel/NVIDIA |
@@ -75,6 +75,17 @@ profile: test-spec@1.0
 | `TEST-GPU-018` | C ABI copy policyのsize/version/conflict、初回frame後変更、queue/prefetch制約を検証 | ABI/unit | CPU/Intel |
 | `TEST-GPU-019` | CUDA pointer/CUarray、D3D11 texture、VA surface importのdevice/layout/completionを検証し、encode完了後だけrelease callbackを一度呼ぶ。mock resourceでcallback順序・invalid layoutを常時CI検証し、CUDA eventと実CUarrayはcontextをpopした状態からquery/waitする。Intelはmemory interface 1.0/1.1を受理し、未知major/null functionを拒否するunit回帰を行う。same-display/video-memory shared import実機で8 frames、flush/rebind、producer待機、別display拒否、最初のownerのflush/closeまでの保持、CPU再decodeのPTS/count/PSNRを検証する。通常CIではcapability不足をskipし、`MKVC_REQUIRE_INTEL_EXTERNAL_IMPORT=1`では失敗させる | unit/hardware/lifetime | common/Intel/NVIDIA |
 | `TEST-GPU-020` | Python importでnative owner holderのGC寿命、producer stream/event dependency、DLPack deleter所有権、未消費capsule、cancel/failure時cleanupを検証。同期済みCUDA pointer/VA surface owner寿命とVA ID範囲・import失敗時holder解放は常時CI対象。native CUDA-event importはNVIDIA hardware対象。Linux native VA Python経路はcapture先行close、4 framesのstrict encode、writer保持中owner生存・close後GC、CPU再decodeのcount/shape/画素変化を実機検証する | Python/unit/hardware | common/NVIDIA/対応Intel |
+
+Python共通操作テストはCUDA pointer/array、VA surfaceの`GpuFrame.interop`と
+`supports_interop`を検査し、DLPack可否をmemory typeから過大広告しない。
+Intel実機では引数を省略した`backend="auto", require_gpu_resident=True`が
+GPU向け`prefetch=0`を選び、`read_surface()`のinterop backendとCaptureの選択結果が
+一致することを確認する。mock capabilityではVP9 decode NVIDIA→Intel→CPU、VP9 encode
+Intel→CPU、AV1 encode NVIDIA→Intel→CPU、およびstrict GPU候補なしの失敗を検査する。
+pipeline選択はdecode/encode capabilityの積を使い、decode-only GPUを両方向対応として
+選ばないことを検査する。
+C# smokeは同じcapability積による選択結果、CUDA mock frameの`Interop`、大小文字を
+区別しない`SupportsInterop`と不一致adapter拒否を検査する。
 
 `TEST-GPU-019`のVA native同期補足: `mkvc_intel_va_surface_sync`はnative VA importで
 8 frames、flush/rebind、device/display不一致、owner解放順、CPU再decodeのPTS/count/PSNRを

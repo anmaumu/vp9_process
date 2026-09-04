@@ -220,6 +220,34 @@ public sealed class MkvGpuFrame : IDisposable
         }
     }
 
+    /// <summary>Returns normalized information for choosing an external processor adapter.</summary>
+    public MkvGpuInteropInfo Interop
+    {
+        get
+        {
+            var descriptor = Descriptor;
+            var native = NativeHandle;
+            (string[] interfaces, string completion) = descriptor.MemoryType switch {
+                MkvGpuMemoryType.D3D11Texture => (new[] { "d3d11" }, "d3d11_fence"),
+                MkvGpuMemoryType.VaSurface => (new[] { "va_api" }, "va_surface"),
+                MkvGpuMemoryType.CudaPointer => (new[] { "cuda" }, "cuda_event"),
+                MkvGpuMemoryType.CudaArray => (new[] { "cuda" }, "cuda_event"),
+                MkvGpuMemoryType.Usm => (new[] { "sycl_usm" }, "external"),
+                _ => (Array.Empty<string>(), "unknown")
+            };
+            return new MkvGpuInteropInfo(
+                descriptor.Backend, descriptor.MemoryType, native.Type,
+                interfaces, completion);
+        }
+    }
+
+    public bool SupportsInterop(string processingInterface)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(processingInterface);
+        return Interop.ProcessingInterfaces.Contains(
+            processingInterface, StringComparer.OrdinalIgnoreCase);
+    }
+
     public void Wait(uint timeoutMilliseconds = uint.MaxValue)
     {
         ObjectDisposedException.ThrowIf(handle is null || handle.IsClosed, this);

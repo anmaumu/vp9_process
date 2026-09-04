@@ -31,6 +31,10 @@ del owner
 gc.collect()
 assert va_owner_ref() is not None
 assert va_frame.native_handle["handles"][:2] == (0x1000, 0)
+assert va_frame.interop.backend == "intel"
+assert va_frame.interop.memory_type == "va_surface"
+assert va_frame.supports_interop("VA_API")
+assert not va_frame.supports_interop("dlpack")
 va_frame.close()
 gc.collect()
 assert va_owner_ref() is None
@@ -102,6 +106,9 @@ gc.collect()
 assert owner_ref() is not None
 assert frame.descriptor["width"] == 64
 assert frame.native_handle["handles"][0] == 0x1000
+assert frame.interop.backend == "nvidia"
+assert frame.interop.dlpack_export
+assert frame.supports_interop("cuda") and frame.supports_interop("dlpack")
 frame.wait(100)
 frame.close()
 gc.collect()
@@ -213,6 +220,43 @@ gc.collect()
 assert array_owner_ref() is not None
 assert array_frame.descriptor["memory_type"] == 4
 assert array_frame.native_handle["type"] == 4
+assert array_frame.supports_interop("cuda")
+assert not array_frame.supports_interop("dlpack")
 array_frame.close()
 gc.collect()
 assert array_owner_ref() is None
+
+# Backend auto-selection is deterministic and never silently falls back to CPU
+# when the caller requires a GPU-resident path.
+Capability = api.BackendCapability
+rows = (
+    Capability("cpu", "vp9", True, True, False),
+    Capability("intel", "vp9", True, True, True),
+    Capability("nvidia", "vp9", True, False, True),
+    Capability("cpu", "av1", True, True, False),
+    Capability("nvidia", "av1", True, True, True),
+)
+with patch.object(api, "backend_capabilities", return_value=rows):
+    assert api._select_backend("vp9", "decode", False) == "nvidia"
+    assert api._select_backend("vp9", "encode", False) == "intel"
+    assert api._select_backend("av1", "encode", True) == "nvidia"
+    assert mkvcodec.select_backend(
+        "vp9", decode=True, encode=True, require_gpu_resident=True) == "intel"
+with patch.object(api, "backend_capabilities", return_value=(rows[0],)):
+    try:
+        api._select_backend("vp9", "encode", True)
+    except RuntimeError as error:
+        assert "GPU-resident" in str(error)
+    else:
+        raise AssertionError("strict GPU auto-selection silently chose CPU")
+with patch.object(api, "backend_capabilities", return_value=(rows[0], rows[2])):
+    try:
+        mkvcodec.select_backend("vp9", require_gpu_resident=True)
+    except RuntimeError as error:
+        assert "decode/encode" in str(error)
+    else:
+        raise AssertionError("pipeline selection accepted decode-only NVIDIA")
+
+runtime_capabilities = mkvcodec.backend_capabilities()
+assert runtime_capabilities
+assert all(row.backend in ("cpu", "intel", "nvidia") for row in runtime_capabilities)

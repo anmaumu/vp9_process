@@ -25,6 +25,14 @@ public enum MkvGpuMemoryType : uint { D3D11Texture = 1, VaSurface = 2, CudaPoint
 public enum MkvGpuNativeHandleType : uint { D3D11Texture = 1, VaSurface = 2, CudaPointer = 3, CudaArray = 4, UsmPointer = 5 }
 public enum MkvSubmissionStatus : uint { Pending = 0, Complete = 1, Failed = 2, Cancelled = 3 }
 
+/// <summary>Normalized adapter information for one already-created GPU frame.</summary>
+public sealed record MkvGpuInteropInfo(
+    MkvBackend Backend,
+    MkvGpuMemoryType MemoryType,
+    MkvGpuNativeHandleType NativeHandleType,
+    IReadOnlyList<string> ProcessingInterfaces,
+    string Completion);
+
 [StructLayout(LayoutKind.Sequential)]
 internal struct NativeCpuFramePoolConfig
 {

@@ -134,6 +134,15 @@ VP9 decode: supported GPU backend -> libvpx -> error
 AV1 decode: supported GPU backend -> libaom -> error
 ```
 
+Pythonの`backend="auto"`はruntime capabilityをcreate前に照会し、decodeは
+NVIDIA→Intel→CPU、VP9 encodeはIntel→CPU、AV1 encodeはNVIDIA→Intel→CPUの
+順で選ぶ。`require_gpu_resident=True`ではCPU候補を除外し、GPU候補がなければ
+create前に失敗する。選択結果はCapture/Writerの`backend`で取得できる。
+decode→処理→encode全体で一つのbackendを固定する場合は
+`select_backend(codec, decode=True, encode=True, require_gpu_resident=True)`で
+両方向のcapability積を先に選び、その結果をCapture/Writerへ共通指定する。
+C#は同じC ABI queryを`MkvCodecInfo.SelectBackend`として公開する。
+
 ### 5.5 Memory / Copy path
 
 - `EXT-FRAME-001`: CPU frameはplane、stride、width、height、format、PTSを保持する。
@@ -167,6 +176,8 @@ AV1 decode: supported GPU backend -> libaom -> error
   Windows D3D11 NV12の`mkvc_gpu_frame_import_d3d11_fence`はhandles=(texture, subresource=0, fence, target)を受け取り、targetは1..UINT64_MAX-1、queryはnull必須とする。同一device、GPU-only、single-subresource、寸法一致を検査しCOM参照を保持する。producerは処理後のSignalとcommand dispatchを完了させ、fenceの巻戻し/target再利用やconsumer完了前の書込みを禁止する。library側ではfence値のみpollし、Flush/Map/copy/device-wide waitを行わない。非WindowsはNOT_SUPPORTED、descriptor不正はINVALID_ARGUMENT、device removalはCODECとし、失敗時はownerを受け取らない。C++/Python/.NETに同等入口を設ける。oneVPL encoderの対応可否は同期の対応可否と独立に判定する。
   Linux Intel NV12 VA surfaceは`mkvc_gpu_frame_import_va_surface`でVAに投入済みのproducer処理をnative同期できる。query callbackはnull必須。C++/Python/.NETにも同等入口を公開する。surface ID 0は有効、`UINT32_MAX`は無効とし、ownerはdisplayとsurfaceの両方を最終leaseまで保持する。未対応platform/build、libva symbol不足、driver未実装は`NOT_SUPPORTED`で失敗し、失敗時にowner/release callbackの所有権を受け取らない。import後の追加書込みは禁止。VA同期はOpenCL/SYCL等の独立した処理を保証せず、汎用producer queryまたは明示的な外部同期を必要とする。Pythonの`producer_synchronized=True`は利用者がその同期を完了した場合だけ許可する。
 - `EXT-GPU-010`: `require_gpu_resident=True`、`allow_gpu_copy`、`allow_cpu_copy`をdecode/export/import/encode全体へ適用し、edge別copy-pathとfallback理由を返す。
+- Python `GpuFrame.interop`はbackend、memory/native-handle type、外部処理adapter family、DLPack export可否、必要なcompletion方式を正規化して返す。これは実frame表現の照会であり、未生成のIntel USMやdriver内部zero-copyをcapabilityとして広告しない。`supports_interop(name)`はadapter選択用で、外部runtime/kernelの存在やencode対応をprobeした結果ではない。
+- C#は同じframe表現を`MkvGpuFrame.Interop` / `SupportsInterop`で照会する。言語bindingに直接存在しないDLPack機能は広告しない。
 
 検証結果の説明では、library境界のcopy metric、公開APIの独立観測、driver内部まで含む
 完全なtraceを区別する。監視対象APIのCPU転送0件だけで経路全体のzero-copy保証へ
@@ -280,12 +291,26 @@ submission.wait()
 GPU external processing:
 
 ```python
+backend = mkvcodec.select_backend(
+    "vp9", decode=True, encode=True, require_gpu_resident=True,
+)
+cap = mkvcodec.VideoCapture(
+    "input.webm", backend=backend, require_gpu_resident=True,
+)
+writer = mkvcodec.VideoWriter(
+    "output.webm", codec="vp9", backend=backend, fps=30,
+    frame_size=(1920, 1080), require_gpu_resident=True,
+)
 with cap.read_surface() as decoded:
     # NVIDIAではCuPy等がDLPackをconsumeする。Intel texture/VA surfaceは
     # 対応するnative API経由で外部libraryへ渡す。
     external = process_with_external_library(decoded)
-    writer.write_surface(external, require_gpu_resident=True)
+    writer.write_surface(external)  # Writer側でrequire_gpu_resident=Trueを指定済み
 ```
+
+`require_gpu_resident=True`で`prefetch`/`queue_size`を省略した場合は、現行の
+同期GPU経路に合わせて自動的に0を使用する。明示した非0値は黙って変更せず拒否する。
+`write_surface`はnative submit前にframeのbackendと寸法をWriterと照合する。
 
 ### 6.3 C ABI
 
