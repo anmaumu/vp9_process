@@ -29,6 +29,10 @@ release. Native unit coverage proves that a successful callback returns while th
 producer completion is still pending. This removes the host wait at the
 USM-to-DLPack edge; the test still completes consumer work before VA encode, so it
 does not claim that the complete external-process-to-encoder edge is asynchronous.
+An extended 240-frame run also passed with exactly 240 dependency registrations,
+USM allocations, Level Zero events and VA owners released; wall time was 2.47 s and
+peak process RSS was 646,864 KiB. This bounded run is not a substitute for the
+separate 30-minute VRAM/RSS qualification.
 
 Traceability: EXT-GPU-008 -> INT-GPU-010/011 -> TEST-GPU-004/009/010.
 
