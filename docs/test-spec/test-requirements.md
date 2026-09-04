@@ -137,10 +137,24 @@ Arc/USM追加検証（TEST-GPU-005/008/009/013/014/019/020）:
 - `MKVC_TEST_INTEL_DRM_RENDER_NODE=129`はtest build限定のLinux選択hookで、128..255のみ受理する。`MKVC_TEST_GPU_PCI=0000:83:00.0`は外部OpenCL deviceの実PCI照合、`MKVC_REQUIRE_VRAM_OBSERVATION=1`はその処理先のVRAM観測を必須化する。番号はlinux-machineの例であり一般的なdevice numberingを意味しない。
 - copy auditは各symbolに16個の独立forwarding slotを持ち、dlmopen別namespaceへの追加呼出しも実際に捕捉する。table exhaustionはbinding_conflictsとして拒否する。loaded-runtimeの存在は内部全copyを捕捉した証明ではない。
 - `python_intel_usm_roundtrip.py`は公開済みのLevel Zero event付きlinear device-USM/DLPack sliceを実機検証するoptional試験である。export flag付き専用device USM→DMA-BUF→VA linear NV12の同一object identity、borrowed event query、kDLOneAPI DLPack pointer一致、eventを実consumer SYCL queueへimportしたbarrier登録回数、consumer queue完了、caller先行解放と全VA/USM/event owner解放、encode後のCPU画素/PTSを検証する。既定8 frames、`MKVC_USM_TEST_FRAMES=1..240`。decoder image→別linear USMはGPU materializationであり、strict zero-copyの成功例にしない。
+- `MKVC_USM_SOAK_SECONDS=1..86400`では同一processでbatchごとにdecode/writer/SYCL/VA resourceを生成・破棄し、最低2 batchかつ要求秒数以上を実行する。warm-up後のpost-close RSS/FD/thread増分budgetは+256 MiB/+2/+4、active/post-close DRM fdinfo増分budgetはfieldごとに+256 MiBとする。`MKVC_REQUIRE_VRAM_OBSERVATION=1`では処理対象PCIのactive `drm-resident-vram*`を必須とし、固定サイズJSONへ各batch後の進捗と失敗状態を保存する。2秒smokeは基盤確認であり30分受入れの代用ではない。
 - C ABI unitはproducer pending中でも成功registrar付きDLPack exportがhost待機せず返ること、event/stream値、callback必須条件を検証する。Python registrar例外は元例外を再送出し、native tensorを生成しない。registrarなしのevent付きUSMは従来どおりhost待機する。
 - pool由来のphysical extent/offset不明、nonlinear export、違うdevice/context、host/shared USM、export失敗、fd枯渇、device loss、DLPack別consumerのshutdown、正式pool/backpressureは追加gateとする。Linux event sliceの成功だけではWindows USMや全pipelineの完全非同期化を完了としない。
 
 Optional USM実験の準備・実行例（Linux、oneVPL test build、Level Zero開発header/libraryが必要）:
+
+```bash
+MKVC_TEST_INTEL_DRM_RENDER_NODE=129 \
+MKVC_TEST_GPU_PCI=0000:83:00.0 \
+MKVC_REQUIRE_VRAM_OBSERVATION=1 \
+MKVC_USM_TEST_FRAMES=32 \
+MKVC_USM_SOAK_SECONDS=1800 \
+LD_LIBRARY_PATH="$PWD/build/usm-env/lib" \
+build/usm-env/bin/python3 tests/python_intel_usm_roundtrip.py \
+  build/intel/libmkvcodec.so build/intel python \
+  build/intel/intel_av1_source.webm build/intel/libmkvc_sycl_probe.so \
+  build/intel/intel_usm_soak_30m.json
+```
 
 ```sh
 python3 -m venv build/usm-env

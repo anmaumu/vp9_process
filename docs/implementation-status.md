@@ -34,6 +34,14 @@ USM allocations, Level Zero events and VA owners released; wall time was 2.47 s 
 peak process RSS was 646,864 KiB. This bounded run is not a substitute for the
 separate 30-minute VRAM/RSS qualification.
 
+The same test now supports bounded same-process soak batches and persists a
+fixed-size progress/failure report after every batch. A 2.43-second Arc smoke run
+passed four full teardown batches (128 frames): post-warm-up RSS grew by 102,400
+bytes, file descriptors and threads stayed constant, all per-batch owners were
+released, and active/post-close `xe` VRAM evidence was present for PCI
+`0000:83:00.0`. The 30-minute gate remains pending until its requested duration
+completes; the smoke result cannot satisfy it.
+
 Traceability: EXT-GPU-008 -> INT-GPU-010/011 -> TEST-GPU-004/009/010.
 
 ## 2026-09-04: Intel device-USM DLPack and Level Zero event adapter

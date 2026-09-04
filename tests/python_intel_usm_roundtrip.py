@@ -1,8 +1,9 @@
-"""Experimental device-USM/DLPack -> linear DMA-BUF VA -> AV1 encode proof.
+"""Public device-USM/DLPack -> linear DMA-BUF VA -> AV1 encode qualification.
 
 The decoder's tiled image is explicitly materialized into a different linear
 GPU allocation by the external OpenCL kernel. This edge is NOT zero-copy.
-No adapter in this file is a shipped/public mkvcodec API.
+The SYCL allocation/VA bridge is test-only; USM import and DLPack export are
+shipped mkvcodec APIs.
 """
 import ctypes as ct
 from contextlib import nullcontext
@@ -13,6 +14,7 @@ from pathlib import Path
 from media_oracle import run_oracle
 import sys
 import tempfile
+import time
 import weakref
 
 native, extension, package, fixture, helper, output = sys.argv[1:7]
@@ -30,6 +32,7 @@ import _dlpack
 api._dlpack = _dlpack
 from intel_va_opencl_support import bind, check, invert_luma, P, U, I, OpenClReuseSession, reuse_program_enabled
 from intel_va_prime_support import Prime, Attribute, export_layout
+from gpu_resource_monitor import ResourceMonitor
 
 
 class ExportableAllocation:
@@ -134,8 +137,20 @@ class QueueBoundPlane:
         return self.plane.__dlpack__(**kwargs)
 
 
-def main():
-    Path(output).write_text('{"validation":"not_completed"}\n')
+def process_resources():
+    """Return post-close process resources used by the bounded soak gate."""
+    return {
+        "rss_bytes": int(Path("/proc/self/statm").read_text().split()[1]) * os.sysconf("SC_PAGE_SIZE"),
+        "fds": len(os.listdir("/proc/self/fd")),
+        "threads": len(os.listdir("/proc/self/task")),
+    }
+
+
+def roundtrip(frames, monitor=None):
+    """Run one fully torn-down public-USM batch and return its evidence."""
+    ExportableAllocation.released = 0
+    UsmVaOwner.released = 0
+    SyclEventOwner.released = 0
     reuse = reuse_program_enabled()
     library = ct.CDLL(helper)
     queue = dpctl.SyclQueue("level_zero:gpu:0")
@@ -155,8 +170,6 @@ def main():
         source.wait(5000)
         desc = source.descriptor
     width, height = desc["width"], desc["height"]
-    frames = int(os.environ.get("MKVC_USM_TEST_FRAMES", "8"))
-    assert 1 <= frames <= 240
     with tempfile.TemporaryDirectory() as directory:
         path = str(Path(directory) / "usm.webm")
         with mkvcodec.VideoWriter(path, backend="intel", codec="av1", frame_size=(width, height),
@@ -181,6 +194,10 @@ def main():
                 identity = invert_luma(source, owner, width, height, frame_index=index, session=session)
                 if identity["pci"] != "0000:83:00.0":
                     raise RuntimeError("OpenCL and SYCL are not using the expected same GPU")
+                if monitor:
+                    monitor.set_processing_device(identity)
+                    if index % 32 == 0:
+                        monitor.sample("active")
                 # Promote the synchronized device-USM allocation through the
                 # public frame/DLPack lease. This preserves pointer identity;
                 # the earlier tiled decode -> linear USM edge remains a GPU copy.
@@ -233,7 +250,7 @@ def main():
         timestamps = [float(f["best_effort_timestamp_time"]) for f in json.loads(probe.stdout)["frames"]]
         assert len(timestamps) == frames
         assert all(abs(value - index / 30) <= .001 for index, value in enumerate(timestamps)), timestamps
-    report = {"validation": "passed", "frames": frames, "device": identity, "layout": layout,
+    return {"validation": "passed", "frames": frames, "device": identity, "layout": layout,
               "opencl_reuse_program": reuse,
               "dpctl": dpctl.__version__, "dpnp": dpnp.__version__, "owners_released": UsmVaOwner.released,
               "allocations_released": ExportableAllocation.released,
@@ -241,8 +258,59 @@ def main():
               "consumer_dependencies": dependency_registrations,
               "edges": {"decode_to_linear_usm": "gpu_materialization", "usm_to_dlpack": "pointer_identical",
                         "usm_to_va_encode": "shared_import"}, "public_api": True}
-    Path(output).write_text(json.dumps(report, indent=2) + "\n")
-    print(json.dumps(report))
+
+
+def main():
+    """Run once or repeat same-process batches with bounded resource growth."""
+    output_path = Path(output)
+    output_path.write_text('{"validation":"not_completed"}\n')
+    frames = int(os.environ.get("MKVC_USM_TEST_FRAMES", "8"))
+    seconds = float(os.environ.get("MKVC_USM_SOAK_SECONDS", "0"))
+    assert 1 <= frames <= 240 and 0 <= seconds <= 86400
+    budgets = {"rss_bytes": 256 * 1024**2, "fds": 2, "threads": 4}
+    monitor = ResourceMonitor(required=os.environ.get("MKVC_REQUIRE_VRAM_OBSERVATION") == "1")
+    report = {
+        "version": 1, "validation": "not_completed", "pid": os.getpid(),
+        "requested_seconds": seconds, "frames_per_batch": frames,
+        "batches": 0, "frames": 0, "growth_budgets": budgets,
+        "gpu_memory": monitor.report,
+        "scope": "public USM dependency path; sampled DRM memory and post-close RSS/FD/threads",
+    }
+
+    def save():
+        output_path.write_text(json.dumps(report, indent=2) + "\n")
+
+    started = time.monotonic()
+    save()
+    try:
+        while True:
+            batch = roundtrip(frames, monitor)
+            gc.collect()
+            monitor.sample("post_close")
+            sample = process_resources()
+            report["batches"] += 1
+            report["frames"] += frames
+            report["elapsed_seconds"] = time.monotonic() - started
+            report["last_batch"] = batch
+            if report["batches"] == 1:
+                report["baseline"] = sample.copy()
+                report["high_water"] = sample.copy()
+            report["last"] = sample
+            for name, value in sample.items():
+                report["high_water"][name] = max(report["high_water"][name], value)
+                if value > report["baseline"][name] + budgets[name]:
+                    raise AssertionError(f"Post-close {name} growth exceeded budget: {report}")
+            save()
+            if seconds == 0 or (report["batches"] >= 2 and report["elapsed_seconds"] >= seconds):
+                break
+        report["validation"] = "passed"
+        save()
+        print(json.dumps(report, sort_keys=True))
+    except BaseException:
+        report["validation"] = "failed"
+        report["elapsed_seconds"] = time.monotonic() - started
+        save()
+        raise
 
 
 if __name__ == "__main__":
