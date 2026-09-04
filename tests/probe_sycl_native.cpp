@@ -31,6 +31,22 @@ extern "C" int mkvc_test_sycl_event_free(void* event_owner) noexcept {
     catch (...) { return -3; }
 }
 
+extern "C" int mkvc_test_sycl_queue_wait_event(
+    void* queue_ref, void* native_event) noexcept {
+    if (!queue_ref || !native_event) return -1;
+    try {
+        auto& queue = *static_cast<sycl::queue*>(queue_ref);
+        if (queue.get_backend() != sycl::backend::ext_oneapi_level_zero) return -2;
+        sycl::backend_input_t<sycl::backend::ext_oneapi_level_zero, sycl::event>
+            input{static_cast<ze_event_handle_t>(native_event),
+                  sycl::ext::oneapi::level_zero::ownership::keep};
+        auto dependency = sycl::make_event<
+            sycl::backend::ext_oneapi_level_zero>(input, queue.get_context());
+        queue.ext_oneapi_submit_barrier({dependency});
+        return 0;
+    } catch (...) { return -3; }
+}
+
 extern "C" int mkvc_test_sycl_alloc_exportable(void* queue_ref, uint64_t bytes, void** pointer) noexcept {
     if (!queue_ref || !bytes || !pointer) return -1;
     *pointer = nullptr;

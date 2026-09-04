@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 
 MKVC_OK = 0
+MKVC_ERROR_INTERNAL = 4
 MKVC_ERROR_INVALID_STATE = 5
 MKVC_ERROR_TIMEOUT = 10
 MKVC_ERROR_CANCELLED = 11
@@ -362,6 +363,12 @@ lib.mkvc_gpu_frame_export_dlpack.argtypes = [
     GpuFrameHandle, ct.c_uint32, ct.c_uint64, ct.POINTER(ct.c_void_p)
 ]
 lib.mkvc_gpu_frame_export_dlpack.restype = ct.c_int
+GpuDependencyCallback = ct.CFUNCTYPE(
+    ct.c_int, ct.c_void_p, ct.c_uint64, ct.c_uint64)
+lib.mkvc_gpu_frame_export_dlpack_with_dependency.argtypes = [
+    GpuFrameHandle, ct.c_uint32, ct.c_uint64, GpuDependencyCallback,
+    ct.c_void_p, ct.POINTER(ct.c_void_p)]
+lib.mkvc_gpu_frame_export_dlpack_with_dependency.restype = ct.c_int
 lib.mkvc_dlpack_managed_tensor_release.argtypes = [ct.c_void_p]
 lib.mkvc_gpu_frame_retain.argtypes = [GpuFrameHandle]
 lib.mkvc_gpu_frame_retain.restype = ct.c_int

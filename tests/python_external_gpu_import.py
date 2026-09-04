@@ -22,6 +22,11 @@ class Owner:
     pass
 
 
+class DependencyRegistrar:
+    def __call__(self, event: int, stream: int) -> None:
+        raise AssertionError("synchronized USM must not register a dependency")
+
+
 owner = Owner()
 va_owner_ref = weakref.ref(owner)
 va_frame = mkvcodec.GpuFrame.import_va_surface(
@@ -116,13 +121,17 @@ assert owner_ref() is None
 
 owner = Owner()
 usm_owner_ref = weakref.ref(owner)
+registrar = DependencyRegistrar()
+registrar_ref = weakref.ref(registrar)
 usm = mkvcodec.GpuFrame.import_usm_nv12(
     pointer=0x3000, context=0x4000, queue=0x5000, device_id=0,
     frame_size=(64, 48), pitch=64, owner=owner,
-    producer_synchronized=True)
+    producer_synchronized=True, dependency_registrar=registrar)
 del owner
+del registrar
 gc.collect()
 assert usm_owner_ref() is not None
+assert registrar_ref() is not None
 assert usm.descriptor["memory_type"] == api.native.MKVC_GPU_MEMORY_USM
 assert usm.native_handle["handles"][:3] == (0x3000, 0x4000, 0x5000)
 assert usm.interop.backend == "intel" and usm.interop.dlpack_export
@@ -132,6 +141,17 @@ assert usm.plane(0).__dlpack_device__() == (14, 0)
 usm.close()
 gc.collect()
 assert usm_owner_ref() is None
+assert registrar_ref() is None
+
+try:
+    mkvcodec.GpuFrame.import_usm_nv12(
+        pointer=0x3000, context=0x4000, queue=0x5000, device_id=0,
+        frame_size=(64, 48), pitch=64, owner=Owner(),
+        producer_synchronized=True, dependency_registrar=object())
+except TypeError:
+    pass
+else:
+    raise AssertionError("non-callable USM dependency registrar was accepted")
 
 try:
     mkvcodec.GpuFrame.import_usm_nv12(

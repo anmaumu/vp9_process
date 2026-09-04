@@ -5,7 +5,7 @@ import itertools
 from dataclasses import dataclass
 from fractions import Fraction
 from pathlib import Path
-from typing import Iterator
+from typing import Callable, Iterator
 
 import numpy as np
 import numpy.typing as npt
@@ -442,9 +442,13 @@ class Submission:
 
 class GpuFrame:
     """Lease over a backend-owned GPU frame and its borrowed native handle."""
-    def __init__(self, handle: native.GpuFrameHandle) -> None:
+    def __init__(
+        self, handle: native.GpuFrameHandle,
+        dependency_registrar: Callable[[int, int], None] | None = None,
+    ) -> None:
         self._handle = handle
         self._closed = False
+        self._dependency_registrar = dependency_registrar
 
     @classmethod
     def import_d3d11_texture(
@@ -642,6 +646,7 @@ class GpuFrame:
         frame_size: tuple[int, int], pitch: int, owner: object,
         pts_ns: int = -1, event: int = 0,
         producer_synchronized: bool = False,
+        dependency_registrar: Callable[[int, int], None] | None = None,
     ) -> "GpuFrame":
         """Import a linear Intel device-USM NV12 allocation for DLPack sharing.
 
@@ -660,6 +665,8 @@ class GpuFrame:
             )
         if owner is None:
             raise ValueError("USM import requires an allocation owner")
+        if dependency_registrar is not None and not callable(dependency_registrar):
+            raise TypeError("dependency_registrar must be callable or None")
         if producer_synchronized == (event != 0):
             raise ValueError(
                 "provide exactly one of a Level Zero event or producer_synchronized=True"
@@ -711,7 +718,7 @@ class GpuFrame:
         except Exception:
             _dlpack.external_owner_cancel(user_data)
             raise
-        return cls(result_handle)
+        return cls(result_handle, dependency_registrar)
 
     @classmethod
     def import_dlpack_nv12(
@@ -914,6 +921,7 @@ class GpuFrame:
         if not self._closed:
             native.lib.mkvc_gpu_frame_release(self._handle)
             self._handle = native.GpuFrameHandle()
+            self._dependency_registrar = None
             self._closed = True
 
     release = close
@@ -962,9 +970,33 @@ class GpuPlane:
         else:
             consumer_stream = stream
         managed = ct.c_void_p()
-        native.check(native.lib.mkvc_gpu_frame_export_dlpack(
-            self._frame._handle, self._index, consumer_stream, ct.byref(managed)
-        ))
+        registrar = self._frame._dependency_registrar
+        handle = self._frame.native_handle
+        producer_event = int(handle["handles"][3])
+        if registrar is not None and producer_event and consumer_stream:
+            callback_error: list[BaseException] = []
+
+            @native.GpuDependencyCallback
+            def register_dependency(
+                _user_data: int, event: int, target_stream: int,
+            ) -> int:
+                try:
+                    registrar(int(event), int(target_stream))
+                    return native.MKVC_OK
+                except BaseException as exception:
+                    callback_error.append(exception)
+                    return native.MKVC_ERROR_INTERNAL
+
+            result = native.lib.mkvc_gpu_frame_export_dlpack_with_dependency(
+                self._frame._handle, self._index, consumer_stream,
+                register_dependency, None, ct.byref(managed))
+            if callback_error:
+                raise callback_error[0]
+            native.check(result)
+        else:
+            native.check(native.lib.mkvc_gpu_frame_export_dlpack(
+                self._frame._handle, self._index, consumer_stream,
+                ct.byref(managed)))
         try:
             return _dlpack.capsule_from_address(managed.value)
         except Exception:

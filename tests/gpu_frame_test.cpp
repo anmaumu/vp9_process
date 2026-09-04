@@ -48,6 +48,22 @@ void release_external(void* opaque) {
 uint32_t fake_ze_event_query(void* event) {
     return *static_cast<uint32_t*>(event);
 }
+struct DependencyProbe {
+    uint64_t event = 0;
+    uint64_t stream = 0;
+    unsigned calls = 0;
+};
+mkvc_result register_dependency(
+    void* opaque, uint64_t event, uint64_t stream) {
+    auto& probe = *static_cast<DependencyProbe*>(opaque);
+    probe.event = event;
+    probe.stream = stream;
+    ++probe.calls;
+    return MKVC_OK;
+}
+mkvc_result reject_dependency(void*, uint64_t, uint64_t) {
+    return MKVC_ERROR_NOT_SUPPORTED;
+}
 }
 
 int main() {
@@ -209,18 +225,33 @@ int main() {
     usm_native.handles[0] = 0x22340000;
     usm_native.handles[1] = 0x66780000;
     usm_native.handles[2] = 0x77890000;
-    usm_native.handles[3] = 0;
+    usm_native.handles[3] = 0x889A0000;
     auto usm_ready = std::make_shared<mkvc::gpu::ManualCompletion>();
-    usm_ready->complete();
     auto usm_core = std::make_shared<mkvc::gpu::GpuFrameCore>(
         usm_desc, usm_ready, [](uint64_t) {}, usm_native);
     mkvc_gpu_frame* usm_handle = mkvc::gpu::make_handle(usm_core);
     opaque_tensor = nullptr;
-    assert(mkvc_gpu_frame_export_dlpack(usm_handle, 0, 0, &opaque_tensor) == MKVC_OK);
+    DependencyProbe dependency_probe;
+    assert(mkvc_gpu_frame_export_dlpack_with_dependency(
+        usm_handle, 0, 0x99AB0000, nullptr, nullptr,
+        &opaque_tensor) == MKVC_ERROR_INVALID_ARGUMENT);
+    assert(mkvc_gpu_frame_export_dlpack_with_dependency(
+        usm_handle, 0, 0x99AB0000, reject_dependency, nullptr,
+        &opaque_tensor) == MKVC_ERROR_NOT_SUPPORTED);
+    assert(opaque_tensor == nullptr);
+    assert(mkvc_gpu_frame_export_dlpack_with_dependency(
+        usm_handle, 0, 0x99AB0000, register_dependency, &dependency_probe,
+        &opaque_tensor) == MKVC_OK);
+    assert(dependency_probe.calls == 1 &&
+           dependency_probe.event == usm_native.handles[3] &&
+           dependency_probe.stream == 0x99AB0000);
     tensor = static_cast<TestDLManagedTensor*>(opaque_tensor);
     assert(tensor->dl_tensor.data == reinterpret_cast<void*>(usm_native.handles[0]));
     assert(tensor->dl_tensor.device.type == 14 && tensor->dl_tensor.device.id == 3);
     assert(tensor->dl_tensor.shape[0] == 1080 && tensor->dl_tensor.shape[1] == 1920);
+    // Export returned while the producer was pending. Complete it before the
+    // last lease is destroyed so the frame core can shut down normally.
+    usm_ready->complete();
     mkvc_gpu_frame_release(usm_handle);
     tensor->deleter(tensor);
 

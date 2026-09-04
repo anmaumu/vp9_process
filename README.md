@@ -207,9 +207,10 @@ flush/closeまでdevice寿命のため保持するので、pool容量に1 slot�
 Linux実機でnative/Python経路のencodeとowner解放順を確認済みです。同期済みlinear
 device-USMは`GpuFrame.import_usm_nv12()`でowner/context/queue/layoutを保持したまま
 kDLOneAPI DLPackへ公開できます。borrowed Level Zero eventも受け付け、Arc B580で
-event待機、dpnp処理とVA→oneVPL AV1 encodeまで確認済みです。
+consumer SYCL queueへのevent dependency登録、dpnp処理とVA→oneVPL AV1 encodeまで
+確認済みです。`dependency_registrar`を指定しない場合は安全なhost待機へ戻ります。
 decode tiled imageからlinear USMへのmaterializationはGPU copyです。Windows Intelの
-encode実機検証、consumer SYCL queueへeventを直接挿入する完全非同期USMは未完了です。
+encode実機検証、正式pool/backpressureと長時間fault/soak検証は未完了です。
 
 Windows D3D11のproducer fenceは`mkvc_gpu_frame_import_d3d11_fence()`、C++の
 `GpuFrame::import_d3d11_fence()`、.NETの`MkvGpuFrame.ImportD3D11Fence()`、Pythonの

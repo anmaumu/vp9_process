@@ -210,6 +210,15 @@ typedef mkvc_result (*mkvc_gpu_external_query_callback)(
 typedef void (*mkvc_gpu_external_release_callback)(void* user_data);
 
 /**
+ * Insert one borrowed producer event into an external consumer stream/queue.
+ * The callback runs synchronously during DLPack export and must not retain,
+ * reset, or destroy either handle. Return MKVC_OK only after the dependency has
+ * been submitted; exceptions must never cross the C boundary.
+ */
+typedef mkvc_result (*mkvc_gpu_dependency_callback)(
+    void* user_data, uint64_t producer_event, uint64_t consumer_stream);
+
+/**
  * External GPU resource import contract. Descriptor generations must match.
  * A null query callback declares the producer already complete. The release
  * callback and user_data remain valid until release is invoked exactly once.
@@ -609,6 +618,17 @@ MKVC_API mkvc_result mkvc_gpu_frame_import_cuda_event(
 MKVC_API mkvc_result mkvc_gpu_frame_export_dlpack(
     mkvc_gpu_frame* frame, uint32_t plane_index,
     uint64_t consumer_stream, void** out_managed_tensor);
+
+/**
+ * Export DLPack after a caller adapter inserts the producer dependency.
+ * For Intel USM with a nonzero Level Zero event and consumer stream, callback
+ * success suppresses the host wait. Missing/failed callbacks fail closed or use
+ * the ordinary export API's safe wait; native resources remain caller-owned.
+ */
+MKVC_API mkvc_result mkvc_gpu_frame_export_dlpack_with_dependency(
+    mkvc_gpu_frame* frame, uint32_t plane_index, uint64_t consumer_stream,
+    mkvc_gpu_dependency_callback callback, void* user_data,
+    void** out_managed_tensor);
 
 /** Release an unconsumed DLManagedTensor returned by the export function. */
 MKVC_API void mkvc_dlpack_managed_tensor_release(void* managed_tensor);

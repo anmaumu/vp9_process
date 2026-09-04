@@ -121,6 +121,19 @@ class SyclEventOwner:
             SyclEventOwner.released += 1
 
 
+class QueueBoundPlane:
+    """Force a real consumer SYCL queue through the public DLPack stream slot."""
+    def __init__(self, plane, stream):
+        self.plane, self.stream = plane, stream
+
+    def __dlpack_device__(self):
+        return self.plane.__dlpack_device__()
+
+    def __dlpack__(self, **kwargs):
+        kwargs["stream"] = self.stream
+        return self.plane.__dlpack__(**kwargs)
+
+
 def main():
     Path(output).write_text('{"validation":"not_completed"}\n')
     reuse = reuse_program_enabled()
@@ -128,6 +141,13 @@ def main():
     queue = dpctl.SyclQueue("level_zero:gpu:0")
     if "B580" not in queue.name:
         raise RuntimeError("This experimental qualification requires the expected Arc B580")
+    dependency_registrations = 0
+    queue_wait_event = bind(library, "mkvc_test_sycl_queue_wait_event", I, P, P)
+
+    def register_dependency(event, consumer_stream):
+        nonlocal dependency_registrations
+        check(queue_wait_event(P(consumer_stream), P(event)))
+        dependency_registrations += 1
     with mkvcodec.VideoCapture(fixture, backend="cpu", prefetch=0) as cpu:
         reference = cpu.read_i420().y.astype(np.float32)
     with mkvcodec.VideoCapture(fixture, backend="intel", prefetch=0, require_gpu_resident=True) as capture:
@@ -172,8 +192,10 @@ def main():
                     queue=array.sycl_queue.addressof_ref(),
                     device_id=0, frame_size=(width, height), pitch=width,
                     owner=event_owner, pts_ns=index * 33333333,
-                    event=event_owner.event.value)
-                shared = dpnp.from_dlpack(usm_frame.plane(0))
+                    event=event_owner.event.value,
+                    dependency_registrar=register_dependency)
+                shared = dpnp.from_dlpack(QueueBoundPlane(
+                    usm_frame.plane(0), array.sycl_queue.addressof_ref()))
                 assert shared.__sycl_usm_array_interface__["data"][0] == array.__sycl_usm_array_interface__["data"][0]
                 shared[:] = 255 - shared[:]  # External Python GPU processing.
                 shared.sycl_queue.wait()  # The DLPack consumer may choose another queue.
@@ -199,6 +221,7 @@ def main():
         assert UsmVaOwner.released == frames and owner_ref() is None
         assert ExportableAllocation.released == frames
         assert SyclEventOwner.released == frames
+        assert dependency_registrations == frames
         source.close()
         raw = run_oracle(["ffmpeg", "-v", "error", "-hwaccel", "none", "-i", path,
                           "-fps_mode", "passthrough", "-f", "rawvideo", "-pix_fmt", "yuv420p", "pipe:1"]).stdout
@@ -215,6 +238,7 @@ def main():
               "dpctl": dpctl.__version__, "dpnp": dpnp.__version__, "owners_released": UsmVaOwner.released,
               "allocations_released": ExportableAllocation.released,
               "events_released": SyclEventOwner.released,
+              "consumer_dependencies": dependency_registrations,
               "edges": {"decode_to_linear_usm": "gpu_materialization", "usm_to_dlpack": "pointer_identical",
                         "usm_to_va_encode": "shared_import"}, "public_api": True}
     Path(output).write_text(json.dumps(report, indent=2) + "\n")

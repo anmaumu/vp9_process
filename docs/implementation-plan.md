@@ -74,7 +74,7 @@
 - [x] CPU resize/crop/basic 8-bit conversion/rotate/flip/contain/cover subset
 - [x] common `mkvc_gpu_frame` metadata, retain/release lease, generation and producer query/wait C ABI foundation
 - [x] fixed-capacity generation-safe GPU frame pool with completion/lease-gated recycle and backpressure
-- [ ] backend resource allocation/frame factories and consumer dependency registration integration
+- [ ] backend resource allocation/frame factories integration（CUDAおよびIntel USM consumer dependency登録は完了）
 - [x] oneVPL SyncPoint and NVIDIA CUDA event completion adapter foundations
 - [ ] connect completion adapters to decode/export/import/encode surface factories; add D3D11 fence/VA synchronization
 - [x] oneVPL video-memory surface wrapper with SyncPoint, native handle, pool lease and deferred Surface Release
@@ -94,7 +94,7 @@
 - [ ] NVIDIA CUarray/stream decode export（外部CUarray importとCUDA event dependencyは完了）
 - [x] native NVIDIA linear CUDA-pointer DLPack plane adapter and native lease deleter
 - [x] Python stable-ABI DLPack capsule and `GpuFrame.plane()` protocol source API
-- [ ] Intel safe USM adapter（同期およびLevel Zero producer event付きlinear device-USM sliceは完了。consumer queueへの直接dependency、pool/backpressure、cross-context/fault/soakは残る）
+- [ ] Intel safe USM adapter（同期/Level Zero producer event、consumer queueへの直接dependencyは完了。pool/backpressure、cross-context/fault/soakは残る）
 - [x] versioned C ABI/Python synchronized device-USM import -> kDLOneAPI DLPack/dpnp -> linear VA shared import -> AV1 encode on Arc; explicit tiled-to-linear GPU materialization
 - [ ] promote the experimental USM path to versioned C ABI/Python APIs with copy policy, allocator pool, layout/context validation and fault/lifetime qualification
 - [x] backend-neutral external GPU frame wrapper with producer-query and single-shot release callbacks; CUDA-pointer NV12 is NVIDIA-encode compatible

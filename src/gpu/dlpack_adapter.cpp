@@ -37,6 +37,10 @@ struct ManagedPlane {
     int64_t shape[2]{};
     int64_t strides[2]{};
 };
+struct ScopedFrameLease {
+    mkvc_gpu_frame* frame = nullptr;
+    ~ScopedFrameLease() { mkvc_gpu_frame_release(frame); }
+};
 
 void delete_managed(DLManagedTensor* tensor) {
     if (tensor == nullptr) return;
@@ -53,9 +57,11 @@ mkvc_result fail(mkvc_result result, const char* message) {
 
 }  // namespace
 
-extern "C" mkvc_result mkvc_gpu_frame_export_dlpack(
+namespace {
+mkvc_result export_dlpack_impl(
     mkvc_gpu_frame* frame, uint32_t plane_index,
-    uint64_t consumer_stream, void** out_managed_tensor) {
+    uint64_t consumer_stream, mkvc_gpu_dependency_callback callback,
+    void* callback_user_data, void** out_managed_tensor) {
     if (out_managed_tensor == nullptr) return fail(MKVC_ERROR_INVALID_ARGUMENT, "null DLPack output");
     *out_managed_tensor = nullptr;
     mkvc_gpu_frame_desc desc{};
@@ -85,6 +91,29 @@ extern "C" mkvc_result mkvc_gpu_frame_export_dlpack(
         desc.plane_offsets[plane_index] >
             std::numeric_limits<uint64_t>::max() - native.handles[0])
         return fail(MKVC_ERROR_INVALID_ARGUMENT, "DLPack metadata exceeds its ABI range");
+    std::unique_ptr<ManagedPlane> state(new (std::nothrow) ManagedPlane());
+    if (!state) return fail(MKVC_ERROR_INTERNAL, "DLPack allocation failed");
+    result = mkvc_gpu_frame_retain(frame);
+    if (result != MKVC_OK) return result;
+    ScopedFrameLease lease{frame};
+
+    // Retain the producer event owner before registering an asynchronous queue
+    // dependency. Once the callback succeeds, the consumer may observe the
+    // borrowed event even if its caller concurrently releases the original frame.
+    bool dependency_registered = false;
+    if (usm && consumer_stream != 0 && native.handles[3] != 0 &&
+        callback != nullptr) {
+        try {
+            result = callback(callback_user_data, native.handles[3],
+                              consumer_stream);
+        } catch (...) {
+            return fail(MKVC_ERROR_INTERNAL,
+                        "GPU dependency callback threw across the C boundary");
+        }
+        if (result != MKVC_OK)
+            return fail(result, "GPU dependency callback rejected the dependency");
+        dependency_registered = true;
+    }
     if (cuda && consumer_stream != 0 && native.handles[3] != 0) {
 #if defined(MKVC_HAS_NVIDIA)
         std::string error;
@@ -98,18 +127,10 @@ extern "C" mkvc_result mkvc_gpu_frame_export_dlpack(
         return fail(MKVC_ERROR_NOT_SUPPORTED,
                     "CUDA stream dependencies are disabled in this build");
 #endif
-    } else {
-        // Public USM import is synchronized-only. Waiting here proves the
-        // producer is complete before any oneAPI consumer queue sees it.
+    } else if (!dependency_registered) {
+        // Without an explicit consumer adapter, prove completion on the host.
         result = mkvc_gpu_frame_wait(frame, std::numeric_limits<uint32_t>::max());
         if (result != MKVC_OK) return result;
-    }
-    result = mkvc_gpu_frame_retain(frame);
-    if (result != MKVC_OK) return result;
-    std::unique_ptr<ManagedPlane> state(new (std::nothrow) ManagedPlane());
-    if (!state) {
-        mkvc_gpu_frame_release(frame);
-        return fail(MKVC_ERROR_INTERNAL, "DLPack allocation failed");
     }
     state->frame = frame;
     state->shape[0] = plane_index == 0 ? desc.height : desc.height / 2;
@@ -128,7 +149,27 @@ extern "C" mkvc_result mkvc_gpu_frame_export_dlpack(
     state->managed.manager_ctx = state.get();
     state->managed.deleter = delete_managed;
     *out_managed_tensor = &state.release()->managed;
+    lease.frame = nullptr;
     return MKVC_OK;
+}
+}  // namespace
+
+extern "C" mkvc_result mkvc_gpu_frame_export_dlpack(
+    mkvc_gpu_frame* frame, uint32_t plane_index,
+    uint64_t consumer_stream, void** out_managed_tensor) {
+    return export_dlpack_impl(frame, plane_index, consumer_stream, nullptr,
+                              nullptr, out_managed_tensor);
+}
+
+extern "C" mkvc_result mkvc_gpu_frame_export_dlpack_with_dependency(
+    mkvc_gpu_frame* frame, uint32_t plane_index, uint64_t consumer_stream,
+    mkvc_gpu_dependency_callback callback, void* user_data,
+    void** out_managed_tensor) {
+    if (consumer_stream == 0 || callback == nullptr)
+        return fail(MKVC_ERROR_INVALID_ARGUMENT,
+                    "consumer stream and dependency callback are required");
+    return export_dlpack_impl(frame, plane_index, consumer_stream, callback,
+                              user_data, out_managed_tensor);
 }
 
 extern "C" void mkvc_dlpack_managed_tensor_release(void* managed_tensor) {
