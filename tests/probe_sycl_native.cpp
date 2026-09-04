@@ -4,6 +4,33 @@
 #include <level_zero/ze_api.h>
 #include <fcntl.h>
 
+namespace {
+struct EventHolder { sycl::event event; };
+}
+
+extern "C" int mkvc_test_sycl_barrier_event(
+    void* queue_ref, void** event_owner, void** native_event) noexcept {
+    if (!queue_ref || !event_owner || !native_event) return -1;
+    *event_owner = nullptr;
+    *native_event = nullptr;
+    try {
+        auto& queue = *static_cast<sycl::queue*>(queue_ref);
+        if (queue.get_backend() != sycl::backend::ext_oneapi_level_zero) return -2;
+        auto* holder = new EventHolder{queue.ext_oneapi_submit_barrier()};
+        *native_event = sycl::get_native<
+            sycl::backend::ext_oneapi_level_zero>(holder->event);
+        if (!*native_event) { delete holder; return -4; }
+        *event_owner = holder;
+        return 0;
+    } catch (...) { return -3; }
+}
+
+extern "C" int mkvc_test_sycl_event_free(void* event_owner) noexcept {
+    if (!event_owner) return -1;
+    try { delete static_cast<EventHolder*>(event_owner); return 0; }
+    catch (...) { return -3; }
+}
+
 extern "C" int mkvc_test_sycl_alloc_exportable(void* queue_ref, uint64_t bytes, void** pointer) noexcept {
     if (!queue_ref || !bytes || !pointer) return -1;
     *pointer = nullptr;

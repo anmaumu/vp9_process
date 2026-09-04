@@ -3,6 +3,7 @@
 #include "intel_native_handle.hpp"
 #include "va_completion.hpp"
 #include "d3d11_completion.hpp"
+#include "level_zero_completion.hpp"
 #include "nvidia_native_handle.hpp"
 
 #include <cassert>
@@ -44,9 +45,30 @@ mkvc_result query_external(void* opaque, uint32_t* complete) {
 void release_external(void* opaque) {
     static_cast<ExternalState*>(opaque)->releases.fetch_add(1);
 }
+uint32_t fake_ze_event_query(void* event) {
+    return *static_cast<uint32_t*>(event);
+}
 }
 
 int main() {
+    {
+        uint32_t status = 1;  // ZE_RESULT_NOT_READY
+        std::string error;
+        auto completion = mkvc::gpu::intel::make_level_zero_event_completion(
+            &status, fake_ze_event_query);
+        assert(completion->wait(0, error) == MKVC_ERROR_TIMEOUT);
+        status = 0;
+        assert(completion->wait(20, error) == MKVC_OK);
+        status = 0x70000001;
+        assert(completion->query(error) == MKVC_GPU_COMPLETION_COMPLETE);
+        completion = mkvc::gpu::intel::make_level_zero_event_completion(
+            &status, fake_ze_event_query);
+        assert(completion->wait(0, error) == MKVC_ERROR_CODEC);
+        assert(completion->query(error) == MKVC_GPU_COMPLETION_FAILED);
+        assert(mkvc::gpu::intel::make_level_zero_event_completion(
+            nullptr, fake_ze_event_query)->wait(0, error) ==
+            MKVC_ERROR_INVALID_ARGUMENT);
+    }
     {
         using mkvc::gpu::intel::make_d3d11_fence_completion;
         uint64_t value = 0;
@@ -305,6 +327,23 @@ int main() {
     assert(external_frame != nullptr);
     mkvc_gpu_frame_release(external_frame);
     assert(external_state.releases.load() == 2);
+    external_config.frame.backend = MKVC_BACKEND_INTEL;
+    external_config.frame.memory_type = MKVC_GPU_MEMORY_USM;
+    external_config.frame.device_id = 3;
+    external_config.frame.generation = 99;
+    external_config.frame.pitches[0] = external_config.frame.pitches[1] = 2048;
+    external_config.frame.plane_offsets[0] = 0;
+    external_config.frame.plane_offsets[1] = 2048 * 1080;
+    external_config.native_handle.type = MKVC_GPU_NATIVE_USM_POINTER;
+    external_config.native_handle.device_id = 3;
+    external_config.native_handle.generation = 99;
+    external_config.native_handle.handles[0] = 0x12340000;
+    external_config.native_handle.handles[1] = 0x22340000;
+    external_config.native_handle.handles[2] = 0x32340000;
+    external_config.native_handle.handles[3] = 0x42340000;
+    assert(mkvc_gpu_frame_import_external(
+        &external_config, &external_frame) == MKVC_ERROR_INVALID_ARGUMENT);
+    assert(external_frame == nullptr && external_state.releases.load() == 2);
     external_config.frame.backend = MKVC_BACKEND_INTEL;
     external_config.frame.memory_type = MKVC_GPU_MEMORY_VA_SURFACE;
     external_config.native_handle.type = MKVC_GPU_NATIVE_VA_SURFACE;

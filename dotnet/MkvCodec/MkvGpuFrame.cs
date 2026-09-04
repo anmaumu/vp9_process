@@ -57,6 +57,18 @@ public sealed class MkvGpuFrame : IDisposable
         Action<object>? release = null) =>
         ImportExternalCore(descriptor, nativeHandle, owner, null, release, 2);
 
+    /// <summary>
+    /// Imports linear Intel device-USM with a borrowed Level Zero event.
+    /// Handles=(pointer, SYCL context, SYCL queue, ze_event_handle_t). Native
+    /// code queries but never resets or destroys the caller-owned event.
+    /// </summary>
+    public static MkvGpuFrame ImportLevelZeroEvent(
+        MkvGpuFrameDescriptor descriptor,
+        MkvGpuNativeHandleDescriptor nativeHandle,
+        object owner,
+        Action<object>? release = null) =>
+        ImportExternalCore(descriptor, nativeHandle, owner, null, release, 3);
+
     private static unsafe MkvGpuFrame ImportExternalCore(
         MkvGpuFrameDescriptor descriptor, MkvGpuNativeHandleDescriptor nativeHandle,
         object owner, Func<bool>? producerReady, Action<object>? release, int syncKind)
@@ -93,6 +105,7 @@ public sealed class MkvGpuFrame : IDisposable
             var result = syncKind switch {
                 1 => NativeMethods.mkvc_gpu_frame_import_va_surface(ref config, out frame),
                 2 => NativeMethods.mkvc_gpu_frame_import_d3d11_fence(ref config, out frame),
+                3 => NativeMethods.mkvc_gpu_frame_import_level_zero_event(ref config, out frame),
                 _ => NativeMethods.mkvc_gpu_frame_import_external(ref config, out frame)
             };
             MkvCodecInfo.ThrowIfFailed(result);
@@ -232,7 +245,8 @@ public sealed class MkvGpuFrame : IDisposable
                 MkvGpuMemoryType.VaSurface => (new[] { "va_api" }, "va_surface"),
                 MkvGpuMemoryType.CudaPointer => (new[] { "cuda" }, "cuda_event"),
                 MkvGpuMemoryType.CudaArray => (new[] { "cuda" }, "cuda_event"),
-                MkvGpuMemoryType.Usm => (new[] { "sycl_usm" }, "external"),
+                MkvGpuMemoryType.Usm => (new[] { "sycl_usm" },
+                    native.Handles[3] != 0 ? "level_zero_event" : "synchronized"),
                 _ => (Array.Empty<string>(), "unknown")
             };
             return new MkvGpuInteropInfo(

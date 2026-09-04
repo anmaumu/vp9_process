@@ -206,9 +206,10 @@ ownerはsurfaceとdisplayの両方を保持する必要があります。import�
 flush/closeまでdevice寿命のため保持するので、pool容量に1 slot分を見込みます。
 Linux実機でnative/Python経路のencodeとowner解放順を確認済みです。同期済みlinear
 device-USMは`GpuFrame.import_usm_nv12()`でowner/context/queue/layoutを保持したまま
-kDLOneAPI DLPackへ公開でき、Arc B580でdpnp処理とVA→oneVPL AV1 encodeまで確認済みです。
+kDLOneAPI DLPackへ公開できます。borrowed Level Zero eventも受け付け、Arc B580で
+event待機、dpnp処理とVA→oneVPL AV1 encodeまで確認済みです。
 decode tiled imageからlinear USMへのmaterializationはGPU copyです。Windows Intelの
-encode実機検証、native SYCL eventによる完全非同期USMは未完了です。
+encode実機検証、consumer SYCL queueへeventを直接挿入する完全非同期USMは未完了です。
 
 Windows D3D11のproducer fenceは`mkvc_gpu_frame_import_d3d11_fence()`、C++の
 `GpuFrame::import_d3d11_fence()`、.NETの`MkvGpuFrame.ImportD3D11Fence()`、Pythonの

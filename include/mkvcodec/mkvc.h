@@ -574,6 +574,18 @@ MKVC_API mkvc_result mkvc_gpu_frame_import_d3d11_fence(
     mkvc_gpu_frame** out_frame);
 
 /**
+ * Import linear Intel device-USM with a borrowed Level Zero producer event.
+ * handles=(USM pointer, SYCL context identity, SYCL queue identity,
+ * ze_event_handle_t). The event is queried through the public Level Zero loader;
+ * the library never destroys or resets it. Keep the event/context/queue and USM
+ * allocation valid through final release. The generic import rejects a nonzero
+ * USM event so asynchronous dependency cannot be silently treated as complete.
+ */
+MKVC_API mkvc_result mkvc_gpu_frame_import_level_zero_event(
+    const mkvc_gpu_external_frame_config* config,
+    mkvc_gpu_frame** out_frame);
+
+/**
  * Import an NVIDIA CUDA-pointer frame whose producer dependency is represented
  * by native_handle.handles[3] (CUevent). The event is queried in the supplied
  * CUDA context without a device-wide synchronization. The event and context

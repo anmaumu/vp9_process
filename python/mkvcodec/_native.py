@@ -349,6 +349,9 @@ lib.mkvc_gpu_frame_import_d3d11_fence.argtypes = [
     ct.POINTER(GpuExternalFrameConfig), ct.POINTER(GpuFrameHandle)
 ]
 lib.mkvc_gpu_frame_import_d3d11_fence.restype = ct.c_int
+lib.mkvc_gpu_frame_import_level_zero_event.argtypes = [
+    ct.POINTER(GpuExternalFrameConfig), ct.POINTER(GpuFrameHandle)]
+lib.mkvc_gpu_frame_import_level_zero_event.restype = ct.c_int
 lib.mkvc_gpu_frame_import_cuda_event.argtypes = [
     ct.POINTER(GpuExternalFrameConfig), ct.POINTER(GpuFrameHandle)
 ]

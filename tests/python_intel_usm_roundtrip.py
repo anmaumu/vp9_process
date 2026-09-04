@@ -101,6 +101,26 @@ class UsmVaOwner:
             UsmVaOwner.released += 1
 
 
+class SyclEventOwner:
+    """Retain a native SYCL event and the allocation owner as one frame lease."""
+    released = 0
+
+    def __init__(self, resource_owner, array, library):
+        self.resource_owner = resource_owner
+        self.handle, self.event = P(), P()
+        self.free = bind(library, "mkvc_test_sycl_event_free", I, P)
+        create = bind(library, "mkvc_test_sycl_barrier_event", I, P,
+                      ct.POINTER(P), ct.POINTER(P))
+        check(create(array.sycl_queue.addressof_ref(), ct.byref(self.handle),
+                     ct.byref(self.event)))
+
+    def __del__(self):
+        if self.handle.value:
+            check(self.free(self.handle))
+            self.handle.value = None
+            SyclEventOwner.released += 1
+
+
 def main():
     Path(output).write_text('{"validation":"not_completed"}\n')
     reuse = reuse_program_enabled()
@@ -144,15 +164,15 @@ def main():
                 # Promote the synchronized device-USM allocation through the
                 # public frame/DLPack lease. This preserves pointer identity;
                 # the earlier tiled decode -> linear USM edge remains a GPU copy.
-                array.sycl_queue.wait()
                 pointer = array.__sycl_usm_array_interface__["data"][0]
+                event_owner = SyclEventOwner(owner, array, library)
                 usm_frame = mkvcodec.GpuFrame.import_usm_nv12(
                     pointer=pointer,
                     context=array.sycl_queue.sycl_context.addressof_ref(),
                     queue=array.sycl_queue.addressof_ref(),
                     device_id=0, frame_size=(width, height), pitch=width,
-                    owner=owner, pts_ns=index * 33333333,
-                    producer_synchronized=True)
+                    owner=event_owner, pts_ns=index * 33333333,
+                    event=event_owner.event.value)
                 shared = dpnp.from_dlpack(usm_frame.plane(0))
                 assert shared.__sycl_usm_array_interface__["data"][0] == array.__sycl_usm_array_interface__["data"][0]
                 shared[:] = 255 - shared[:]  # External Python GPU processing.
@@ -160,6 +180,8 @@ def main():
                 del shared
                 gc.collect()
                 usm_frame.close()
+                del event_owner
+                gc.collect()
                 imported = mkvcodec.GpuFrame.import_va_surface(
                     display=owner.display, surface_id=owner.surface.value, device_id=desc["device_id"],
                     frame_size=(width, height), pts_ns=index * 33333333,
@@ -176,6 +198,7 @@ def main():
         gc.collect()
         assert UsmVaOwner.released == frames and owner_ref() is None
         assert ExportableAllocation.released == frames
+        assert SyclEventOwner.released == frames
         source.close()
         raw = run_oracle(["ffmpeg", "-v", "error", "-hwaccel", "none", "-i", path,
                           "-fps_mode", "passthrough", "-f", "rawvideo", "-pix_fmt", "yuv420p", "pipe:1"]).stdout
@@ -191,6 +214,7 @@ def main():
               "opencl_reuse_program": reuse,
               "dpctl": dpctl.__version__, "dpnp": dpnp.__version__, "owners_released": UsmVaOwner.released,
               "allocations_released": ExportableAllocation.released,
+              "events_released": SyclEventOwner.released,
               "edges": {"decode_to_linear_usm": "gpu_materialization", "usm_to_dlpack": "pointer_identical",
                         "usm_to_va_encode": "shared_import"}, "public_api": True}
     Path(output).write_text(json.dumps(report, indent=2) + "\n")

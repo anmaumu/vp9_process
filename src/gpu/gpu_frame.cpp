@@ -1,6 +1,7 @@
 #include "gpu_frame.hpp"
 #include "intel/va_completion.hpp"
 #include "intel/d3d11_completion.hpp"
+#include "intel/level_zero_completion.hpp"
 
 #if defined(MKVC_HAS_NVIDIA)
 #include "nvidia/cuda_completion.hpp"
@@ -205,7 +206,8 @@ bool valid(const mkvc_gpu_frame* frame) {
 }
 
 bool valid_external_layout(const mkvc_gpu_external_frame_config& config,
-                           std::string& error) {
+                           std::string& error,
+                           bool allow_usm_level_zero_event = false) {
     const auto& desc = config.frame;
     const auto& native = config.native_handle;
     if (desc.struct_size < sizeof(desc) || desc.struct_version != 1 ||
@@ -269,8 +271,9 @@ bool valid_external_layout(const mkvc_gpu_external_frame_config& config,
                     desc.pitches[0] > std::numeric_limits<uint32_t>::max() ||
                     desc.plane_offsets[0] != 0 ||
                     desc.plane_offsets[1] != desc.pitches[0] * desc.height ||
-                    config.query != nullptr)) {
-            error = "external Intel USM import requires synchronized linear NV12, context, and queue identity";
+                    config.query != nullptr ||
+                    (native.handles[3] != 0 && !allow_usm_level_zero_event))) {
+            error = "external Intel USM import requires linear NV12, context, queue, and valid completion identity";
             return false;
         }
         return true;
@@ -516,6 +519,40 @@ mkvc_result mkvc_gpu_frame_import_cuda_event(
     return gpu_fail(MKVC_ERROR_NOT_SUPPORTED,
                     "CUDA event import was not enabled in this build");
 #endif
+}
+
+mkvc_result mkvc_gpu_frame_import_level_zero_event(
+    const mkvc_gpu_external_frame_config* config,
+    mkvc_gpu_frame** out_frame) {
+    mkvc_last_error.clear();
+    if (out_frame != nullptr) *out_frame = nullptr;
+    if (config == nullptr || out_frame == nullptr ||
+        config->struct_size < sizeof(*config) || config->struct_version != 1)
+        return gpu_fail(MKVC_ERROR_INVALID_ARGUMENT,
+                        "invalid Level Zero event import configuration");
+    try {
+        std::string error;
+        if (!valid_external_layout(*config, error, true))
+            return gpu_fail(MKVC_ERROR_INVALID_ARGUMENT, std::move(error));
+        if (config->frame.backend != MKVC_BACKEND_INTEL ||
+            config->frame.memory_type != MKVC_GPU_MEMORY_USM ||
+            config->native_handle.type != MKVC_GPU_NATIVE_USM_POINTER ||
+            config->native_handle.handles[3] == 0 || config->query != nullptr)
+            return gpu_fail(MKVC_ERROR_INVALID_ARGUMENT,
+                "Level Zero event import requires Intel USM and no callback");
+        std::shared_ptr<mkvc::gpu::Completion> producer;
+        const mkvc_result result =
+            mkvc::gpu::intel::load_level_zero_event_completion(
+                config->native_handle.handles[3], producer, error);
+        if (result != MKVC_OK) return gpu_fail(result, std::move(error));
+        return import_external_with_completion(*config, std::move(producer),
+                                               out_frame);
+    } catch (const std::exception& exception) {
+        return gpu_fail(MKVC_ERROR_INTERNAL, exception.what());
+    } catch (...) {
+        return gpu_fail(MKVC_ERROR_INTERNAL,
+                        "unknown Level Zero event import failure");
+    }
 }
 
 }  // extern "C"

@@ -275,6 +275,13 @@ class GpuFrame {
         check(mkvc_gpu_frame_import_d3d11_fence(&config, &frame));
         return GpuFrame(frame);
     }
+    /** Import linear Intel device-USM with a borrowed Level Zero event. */
+    static GpuFrame import_level_zero_event(
+        const mkvc_gpu_external_frame_config& config) {
+        mkvc_gpu_frame* frame = nullptr;
+        check(mkvc_gpu_frame_import_level_zero_event(&config, &frame));
+        return GpuFrame(frame);
+    }
     ~GpuFrame() { reset(); }
     GpuFrame(const GpuFrame&) = delete;
     GpuFrame& operator=(const GpuFrame&) = delete;

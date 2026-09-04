@@ -59,6 +59,7 @@ add_library(mkvcodec SHARED
     src/gpu/intel/intel_native_handle.cpp
     src/gpu/intel/va_completion.cpp
     src/gpu/intel/d3d11_completion.cpp
+    src/gpu/intel/level_zero_completion.cpp
     src/gpu/nvidia/nvidia_native_handle.cpp
     src/encoder_session.cpp
     src/cpu_av1_encoder.cpp
@@ -80,6 +81,7 @@ target_include_directories(mkvcodec
         $<INSTALL_INTERFACE:include>
 )
 target_compile_definitions(mkvcodec PRIVATE MKVC_BUILDING_LIBRARY)
+target_link_libraries(mkvcodec PRIVATE ${CMAKE_DL_LIBS})
 
 if(MKVC_ENABLE_NVIDIA)
     target_sources(mkvcodec PRIVATE src/gpu/nvidia/cuda_completion.cpp)
@@ -229,11 +231,13 @@ if(MKVC_BUILD_TESTS)
         src/gpu/intel/intel_native_handle.cpp
         src/gpu/intel/va_completion.cpp
         src/gpu/intel/d3d11_completion.cpp
+        src/gpu/intel/level_zero_completion.cpp
         src/gpu/nvidia/nvidia_native_handle.cpp)
     target_compile_features(mkvc_gpu_frame_test PRIVATE cxx_std_17)
     target_compile_definitions(mkvc_gpu_frame_test PRIVATE MKVC_BUILDING_LIBRARY=1)
     target_include_directories(mkvc_gpu_frame_test PRIVATE
         src/gpu src/gpu/intel src/gpu/nvidia include)
+    target_link_libraries(mkvc_gpu_frame_test PRIVATE ${CMAKE_DL_LIBS})
     if(MSVC)
         target_compile_options(mkvc_gpu_frame_test PRIVATE /UNDEBUG)
     else()
@@ -392,6 +396,7 @@ if(MKVC_BUILD_TESTS)
                 src/gpu/gpu_frame.cpp src/gpu/gpu_frame_pool.cpp
                 src/gpu/intel/va_completion.cpp
                 src/gpu/intel/d3d11_completion.cpp
+                src/gpu/intel/level_zero_completion.cpp
                 src/gpu/nvidia/cuda_completion.cpp
                 src/gpu/nvidia/nvidia_native_handle.cpp)
             target_compile_features(mkvc_nvidia_webm_decoder_test PRIVATE cxx_std_17)

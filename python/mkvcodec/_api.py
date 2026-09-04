@@ -640,17 +640,19 @@ class GpuFrame:
     def import_usm_nv12(
         cls, *, pointer: int, context: int, queue: int, device_id: int,
         frame_size: tuple[int, int], pitch: int, owner: object,
-        pts_ns: int = -1, producer_synchronized: bool = False,
+        pts_ns: int = -1, event: int = 0,
+        producer_synchronized: bool = False,
     ) -> "GpuFrame":
         """Import a linear Intel device-USM NV12 allocation for DLPack sharing.
 
         ``pointer``, ``context`` and ``queue`` must describe the same oneAPI
         device allocation. The allocation remains owned by ``owner`` until all
-        frame/DLPack leases are released. The current ABI cannot import a SYCL
-        event, so the producer queue must be fully complete and callers must set
-        ``producer_synchronized=True`` explicitly. This representation is for
-        external processing; oneVPL encode still requires a shared VA/D3D11
-        resource and any tiled-to-linear materialization is a GPU copy.
+        frame/DLPack leases are released. The ABI does not consume a portable
+        SYCL C++ event object, so callers must either pass its borrowed native
+        Level Zero ``ze_event_handle_t`` or fully finish the producer queue and
+        set ``producer_synchronized=True``. This representation is for external
+        processing; oneVPL encode still requires a shared VA/D3D11 resource and
+        any tiled-to-linear materialization is a GPU copy.
         """
         if _dlpack is None:
             raise RuntimeError(
@@ -658,22 +660,22 @@ class GpuFrame:
             )
         if owner is None:
             raise ValueError("USM import requires an allocation owner")
-        if not producer_synchronized:
+        if producer_synchronized == (event != 0):
             raise ValueError(
-                "USM producer must be synchronized before import"
+                "provide exactly one of a Level Zero event or producer_synchronized=True"
             )
         if (not isinstance(frame_size, tuple) or len(frame_size) != 2 or
                 any(not isinstance(value, int) for value in frame_size)):
             raise ValueError("frame_size must contain integer width and height")
         width, height = frame_size
-        values = (pointer, context, queue, device_id, width, height, pitch, pts_ns)
+        values = (pointer, context, queue, event, device_id, width, height, pitch, pts_ns)
         if any(not isinstance(value, int) for value in values):
             raise ValueError("USM import descriptors must be integers")
         if (pointer <= 0 or context <= 0 or queue <= 0 or device_id < 0 or
                 width <= 0 or height <= 0 or width & 1 or height & 1 or
                 pitch < width or pitch > 0xFFFFFFFF or
-                any(value > 0xFFFFFFFFFFFFFFFF for value in
-                    (pointer, context, queue, device_id)) or
+                event < 0 or any(value > 0xFFFFFFFFFFFFFFFF for value in
+                    (pointer, context, queue, event, device_id)) or
                 width > 0xFFFFFFFF or height > 0xFFFFFFFF or
                 pts_ns < -0x8000000000000000 or pts_ns > 0x7FFFFFFFFFFFFFFF):
             raise ValueError("USM import descriptor is invalid")
@@ -697,12 +699,15 @@ class GpuFrame:
         handle_desc.device_id, handle_desc.generation = device_id, generation
         handle_desc.handles[0], handle_desc.handles[1] = pointer, context
         handle_desc.handles[2] = queue
+        handle_desc.handles[3] = event
         user_data, release = _dlpack.external_owner_create(owner)
         config.release, config.user_data = release, user_data
         result_handle = native.GpuFrameHandle()
         try:
-            native.check(native.lib.mkvc_gpu_frame_import_external(
-                ct.byref(config), ct.byref(result_handle)))
+            importer = (native.lib.mkvc_gpu_frame_import_external
+                        if producer_synchronized
+                        else native.lib.mkvc_gpu_frame_import_level_zero_event)
+            native.check(importer(ct.byref(config), ct.byref(result_handle)))
         except Exception:
             _dlpack.external_owner_cancel(user_data)
             raise
@@ -874,7 +879,9 @@ class GpuFrame:
             interfaces = ("cuda", "dlpack") if dlpack else ("cuda",)
             completion = "cuda_event"
         elif memory == "usm":
-            interfaces, dlpack, completion = ("sycl_usm", "dlpack"), True, "synchronized"
+            interfaces, dlpack = ("sycl_usm", "dlpack"), True
+            completion = ("level_zero_event"
+                          if int(handle["handles"][3]) else "synchronized")
         else:
             interfaces, dlpack, completion = (), False, "unknown"
         return GpuInteropInfo(
