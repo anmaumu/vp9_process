@@ -49,6 +49,52 @@ def read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def validate_python_docstrings() -> None:
+    """Require documentation for every source-defined public Python callable."""
+    missing: list[str] = []
+    malformed_sections: list[str] = []
+    section_names = {"Parameters", "Returns", "Raises", "Attributes", "Notes", "Examples"}
+    for module_path in PYTHON_API_MODULES:
+        tree = ast.parse(read_text(module_path), filename=str(module_path))
+        relative = module_path.relative_to(ROOT)
+        for node in tree.body:
+            if not isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            if node.name.startswith("_"):
+                continue
+            callables = [(node.name, node)]
+            if isinstance(node, ast.ClassDef):
+                callables.extend(
+                    (f"{node.name}.{member.name}", member)
+                    for member in node.body
+                    if isinstance(member, (ast.FunctionDef, ast.AsyncFunctionDef))
+                    and not member.name.startswith("_")
+                )
+            for qualified_name, callable_node in callables:
+                docstring = ast.get_docstring(callable_node)
+                location = f"{relative}:{callable_node.lineno} ({qualified_name})"
+                if not docstring:
+                    missing.append(location)
+                    continue
+                lines = docstring.splitlines()
+                for index, line in enumerate(lines):
+                    if line in section_names and (
+                        index + 1 >= len(lines)
+                        or not re.fullmatch(r"-{3,}", lines[index + 1])
+                    ):
+                        malformed_sections.append(f"{location}: {line}")
+    errors: list[str] = []
+    if missing:
+        errors.append("public Python callables missing docstrings:\n  " + "\n  ".join(missing))
+    if malformed_sections:
+        errors.append(
+            "NumPy docstring sections missing underline:\n  "
+            + "\n  ".join(malformed_sections)
+        )
+    if errors:
+        raise DocgenError("\n".join(errors))
+
+
 def id_sets() -> dict[str, set[str]]:
     result = {
         name: set(ID_PATTERNS[name].findall(read_text(path)))
@@ -61,6 +107,7 @@ def id_sets() -> dict[str, set[str]]:
 
 
 def validate() -> tuple[dict[str, object], dict[str, object], dict[str, set[str]]]:
+    validate_python_docstrings()
     model = json.loads(read_text(ROOT / "docs" / "design-model.json"))
     gate = json.loads(read_text(ROOT / "docs" / "quality-gate.json"))
     ids = id_sets()
@@ -181,10 +228,22 @@ def python_api_reference() -> str:
                     [f"```python\n{node.name}({arguments}){returns}\n```", ""]
                 )
                 continue
+            constructor = next(
+                (
+                    member
+                    for member in node.body
+                    if isinstance(member, (ast.FunctionDef, ast.AsyncFunctionDef))
+                    and member.name == "__init__"
+                ),
+                None,
+            )
+            if constructor is not None:
+                arguments = ast.unparse(constructor.args)
+                lines.extend([f"```python\n{node.name}({arguments})\n```", ""])
             for member in node.body:
                 if not isinstance(member, (ast.FunctionDef, ast.AsyncFunctionDef)):
                     continue
-                if member.name.startswith("_") and member.name != "__init__":
+                if member.name.startswith("_"):
                     continue
                 arguments = ast.unparse(member.args)
                 returns = (

@@ -55,6 +55,9 @@ class DocgenTests(unittest.TestCase):
         self.assertIn("WARN_AS_ERROR          = FAIL_ON_WARNINGS",
                       (ROOT / "Doxyfile").read_text(encoding="utf-8"))
 
+    def test_public_python_callables_have_numpy_style_docstrings(self) -> None:
+        docgen.validate_python_docstrings()
+
 
 if __name__ == "__main__":
     unittest.main()

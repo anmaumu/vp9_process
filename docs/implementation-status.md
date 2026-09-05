@@ -20,6 +20,14 @@
 - GitHub Actions builds strict MkDocs HTML and stores `mkvcodec-documentation` for 30 days.
 - GitHub Pages publication remains disabled until an explicit public-release decision.
 
+## 2026-09-06: Python docstring quality gate
+
+`docgen check` now rejects every source-defined public Python class, function,
+or method that lacks a docstring, and validates NumPy-style section underlines.
+Simple format-specific read/write methods document their copy and end-of-stream
+semantics. Generated class references show the constructor signature directly
+and no longer emit a separate empty `__init__` section.
+
 ## 2026-09-05: CMake test modules
 
 Repository Python script tests and unittest suites now use two small CMake

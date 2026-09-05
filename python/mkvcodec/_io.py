@@ -214,6 +214,7 @@ class VideoWriter:
         return self._submit(frame, block=block)
 
     def write_i420(self, y: U8Plane, u: U8Plane, v: U8Plane, *, pts: int = -1) -> None:
+        """Submit one I420 frame, copying its three planes before return."""
         self._write_i420(y, u, v, pts=pts, block=True)
 
     def _write_nv12(self, y: U8Plane, uv: U8Plane, *, pts: int, block: bool) -> bool:
@@ -240,6 +241,7 @@ class VideoWriter:
         return self._submit(frame, block=block)
 
     def write_nv12(self, y: U8Plane, uv: U8Plane, *, pts: int = -1) -> None:
+        """Submit one NV12 frame, copying its luma and interleaved chroma planes."""
         self._write_nv12(y, uv, pts=pts, block=True)
 
     def write_surface(self, frame: GpuFrame) -> None:
@@ -285,17 +287,21 @@ class VideoWriter:
         return self._submit(frame, block=block)
 
     def write_bgr(self, frame: U8Plane, *, pts: int = -1) -> None:
+        """Submit one packed BGR frame, copying its pixels before return."""
         self._write_packed(frame, 3, native.MKVC_PIXEL_FORMAT_BGR24, pts=pts)
 
     def write_rgb(self, frame: U8Plane, *, pts: int = -1) -> None:
+        """Submit one packed RGB frame, copying its pixels before return."""
         self._write_packed(frame, 3, native.MKVC_PIXEL_FORMAT_RGB24, pts=pts)
 
     def write_bgra(self, frame: U8Plane, *, pts: int = -1) -> None:
+        """Submit one packed BGRA frame, copying its pixels before return."""
         self._write_packed(frame, 4, native.MKVC_PIXEL_FORMAT_BGRA32, pts=pts)
 
     def write(
         self, frame: U8Plane | tuple[U8Plane, U8Plane, U8Plane], *, pts: int = -1
     ) -> None:
+        """Submit a packed BGR array or an ``(Y, U, V)`` I420 tuple."""
         if isinstance(frame, tuple):
             if len(frame) != 3:
                 raise ValueError("I420 tuple must contain (Y, U, V)")
@@ -585,6 +591,7 @@ class VideoCapture(Iterator[U8Plane]):
         return view
 
     def read_i420(self) -> CpuFrame | None:
+        """Read one copied I420 frame, or ``None`` at end of stream."""
         handle = self._read_handle()
         if handle is None:
             return None
@@ -756,15 +763,19 @@ class VideoCapture(Iterator[U8Plane]):
             native.lib.mkvc_frame_release(source_handle)
 
     def read_bgr(self) -> U8Plane | None:
+        """Read one copied packed BGR frame, or ``None`` at end of stream."""
         return self._read_packed(3, native.MKVC_PIXEL_FORMAT_BGR24)
 
     def read_rgb(self) -> U8Plane | None:
+        """Read one copied packed RGB frame, or ``None`` at end of stream."""
         return self._read_packed(3, native.MKVC_PIXEL_FORMAT_RGB24)
 
     def read_bgra(self) -> U8Plane | None:
+        """Read one copied packed BGRA frame, or ``None`` at end of stream."""
         return self._read_packed(4, native.MKVC_PIXEL_FORMAT_BGRA32)
 
     def read_nv12(self) -> tuple[U8Plane, U8Plane] | None:
+        """Read copied NV12 luma/chroma planes, or ``None`` at end of stream."""
         handle = self._read_handle()
         if handle is None:
             return None
