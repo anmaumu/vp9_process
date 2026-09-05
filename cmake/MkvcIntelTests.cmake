@@ -2,6 +2,19 @@
 # tests are registered only after the shared CPU VP9 sample exists.
 
 function(mkvc_add_intel_foundation_tests)
+    add_executable(mkvc_intel_vpl_bitstream_test
+        tests/intel_vpl_bitstream_test.cpp
+        src/gpu/intel/vpl_bitstream.cpp)
+    target_compile_features(mkvc_intel_vpl_bitstream_test PRIVATE cxx_std_17)
+    target_include_directories(mkvc_intel_vpl_bitstream_test PRIVATE src include)
+    target_link_libraries(mkvc_intel_vpl_bitstream_test PRIVATE VPL::dispatcher)
+    if(MSVC)
+        target_compile_options(mkvc_intel_vpl_bitstream_test PRIVATE /UNDEBUG)
+    else()
+        target_compile_options(mkvc_intel_vpl_bitstream_test PRIVATE -UNDEBUG)
+    endif()
+    add_test(NAME mkvc_intel_vpl_bitstream COMMAND mkvc_intel_vpl_bitstream_test)
+
     add_executable(mkvc_intel_import_contract_test tests/intel_import_contract_test.cpp)
     target_compile_features(mkvc_intel_import_contract_test PRIVATE cxx_std_17)
     target_include_directories(mkvc_intel_import_contract_test PRIVATE src)
@@ -28,7 +41,8 @@ endfunction()
 function(mkvc_add_intel_codec_integration_test)
     add_executable(mkvc_intel_vpl_encode_test
         tests/intel_vpl_encode_test.cpp src/intel_vpl_encoder.cpp
-        src/intel_vpl_decoder.cpp)
+        src/intel_vpl_decoder.cpp src/gpu/intel/vpl_bitstream.cpp
+        src/gpu/intel/vpl_surface_import.cpp)
     target_compile_features(mkvc_intel_vpl_encode_test PRIVATE cxx_std_17)
     target_include_directories(mkvc_intel_vpl_encode_test PRIVATE src include)
     target_compile_definitions(mkvc_intel_vpl_encode_test

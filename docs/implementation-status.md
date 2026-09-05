@@ -194,6 +194,19 @@ The NVIDIA/CPU Windows suite and the complete Intel Linux suite pass after the
 split. Intel tests cover real VA surface decode-to-encode, external OpenCL/USM
 round trips, explicit copy auditing, asynchronous depth, and resource recycling.
 
+## 2026-09-06: Isolated oneVPL bitstream conversion
+
+Completed oneVPL bitstream interpretation is now separate from SyncPoint waiting,
+input completion, and surface recycling. The Doxygen-documented converter strips
+optional VP9 IVF file headers and mandatory per-frame headers before libwebm
+muxing, passes AV1 payloads through, and normalizes timestamp and keyframe data.
+Malformed or oversized VP9 frame declarations fail without appending a packet.
+
+A hardware-independent Intel foundation test covers AV1 payload/offset handling,
+VP9 IVF extraction, timestamps, keyframes, truncated headers, oversized frames,
+and destination immutability on failure. It runs whenever oneVPL support is built;
+the complete Intel Linux suite now contains 43 passing tests.
+
 ## 2026-09-05: Scoped CUDA context activation
 
 CUDA driver context push/pop is now represented by one Doxygen-documented,

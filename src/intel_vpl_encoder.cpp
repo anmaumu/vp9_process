@@ -9,6 +9,7 @@
 #include <vpl/mfxvideo.h>
 
 #include "gpu/intel/intel_import_contract.hpp"
+#include "gpu/intel/vpl_bitstream.hpp"
 #include "gpu/intel/vpl_session.hpp"
 #include "gpu/intel/vpl_surface_import.hpp"
 #if defined(_WIN32)
@@ -101,11 +102,6 @@ void retire_imported_inputs(IntelVplEncoder::Impl& impl) {
     }
 }
 
-uint32_t read_le32(const uint8_t* value) {
-    return static_cast<uint32_t>(value[0]) | (static_cast<uint32_t>(value[1]) << 8) |
-           (static_cast<uint32_t>(value[2]) << 16) | (static_cast<uint32_t>(value[3]) << 24);
-}
-
 mfxU32 vpl_codec(uint32_t codec) { return codec == MKVC_CODEC_VP9 ? MFX_CODEC_VP9 : MFX_CODEC_AV1; }
 
 mkvc_result collect_output(IntelVplEncoder::Impl& impl, IntelVplEncoder::Impl::Pending& pending,
@@ -120,39 +116,11 @@ mkvc_result collect_output(IntelVplEncoder::Impl& impl, IntelVplEncoder::Impl::P
         if (pending.input_completion) pending.input_completion->fail(error);
         return status == MFX_ERR_DEVICE_LOST ? MKVC_ERROR_IO : MKVC_ERROR_CODEC;
     }
-    if (pending.bitstream.DataLength > 0) {
-        IntelEncodedPacket packet;
-        const uint8_t* begin = pending.bitstream.Data + pending.bitstream.DataOffset;
-        size_t offset = 0;
-        size_t length = pending.bitstream.DataLength;
-        if (impl.codec == MKVC_CODEC_VP9) {
-            if (length >= 4 && std::memcmp(begin, "DKIF", 4) == 0) {
-                if (length < 32) {
-                    error = "oneVPL returned a truncated VP9 IVF header";
-                    if (pending.input_completion) pending.input_completion->fail(error);
-                    return MKVC_ERROR_CODEC;
-                }
-                offset = 32;
-            }
-            if (length < offset + 12) {
-                error = "oneVPL returned a truncated VP9 IVF frame header";
-                if (pending.input_completion) pending.input_completion->fail(error);
-                return MKVC_ERROR_CODEC;
-            }
-            const uint32_t frame_size = read_le32(begin + offset);
-            offset += 12;
-            if (frame_size == 0 || frame_size > length - offset) {
-                error = "oneVPL returned an invalid VP9 IVF frame size";
-                if (pending.input_completion) pending.input_completion->fail(error);
-                return MKVC_ERROR_CODEC;
-            }
-            length = frame_size;
-        }
-        packet.data.assign(begin + offset, begin + offset + length);
-        packet.pts = static_cast<int64_t>(pending.bitstream.TimeStamp * impl.fps_num /
-                                          (90000ULL * impl.fps_den));
-        packet.key = (pending.bitstream.FrameType & (MFX_FRAMETYPE_I | MFX_FRAMETYPE_IDR)) != 0;
-        packets.push_back(std::move(packet));
+    const mkvc_result packet_result = gpu::intel::append_vpl_encoded_packet(
+        pending.bitstream, impl.codec, impl.fps_num, impl.fps_den, packets, error);
+    if (packet_result != MKVC_OK) {
+        if (pending.input_completion) pending.input_completion->fail(error);
+        return packet_result;
     }
     if (pending.input_completion) pending.input_completion->complete();
     if (auto frame = pending.input_frame.lock()) frame->poll_recycle();

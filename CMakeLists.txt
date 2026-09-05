@@ -125,6 +125,7 @@ if(MKVC_ENABLE_INTEL_ONEVPL)
     target_sources(mkvcodec PRIVATE
         src/gpu/intel/intel_completion.cpp
         src/gpu/intel/intel_surface_factory.cpp
+        src/gpu/intel/vpl_bitstream.cpp
         src/gpu/intel/vpl_surface_import.cpp)
     target_compile_definitions(mkvcodec PRIVATE
         MKVC_HAS_INTEL_ONEVPL=1 ONEVPL_EXPERIMENTAL=1)
