@@ -50,6 +50,37 @@ class GenerateBindingsTests(unittest.TestCase):
             rendered,
         )
 
+    def test_dotnet_types_preserve_reviewed_managed_surface(self) -> None:
+        rendered = generate_bindings.render_dotnet_types()
+        surface = generate_bindings.abi_guard._surface()
+        for c_name, (managed_name, members) in generate_bindings._DOTNET_ENUMS.items():
+            self.assertIn(f"public enum {managed_name} : uint", rendered)
+            for c_member, managed_member in members.items():
+                self.assertIn(
+                    f"{managed_member} = {surface['enums'][c_name][c_member]},",
+                    rendered,
+                )
+        for c_name in surface["structs"]:
+            managed_name = generate_bindings._DOTNET_TYPES[c_name]
+            self.assertIn(f"struct {managed_name}", rendered)
+        self.assertIn("internal nint Plane3;", rendered)
+        self.assertIn("public ulong[] PlaneOffsets;", rendered)
+        self.assertIn("public long PtsNanoseconds;", rendered)
+
+    def test_new_dotnet_enum_member_fails_closed(self) -> None:
+        source = generate_bindings.abi_guard.HEADER.read_text(encoding="utf-8")
+        source = source.replace(
+            "MKVC_CODEC_AV1 = 2  /**< AV1. */",
+            "MKVC_CODEC_AV1 = 2, /**< AV1. */\n"
+            "    MKVC_CODEC_FUTURE = 3 /**< deliberately unmapped */",
+            1,
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            header = Path(directory) / "mkvc.h"
+            header.write_text(source, encoding="utf-8")
+            with self.assertRaises(generate_bindings.BindingGenerationError):
+                generate_bindings.render_dotnet_types(header)
+
     def test_unmapped_public_type_fails_closed(self) -> None:
         source = generate_bindings.abi_guard.HEADER.read_text(encoding="utf-8")
         source = source.replace(
@@ -69,6 +100,8 @@ class GenerateBindingsTests(unittest.TestCase):
             header.write_text(source, encoding="utf-8")
             with self.assertRaises(generate_bindings.BindingGenerationError):
                 generate_bindings.render_python_types(header)
+            with self.assertRaises(generate_bindings.BindingGenerationError):
+                generate_bindings.render_dotnet_types(header)
 
 
 if __name__ == "__main__":

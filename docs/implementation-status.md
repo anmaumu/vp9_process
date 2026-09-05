@@ -127,10 +127,9 @@ A NumPy-documented binding guard extracts the canonical symbol set from
 CTest and documentation CI with negative tests for both failure directions.
 Python compile/import coverage, the guard tests, and the project-local .NET 8
 build and native smoke test pass. Struct layouts and parameter marshalling remain
-checked by the existing ABI and managed smoke tests. Python structure declarations
-are generated from the same header; .NET structure generation remains a separate
-implementation slice because its public names and fixed-array marshalling are part
-of the managed compatibility surface.
+checked by the existing ABI and managed smoke tests. Python and .NET structure
+declarations are generated from the same header, with reviewed managed mappings
+for public names and fixed-array marshalling.
 
 ## 2026-09-05: Generated Python/.NET native signatures
 
@@ -142,7 +141,7 @@ closed instead of falling back to an unsafe default. The .NET mapping explicitly
 preserves raw pointers for SafeHandle release/close and existing metrics calls,
 while ordinary calls retain typed SafeHandle parameters. Hand-maintained files
 retain library discovery, opaque handles and callbacks, ownership wrappers, and
-error mapping. .NET type declarations remain hand-maintained at this stage.
+error mapping.
 
 Generated files are checked into source so wheel and NuGet builds do not require
 the generator. Unit tests verify reproducibility, all public functions, unknown-
@@ -165,6 +164,22 @@ tests require every public enum and structure field to be emitted and reject an
 unknown field type instead of guessing its layout. The complete Windows suite
 passes with the two hardware-dependent NVIDIA tests skipped as expected; the
 same generated declarations are also validated by the complete Intel Linux suite.
+
+## 2026-09-06: Generated .NET C ABI types
+
+The public .NET ABI enums and all managed interop structures are now generated
+from `mkvc.h`. A reviewed compatibility map preserves the existing idiomatic C#
+names, public versus internal visibility, typed enum fields, nanosecond suffixes,
+and fixed-array representation. CPU plane-pointer arrays remain four explicit
+`nint` fields, while GPU descriptor arrays retain `ByValArray` marshalling; these
+are deliberate managed interop policies rather than inferred naming conventions.
+
+`MkvGpuInteropInfo`, SafeHandle classes, callback ownership, and high-level APIs
+remain hand-maintained because they are managed behavior rather than C ABI data.
+Generation fails closed if a mapped C enum gains an unknown member or if a
+structure field cannot be represented. The .NET 8 build and native smoke test
+verify the generated layouts and exercise CPU encode/decode, pools, submission,
+GPU descriptors, and external-frame lifetime behavior.
 
 ## 2026-09-05: Scoped CUDA context activation
 
