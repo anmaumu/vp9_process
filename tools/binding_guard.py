@@ -11,7 +11,7 @@ import abi_guard
 
 ROOT = Path(__file__).resolve().parents[1]
 PYTHON_BINDING = ROOT / "python" / "mkvcodec" / "_native_signatures.py"
-DOTNET_BINDING = ROOT / "dotnet" / "MkvCodec" / "NativeMethods.cs"
+DOTNET_BINDING = ROOT / "dotnet" / "MkvCodec" / "NativeMethods.Generated.cs"
 
 
 class BindingGuardError(RuntimeError):

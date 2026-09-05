@@ -12,8 +12,12 @@ import abi_guard
 ROOT = Path(__file__).resolve().parents[1]
 PYTHON_NATIVE = ROOT / "python" / "mkvcodec" / "_native.py"
 PYTHON_SIGNATURES = ROOT / "python" / "mkvcodec" / "_native_signatures.py"
+DOTNET_NATIVE = ROOT / "dotnet" / "MkvCodec" / "NativeMethods.cs"
+DOTNET_METHODS = ROOT / "dotnet" / "MkvCodec" / "NativeMethods.Generated.cs"
 START_MARKER = "# BEGIN MKVC GENERATED CTYPES SIGNATURES"
 END_MARKER = "# END MKVC GENERATED CTYPES SIGNATURES"
+DOTNET_START_MARKER = "    // BEGIN MKVC GENERATED PINVOKE DECLARATIONS"
+DOTNET_END_MARKER = "    // END MKVC GENERATED PINVOKE DECLARATIONS"
 
 _PYTHON_TYPES = {
     "mkvc_backend_capability": "BackendCapability",
@@ -57,6 +61,44 @@ _OPAQUE_TYPES = {
     "mkvc_frame", "mkvc_gpu_frame", "mkvc_gpu_resource_pool",
     "mkvc_gpu_resource_reservation", "mkvc_submission",
 }
+_DOTNET_TYPES = {
+    "mkvc_backend_capability": "MkvBackendCapability",
+    "mkvc_copy_policy": "NativeCopyPolicy",
+    "mkvc_cpu_buffer_desc": "MkvCpuBufferDescriptor",
+    "mkvc_cpu_frame_pool_config": "NativeCpuFramePoolConfig",
+    "mkvc_decoder_config": "NativeDecoderConfig",
+    "mkvc_encoder_config": "NativeEncoderConfig",
+    "mkvc_frame_process_config": "NativeFrameProcessConfig",
+    "mkvc_frame_view": "NativeFrameView",
+    "mkvc_gpu_external_frame_config": "NativeGpuExternalFrameConfig",
+    "mkvc_gpu_frame_desc": "MkvGpuFrameDescriptor",
+    "mkvc_gpu_native_handle_desc": "MkvGpuNativeHandleDescriptor",
+    "mkvc_gpu_resource_pool_config": "NativeGpuResourcePoolConfig",
+    "mkvc_gpu_resource_pool_stats": "MkvGpuResourcePoolStatistics",
+    "mkvc_gpu_resource_reservation_desc": "MkvGpuResourceReservationDescriptor",
+    "mkvc_mutable_frame_view": "NativeMutableFrameView",
+    "mkvc_pipeline_metrics": "MkvPipelineMetrics",
+    "mkvc_version": "MkvVersion",
+}
+_DOTNET_HANDLES = {
+    "mkvc_cpu_buffer": "MkvCpuBufferHandle",
+    "mkvc_cpu_frame_pool": "MkvCpuFramePoolHandle",
+    "mkvc_decoder": "MkvDecoderHandle",
+    "mkvc_encoder": "MkvEncoderHandle",
+    "mkvc_frame": "MkvFrameHandle",
+    "mkvc_gpu_frame": "MkvGpuFrameHandle",
+    "mkvc_gpu_resource_pool": "MkvGpuResourcePoolHandle",
+    "mkvc_gpu_resource_reservation": "MkvGpuResourceReservationHandle",
+    "mkvc_submission": "MkvSubmissionHandle",
+}
+_DOTNET_RAW_HANDLES = {
+    "mkvc_cpu_buffer_release", "mkvc_cpu_frame_pool_destroy",
+    "mkvc_decoder_close", "mkvc_decoder_destroy", "mkvc_decoder_get_metrics",
+    "mkvc_encoder_close", "mkvc_encoder_destroy", "mkvc_encoder_get_metrics",
+    "mkvc_frame_release", "mkvc_gpu_frame_release",
+    "mkvc_gpu_resource_pool_destroy", "mkvc_gpu_resource_reservation_release",
+    "mkvc_submission_release",
+}
 
 
 class BindingGenerationError(RuntimeError):
@@ -77,6 +119,13 @@ def _argument_type(argument: str) -> str:
     if match is None:
         raise BindingGenerationError(f"invalid function argument: {argument}")
     return match.group(1).strip()
+
+
+def _argument_parts(argument: str) -> tuple[str, str]:
+    match = re.fullmatch(r"(.+?[*\s])\s*(\w+)", argument)
+    if match is None:
+        raise BindingGenerationError(f"invalid function argument: {argument}")
+    return match.group(1).strip(), match.group(2)
 
 
 def _ctypes_type(c_type: str) -> str:
@@ -153,6 +202,83 @@ def render_python(header: Path = abi_guard.HEADER) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _dotnet_return(c_type: str) -> str:
+    normalized = " ".join(c_type.split())
+    values = {"mkvc_result": "MkvResult", "void": "void", "const char*": "nint"}
+    if normalized not in values:
+        raise BindingGenerationError(f"unmapped .NET return type: {c_type}")
+    return values[normalized]
+
+
+def _dotnet_argument(function: str, c_type: str, name: str) -> str:
+    is_const = "const" in c_type.split()
+    normalized = " ".join(c_type.replace("const", "").split())
+    pointer_depth = normalized.count("*")
+    base = normalized.replace("*", "").strip()
+    if base in _DOTNET_HANDLES:
+        if pointer_depth == 2:
+            return f"out {_DOTNET_HANDLES[base]} {name}"
+        if pointer_depth == 1:
+            argument_type = "nint" if function in _DOTNET_RAW_HANDLES else _DOTNET_HANDLES[base]
+            return f"{argument_type} {name}"
+    if base in _DOTNET_TYPES and pointer_depth == 1:
+        if function == "mkvc_get_backend_capabilities":
+            return f"nint {name}"
+        return f"ref {_DOTNET_TYPES[base]} {name}"
+    if base == "void" and pointer_depth == 1:
+        return f"nint {name}"
+    if base == "void" and pointer_depth == 2:
+        return f"out nint {name}"
+    if base == "size_t" and pointer_depth == 1:
+        return f"ref nuint {name}"
+    if base == "uint32_t" and pointer_depth == 1:
+        if function == "mkvc_submission_query":
+            return f"out MkvSubmissionStatus {name}"
+        return f"out uint {name}"
+    scalars = {
+        "int64_t": "long", "mkvc_gpu_dependency_callback": "nint",
+        "mkvc_result": "MkvResult", "uint32_t": "uint", "uint64_t": "ulong",
+    }
+    if pointer_depth == 0 and base in scalars:
+        return f"{scalars[base]} {name}"
+    qualifier = "const " if is_const else ""
+    raise BindingGenerationError(
+        f"unmapped .NET argument type: {qualifier}{normalized} {name}")
+
+
+def render_dotnet(header: Path = abi_guard.HEADER) -> str:
+    """Render all P/Invoke methods from the canonical C ABI header."""
+    functions = abi_guard._surface(header)["functions"]
+    lines = [
+        "// <auto-generated />",
+        "using System.Runtime.InteropServices;",
+        "",
+        "namespace MkvCodec;",
+        "",
+        "internal static partial class NativeMethods",
+        "{",
+    ]
+    for signature in functions.values():
+        return_type, name, arguments = _split_signature(signature)
+        rendered = [
+            _dotnet_argument(name, *_argument_parts(argument))
+            for argument in arguments]
+        lines.extend((
+            "    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]",
+        ))
+        declaration = f"    internal static extern {_dotnet_return(return_type)} {name}"
+        if not rendered:
+            lines.extend((declaration + "();", ""))
+            continue
+        lines.append(declaration + "(")
+        lines.extend(
+            f"        {argument}{',' if index + 1 < len(rendered) else ');'}"
+            for index, argument in enumerate(rendered))
+        lines.append("")
+    lines.append("}")
+    return "\n".join(lines) + "\n"
+
+
 def _native_loader(source: str) -> str:
     replacement = "\n".join((
         START_MARKER,
@@ -169,11 +295,25 @@ def _native_loader(source: str) -> str:
     return rewritten
 
 
+def _dotnet_loader(source: str) -> str:
+    pattern = re.compile(
+        re.escape(DOTNET_START_MARKER) + r".*?" +
+        re.escape(DOTNET_END_MARKER), re.DOTALL)
+    replacement = DOTNET_START_MARKER + "\n" + DOTNET_END_MARKER
+    rewritten, count = pattern.subn(replacement, source)
+    if count != 1:
+        raise BindingGenerationError("P/Invoke generated-region markers are invalid")
+    return rewritten
+
+
 def generate() -> None:
     """Write deterministic Python binding artifacts."""
     PYTHON_SIGNATURES.write_text(render_python(), encoding="utf-8")
     source = PYTHON_NATIVE.read_text(encoding="utf-8")
     PYTHON_NATIVE.write_text(_native_loader(source), encoding="utf-8")
+    DOTNET_METHODS.write_text(render_dotnet(), encoding="utf-8")
+    dotnet_source = DOTNET_NATIVE.read_text(encoding="utf-8")
+    DOTNET_NATIVE.write_text(_dotnet_loader(dotnet_source), encoding="utf-8")
 
 
 def check() -> None:
@@ -185,6 +325,13 @@ def check() -> None:
     source = PYTHON_NATIVE.read_text(encoding="utf-8")
     if source != _native_loader(source):
         raise BindingGenerationError("_native.py contains hand-edited generated declarations")
+    if not DOTNET_METHODS.exists() or DOTNET_METHODS.read_text(
+            encoding="utf-8") != render_dotnet():
+        raise BindingGenerationError(
+            "generated .NET methods are stale; run tools/generate_bindings.py generate")
+    dotnet_source = DOTNET_NATIVE.read_text(encoding="utf-8")
+    if dotnet_source != _dotnet_loader(dotnet_source):
+        raise BindingGenerationError("NativeMethods.cs contains generated declarations")
 
 
 def main() -> int:

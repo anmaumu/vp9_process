@@ -26,6 +26,15 @@ class GenerateBindingsTests(unittest.TestCase):
             self.assertIn(f"lib.{name}.argtypes", rendered)
             self.assertIn(f"lib.{name}.restype", rendered)
 
+    def test_dotnet_preserves_safe_handle_release_and_typed_status(self) -> None:
+        rendered = generate_bindings.render_dotnet()
+        self.assertIn("mkvc_gpu_frame_release(\n        nint frame);", rendered)
+        self.assertIn(
+            "mkvc_submission_query(\n        MkvSubmissionHandle submission,\n"
+            "        out MkvSubmissionStatus out_status);",
+            rendered,
+        )
+
     def test_unmapped_public_type_fails_closed(self) -> None:
         source = generate_bindings.abi_guard.HEADER.read_text(encoding="utf-8")
         source = source.replace(
