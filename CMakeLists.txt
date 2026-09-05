@@ -180,37 +180,16 @@ endif()
 
 if(MKVC_BUILD_TESTS)
     enable_testing()
+    include(cmake/MkvcPythonChecks.cmake)
     if(MKVC_ENABLE_NVIDIA)
         include(cmake/MkvcNvidiaTests.cmake)
     endif()
     if(MKVC_ENABLE_INTEL_ONEVPL)
         include(cmake/MkvcIntelTests.cmake)
     endif()
-    if(TARGET mkvc_python_dlpack AND Python3_Interpreter_FOUND)
-        add_test(NAME mkvc_python_dlpack_capsule
-            COMMAND ${CMAKE_COMMAND} -E env
-                "PYTHONPATH=$<TARGET_FILE_DIR:mkvc_python_dlpack>"
-                "${Python3_EXECUTABLE}"
-                "${CMAKE_CURRENT_SOURCE_DIR}/tests/python_dlpack_capsule.py")
-        add_test(NAME mkvc_python_external_gpu_import
-            COMMAND "${Python3_EXECUTABLE}"
-                "${CMAKE_CURRENT_SOURCE_DIR}/tests/python_external_gpu_import.py"
-                "$<TARGET_FILE:mkvcodec>"
-                "$<TARGET_FILE_DIR:mkvc_python_dlpack>"
-                "${CMAKE_CURRENT_SOURCE_DIR}/python")
-        if(MKVC_ENABLE_NVIDIA)
-            add_test(NAME mkvc_python_nvidia_dlpack
-                COMMAND "${Python3_EXECUTABLE}"
-                    "${CMAKE_CURRENT_SOURCE_DIR}/tests/python_nvidia_dlpack.py"
-                    "$<TARGET_FILE:mkvcodec>"
-                    "$<TARGET_FILE_DIR:mkvc_python_dlpack>"
-                    "${CMAKE_CURRENT_SOURCE_DIR}/python")
-            set_tests_properties(mkvc_python_nvidia_dlpack PROPERTIES
-                SKIP_RETURN_CODE 77)
-        endif()
-    endif()
+    mkvc_add_python_binding_tests()
     target_compile_definitions(mkvcodec PRIVATE MKVC_ENABLE_TEST_HOOKS=1)
-    include(cmake/MkvcPythonChecks.cmake)
+    mkvc_add_repository_python_checks()
     add_executable(mkvc_c_api_tests tests/c_api_tests.cpp)
     target_compile_features(mkvc_c_api_tests PRIVATE cxx_std_17)
     target_link_libraries(mkvc_c_api_tests PRIVATE mkvcodec)
@@ -354,54 +333,7 @@ if(MKVC_BUILD_TESTS)
         mkvc_add_intel_vp9_fixture_tests("${MKVC_VP9_TEST_OUTPUT}")
     endif()
 
-    if(MKVC_BUILD_PYTHON_TESTS)
-        find_package(Python3 REQUIRED COMPONENTS Interpreter)
-        add_test(NAME mkvc_python_roundtrip
-            COMMAND ${CMAKE_COMMAND} -E env
-                "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/python"
-                "MKVC_LIBRARY_PATH=$<TARGET_FILE:mkvcodec>"
-                "${Python3_EXECUTABLE}"
-                "${CMAKE_CURRENT_SOURCE_DIR}/tests/python_roundtrip.py")
-        add_test(NAME mkvc_python_benchmark_smoke
-            COMMAND ${CMAKE_COMMAND} -E env
-                "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/python"
-                "MKVC_LIBRARY_PATH=$<TARGET_FILE:mkvcodec>"
-                "${Python3_EXECUTABLE}"
-                "${CMAKE_CURRENT_SOURCE_DIR}/tests/python_benchmark_smoke.py")
-        if(MKVC_ENABLE_CPU_AV1 AND FFMPEG_EXECUTABLE AND FFPROBE_EXECUTABLE)
-            add_test(NAME mkvc_python_av1_encode
-                COMMAND ${CMAKE_COMMAND} -E env
-                    "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/python"
-                    "MKVC_LIBRARY_PATH=$<TARGET_FILE:mkvcodec>"
-                    "FFMPEG_EXECUTABLE=${FFMPEG_EXECUTABLE}"
-                    "FFPROBE_EXECUTABLE=${FFPROBE_EXECUTABLE}"
-                    "${Python3_EXECUTABLE}"
-                    "${CMAKE_CURRENT_SOURCE_DIR}/tests/python_av1_encode.py")
-        endif()
-        if(MKVC_ENABLE_INTEL_ONEVPL)
-            add_test(NAME mkvc_python_intel_roundtrip
-                COMMAND ${CMAKE_COMMAND} -E env
-                    "MKVC_TEST_CPU_VP9=$<BOOL:${MKVC_ENABLE_CPU_VP9}>"
-                    "MKVC_TEST_CPU_AV1=$<BOOL:${MKVC_ENABLE_CPU_AV1}>"
-                    "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/python"
-                    "MKVC_LIBRARY_PATH=$<TARGET_FILE:mkvcodec>"
-                    "${Python3_EXECUTABLE}"
-                    "${CMAKE_CURRENT_SOURCE_DIR}/tests/python_intel_roundtrip.py")
-            set_tests_properties(mkvc_python_intel_roundtrip
-                PROPERTIES SKIP_RETURN_CODE 77)
-            if(MKVC_ENABLE_CPU_VP9)
-                add_test(NAME mkvc_python_intel_gpu_surface
-                    COMMAND ${CMAKE_COMMAND} -E env
-                        "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/python"
-                        "MKVC_LIBRARY_PATH=$<TARGET_FILE:mkvcodec>"
-                        "${Python3_EXECUTABLE}"
-                        "${CMAKE_CURRENT_SOURCE_DIR}/tests/python_intel_gpu_surface.py"
-                        "${MKVC_VP9_TEST_OUTPUT}")
-                set_tests_properties(mkvc_python_intel_gpu_surface PROPERTIES
-                    FIXTURES_REQUIRED cpu_vp9_sample SKIP_RETURN_CODE 77)
-            endif()
-        endif()
-    endif()
+    mkvc_add_python_integration_tests("${MKVC_VP9_TEST_OUTPUT}")
 
     if(MKVC_BUILD_DOTNET_TESTS)
         find_program(DOTNET_EXECUTABLE dotnet REQUIRED)

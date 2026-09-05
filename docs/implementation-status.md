@@ -38,6 +38,10 @@ targets and platform test composition. Test names, arguments, properties,
 fixtures, and platform conditions are unchanged. Windows and Linux
 reconfiguration preserves their complete test inventories, and every migrated
 check passes on both systems.
+Python DLPack binding checks and codec integration tests are composed through
+the same module as explicit functions. Registration order remains stable, and
+the Intel GPU surface check receives the shared VP9 fixture path as an explicit
+argument rather than relying on an implicit global.
 
 NVIDIA-specific native test target definitions now live in
 `cmake/MkvcNvidiaTests.cmake`. The module separates hardware-independent probe
