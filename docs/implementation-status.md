@@ -207,6 +207,21 @@ VP9 IVF extraction, timestamps, keyframes, truncated headers, oversized frames,
 and destination immutability on failure. It runs whenever oneVPL support is built;
 the complete Intel Linux suite now contains 43 passing tests.
 
+## 2026-09-06: Isolated oneVPL encoder queue
+
+Intel encoder asynchronous submission is now owned by a dedicated,
+Doxygen-documented queue. It owns each bitstream buffer until its SyncPoint is
+collected, preserves FIFO packet order, tracks configured and observed pending
+depth, and couples GPU input completion to the exact submitted surface lifetime.
+Drain submission and close-time synchronization use the same queue boundary.
+
+The encoder session remains responsible for device selection, video parameters,
+surface acquisition/import, and imported-resource retention. The queue remains
+responsible for `MFX_WRN_DEVICE_BUSY` retry, ordered SyncOperation, packet
+conversion, completion success/failure, recycle polling, and injected device-loss
+state. The complete Intel Linux suite passes with real GPU surface round trips;
+the Windows CPU/NVIDIA configuration continues to build and pass independently.
+
 ## 2026-09-05: Scoped CUDA context activation
 
 CUDA driver context push/pop is now represented by one Doxygen-documented,
