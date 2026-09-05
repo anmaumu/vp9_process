@@ -42,6 +42,18 @@ Linux tests passed after synchronizing the pre-existing ABI snapshot tooling.
 `docgen-check` passes locally. Full HTML generation remains a CI/environment step
 because the current Windows and Linux hosts do not have MkDocs/Doxygen installed.
 
+## 2026-09-05: Shared incremental WebM packet reader
+
+CPU VP9, CPU AV1, Intel oneVPL, and NVIDIA NVDEC now consume one backend-neutral
+libwebm packet reader instead of maintaining four copies of track selection and
+cluster/block/frame cursor logic. The Doxygen-documented reader validates the
+container and requested codec track, enforces the existing 256 MiB packet limit,
+preserves nanosecond PTS, and remains incremental rather than preloading media.
+
+Targeted decode and round-trip tests pass on Windows/NVIDIA and Linux/Intel,
+including VP9 metadata, Intel GPU surfaces, VA synchronization, OpenCL processing,
+and AV1 output. Codec decode and GPU surface creation remain backend-specific.
+
 ## 2026-09-05: Fixed-capacity external GPU/Intel USM pool
 
 A versioned C ABI reservation pool now bounds caller-preallocated GPU resources

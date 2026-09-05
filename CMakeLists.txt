@@ -78,6 +78,10 @@ add_library(mkvcodec SHARED
     src/nvidia_webm_encoder.cpp
 )
 
+if(MKVC_ENABLE_CPU_VP9 OR MKVC_ENABLE_CPU_AV1 OR MKVC_ENABLE_INTEL_ONEVPL OR MKVC_ENABLE_NVIDIA)
+    target_sources(mkvcodec PRIVATE src/webm_packet_reader.cpp)
+endif()
+
 target_compile_features(mkvcodec PRIVATE cxx_std_17)
 target_include_directories(mkvcodec
     PUBLIC
@@ -405,7 +409,7 @@ if(MKVC_BUILD_TESTS)
                 tests/nvidia_webm_decoder_test.cpp
                 tests/nvidia_gpu_test_support.cpp
                 src/nvidia_webm_decoder.cpp src/nvidia_probe.cpp
-                src/container_format.cpp
+                src/container_format.cpp src/webm_packet_reader.cpp
                 src/gpu/gpu_frame.cpp src/gpu/gpu_frame_pool.cpp
                 src/gpu/intel/va_completion.cpp
                 src/gpu/intel/d3d11_completion.cpp
