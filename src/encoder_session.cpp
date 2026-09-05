@@ -13,6 +13,7 @@
 
 #include "cpu_av1_encoder.hpp"
 #include "encoder/cpu_frame_copy.hpp"
+#include "encoder/encoder_backend.hpp"
 #include "intel_webm_encoder.hpp"
 #include "nvidia_webm_encoder.hpp"
 
@@ -24,63 +25,6 @@ using encoder::OwnedFrame;
 using encoder::validate_borrowed_frame;
 
 }  // namespace
-
-/** @brief Type-erased codec/container backend owned by one encoder session. */
-class EncoderBackend {
-   public:
-    virtual ~EncoderBackend() = default;
-    virtual mkvc_result write(const mkvc_frame_view& frame, std::string& error) = 0;
-    virtual mkvc_result flush(std::string& error) = 0;
-    virtual mkvc_result close(std::string& error) = 0;
-    virtual bool supports_gpu_frames() const noexcept = 0;
-    virtual mkvc_result write_gpu(const std::shared_ptr<gpu::GpuFrameCore>& frame,
-                                  std::string& error) = 0;
-    virtual uint32_t hardware_pending() const noexcept = 0;
-};
-
-/**
- * @brief Adapt a concrete CPU or GPU encoder to the session backend contract.
- * @tparam Encoder Concrete codec/container encoder type.
- * @tparam SupportsGpu Whether the concrete type accepts GPU-frame leases.
- */
-template <typename Encoder, bool SupportsGpu>
-class EncoderBackendAdapter final : public EncoderBackend {
-   public:
-    explicit EncoderBackendAdapter(std::unique_ptr<Encoder> encoder)
-        : encoder_(std::move(encoder)) {}
-
-    mkvc_result write(const mkvc_frame_view& frame, std::string& error) override {
-        return encoder_->write(frame, error);
-    }
-
-    mkvc_result flush(std::string& error) override { return encoder_->flush(error); }
-
-    mkvc_result close(std::string& error) override { return encoder_->close(error); }
-
-    bool supports_gpu_frames() const noexcept override { return SupportsGpu; }
-
-    mkvc_result write_gpu(const std::shared_ptr<gpu::GpuFrameCore>& frame,
-                          std::string& error) override {
-        if constexpr (SupportsGpu) {
-            return encoder_->write_gpu(frame, error);
-        } else {
-            (void)frame;
-            error = "GPU frame is not compatible with this encoder backend";
-            return MKVC_ERROR_NOT_SUPPORTED;
-        }
-    }
-
-    uint32_t hardware_pending() const noexcept override {
-        if constexpr (SupportsGpu) {
-            return encoder_->max_pending_observed();
-        } else {
-            return 0;
-        }
-    }
-
-   private:
-    std::unique_ptr<Encoder> encoder_;
-};
 
 struct EncoderSession::Impl {
     enum class ItemType { kFrame, kFlush };

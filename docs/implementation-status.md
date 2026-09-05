@@ -40,6 +40,10 @@ Borrowed CPU submission ownership, terminal-state publication, nonblocking
 query, and timed wait synchronization are isolated in
 `src/encoder/cpu_submission.*`. The class remains in namespace `mkvc`, so C API
 adapters retain their existing type and lifetime contract.
+The type-erased encoder backend interface and its compile-time CPU/GPU adapter
+now live in `src/encoder/encoder_backend.hpp`. This leaves session creation and
+scheduling independent from the forwarding mechanics while preserving concrete
+backend ownership and error propagation.
 
 ## 2026-09-05: CMake test modules
 
