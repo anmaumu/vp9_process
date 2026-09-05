@@ -177,6 +177,32 @@ del capsule, pooled
 gc.collect()
 assert pool.stats.in_use == 0 and pool_owner_ref() is not None
 
+# Slot state is explicit: ownership can transfer once, and close is terminal for
+# an unimported reservation without affecting an already transferred frame.
+transferred_slot = pool.acquire_slot()
+transferred_frame = transferred_slot.import_frame(producer_synchronized=True)
+try:
+    transferred_slot.import_frame(producer_synchronized=True)
+except RuntimeError:
+    pass
+else:
+    raise AssertionError("Intel USM pool slot accepted a second transfer")
+transferred_slot.close()
+assert pool.stats.in_use == 1
+transferred_frame.close()
+del transferred_frame, transferred_slot
+gc.collect()
+assert pool.stats.in_use == 0
+
+released_slot = pool.acquire_slot()
+released_slot.close()
+try:
+    released_slot.import_frame(producer_synchronized=True)
+except RuntimeError:
+    pass
+else:
+    raise AssertionError("released Intel USM pool slot was imported")
+
 held = pool.acquire(producer_synchronized=True)
 released = threading.Event()
 def release_held():

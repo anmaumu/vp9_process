@@ -95,6 +95,13 @@ frame inside the VA owner through oneVPL encode, preventing early reuse after th
 DLPack consumer finishes. C++ exposes move-only RAII pool/reservations; .NET uses
 SafeHandle wrappers and permits a reservation to be the managed GPU-frame owner.
 
+The Python slot wrapper now enforces an explicit one-way writable-to-transferred
+or writable-to-released state transition. Double import and import after release
+are rejected deterministically; closing a transferred wrapper cannot recycle its
+reservation while the frame is live. Terminal wrappers also clear redundant
+allocation-owner and dependency-registrar references, so an otherwise released
+pool is not retained merely because an old slot object remains reachable.
+
 Deterministic Windows/Linux tests cover capacity-one rejection, finite timeout,
 blocked-waiter wakeup, generation 1->2, occupancy metrics, DLPack-delayed recycle
 and pool-before-reservation destruction. Arc B580 passed eight AV1 frames with a
