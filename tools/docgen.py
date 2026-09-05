@@ -28,6 +28,16 @@ SOURCES = {
     "tests": ROOT / "docs" / "test-spec" / "test-requirements.md",
 }
 
+PYTHON_API_MODULES = (
+    ROOT / "python" / "mkvcodec" / "_types.py",
+    ROOT / "python" / "mkvcodec" / "_capabilities.py",
+    ROOT / "python" / "mkvcodec" / "_cpu.py",
+    ROOT / "python" / "mkvcodec" / "_gpu.py",
+    ROOT / "python" / "mkvcodec" / "_intel_usm.py",
+    ROOT / "python" / "mkvcodec" / "_io.py",
+    ROOT / "python" / "mkvcodec" / "_api.py",
+)
+
 
 class DocgenError(RuntimeError):
     pass
@@ -141,30 +151,58 @@ def c_api_reference() -> str:
 
 
 def python_api_reference() -> str:
-    module_path = ROOT / "python" / "mkvcodec" / "_api.py"
-    tree = ast.parse(read_text(module_path), filename=str(module_path))
-    lines = ["# Python API reference", "", "Source: `python/mkvcodec/_api.py`.", ""]
-    for node in tree.body:
-        if not isinstance(node, ast.ClassDef) or node.name.startswith("_"):
-            continue
-        lines.extend([f"## `{node.name}`", ""])
-        for member in node.body:
-            if not isinstance(member, (ast.FunctionDef, ast.AsyncFunctionDef)):
+    """Build a source-derived reference across the physical API modules."""
+    lines = [
+        "# Python API reference",
+        "",
+        "Sources: public declarations under `python/mkvcodec/`.",
+        "",
+    ]
+    documented: set[str] = set()
+    for module_path in PYTHON_API_MODULES:
+        tree = ast.parse(read_text(module_path), filename=str(module_path))
+        for node in tree.body:
+            if not isinstance(
+                node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
+            ) or node.name.startswith("_") or node.name in documented:
                 continue
-            if member.name.startswith("_") and member.name != "__init__":
+            documented.add(node.name)
+            lines.extend([f"## `{node.name}`", ""])
+            docstring = ast.get_docstring(node)
+            if docstring:
+                lines.extend([docstring, ""])
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                arguments = ast.unparse(node.args)
+                returns = (
+                    f" -> {ast.unparse(node.returns)}"
+                    if node.returns is not None else ""
+                )
+                lines.extend(
+                    [f"```python\n{node.name}({arguments}){returns}\n```", ""]
+                )
                 continue
-            arguments = ast.unparse(member.args)
-            returns = (
-                f" -> {ast.unparse(member.returns)}" if member.returns is not None else ""
-            )
-            lines.extend(
-                [
-                    f"### `{member.name}`",
-                    "",
-                    f"```python\n{member.name}({arguments}){returns}\n```",
-                    "",
-                ]
-            )
+            for member in node.body:
+                if not isinstance(member, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    continue
+                if member.name.startswith("_") and member.name != "__init__":
+                    continue
+                arguments = ast.unparse(member.args)
+                returns = (
+                    f" -> {ast.unparse(member.returns)}"
+                    if member.returns is not None else ""
+                )
+                lines.extend(
+                    [
+                        f"### `{member.name}`",
+                        "",
+                    ]
+                )
+                member_docstring = ast.get_docstring(member)
+                if member_docstring:
+                    lines.extend([member_docstring, ""])
+                lines.extend(
+                    [f"```python\n{member.name}({arguments}){returns}\n```", ""]
+                )
     return "\n".join(lines)
 
 

@@ -9,7 +9,6 @@ trim_trailing_whitespace = true
 [*.{c,cc,cpp,h,hpp,cs,py}]
 indent_style = space
 indent_size = 4
-
 [*.{cmake,md,yml,yaml,json,toml}]
 indent_style = space
 indent_size = 2
@@ -17,4 +16,3 @@ indent_size = 2
 [CMakeLists.txt]
 indent_style = space
 indent_size = 4
-

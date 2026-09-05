@@ -14,10 +14,12 @@ sys.path.insert(0, extension_dir)
 import _dlpack
 import mkvcodec
 import mkvcodec._api as api
+import mkvcodec._capabilities as capability_api
+import mkvcodec._gpu as gpu_api
 
 # Source-tree tests keep the extension in the build directory. Wheels install
 # it as mkvcodec._dlpack, so connect the equivalent module explicitly here.
-api._dlpack = _dlpack
+gpu_api._dlpack = _dlpack
 
 
 class Owner:
@@ -332,20 +334,22 @@ rows = (
     Capability("cpu", "av1", True, True, False),
     Capability("nvidia", "av1", True, True, True),
 )
-with patch.object(api, "backend_capabilities", return_value=rows):
+with patch.object(capability_api, "backend_capabilities", return_value=rows):
     assert api._select_backend("vp9", "decode", False) == "nvidia"
     assert api._select_backend("vp9", "encode", False) == "intel"
     assert api._select_backend("av1", "encode", True) == "nvidia"
     assert mkvcodec.select_backend(
         "vp9", decode=True, encode=True, require_gpu_resident=True) == "intel"
-with patch.object(api, "backend_capabilities", return_value=(rows[0],)):
+with patch.object(capability_api, "backend_capabilities", return_value=(rows[0],)):
     try:
         api._select_backend("vp9", "encode", True)
     except RuntimeError as error:
         assert "GPU-resident" in str(error)
     else:
         raise AssertionError("strict GPU auto-selection silently chose CPU")
-with patch.object(api, "backend_capabilities", return_value=(rows[0], rows[2])):
+with patch.object(
+    capability_api, "backend_capabilities", return_value=(rows[0], rows[2])
+):
     try:
         mkvcodec.select_backend("vp9", require_gpu_resident=True)
     except RuntimeError as error:

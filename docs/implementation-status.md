@@ -13,6 +13,21 @@
 - GitHub Actions builds strict MkDocs HTML and stores `mkvcodec-documentation` for 30 days.
 - GitHub Pages publication remains disabled until an explicit public-release decision.
 
+## 2026-09-05: Python API responsibility split
+
+The public Python import surface remains compatible while the former monolithic
+`_api.py` is now a thin re-export facade. Data contracts, capability selection,
+CPU leases/pools, GPU frame/DLPack interop, Intel USM pooling, and capture/writer
+I/O live in separate dependency-directed modules. Source-tree GPU tests patch the
+actual GPU interop module rather than relying on facade module globals.
+
+Public Python classes and methods now use NumPy-style docstrings. The documentation
+generator scans every physical API module and emits method docstrings as well as
+signatures, so ownership, synchronization, and backpressure contracts remain
+visible after the split. The C ABI fingerprint is unchanged. All 32 configured
+Windows tests passed; the two hardware-dependent NVIDIA tests remained expected
+skips on the current runner.
+
 ## 2026-09-05: Fixed-capacity external GPU/Intel USM pool
 
 A versioned C ABI reservation pool now bounds caller-preallocated GPU resources

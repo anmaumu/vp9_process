@@ -39,6 +39,9 @@ class DocgenTests(unittest.TestCase):
             self.assertIn("mkvc_encoder_create", c_api)
             python_api = (output / "api" / "python.md").read_text(encoding="utf-8")
             self.assertIn("VideoCapture", python_api)
+            self.assertIn("BackendCapability", python_api)
+            self.assertIn("backend_capabilities", python_api)
+            self.assertIn("Current or final encoder pipeline counters.", python_api)
 
     def test_all_c_abi_symbols_have_doxygen_comments(self) -> None:
         docgen.validate()
