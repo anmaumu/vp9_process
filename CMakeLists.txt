@@ -66,6 +66,7 @@ add_library(mkvcodec SHARED
     src/gpu/intel/level_zero_completion.cpp
     src/gpu/nvidia/nvidia_native_handle.cpp
     src/encoder/cpu_frame_copy.cpp
+    src/encoder/cpu_submission.cpp
     src/encoder_session.cpp
     src/cpu_av1_encoder.cpp
     src/cpu_av1_decoder.cpp

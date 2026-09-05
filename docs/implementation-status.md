@@ -36,6 +36,10 @@ lifecycle in `encoder_session.cpp`. The internal interface documents packed-row
 ownership, borrowed validation, and view lifetime with Doxygen comments. Public
 C ABI and language APIs are unchanged; Windows NVIDIA and Linux Intel complete
 regression suites pass after the split.
+Borrowed CPU submission ownership, terminal-state publication, nonblocking
+query, and timed wait synchronization are isolated in
+`src/encoder/cpu_submission.*`. The class remains in namespace `mkvc`, so C API
+adapters retain their existing type and lifetime contract.
 
 ## 2026-09-05: CMake test modules
 
