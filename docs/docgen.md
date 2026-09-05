@@ -22,7 +22,7 @@ comments. Stable C ABI declarations are additionally protected by
 - `docs/implementation-status.md`
 - `docs/abi-governance.md`
 - `include/mkvcodec/mkvc.h`
-- `python/mkvcodec/_types.py`、`_capabilities.py`、`_cpu.py`、`_gpu.py`、`_intel_usm.py`、`_writer.py`、`_capture.py`、`_api.py`
+- `python/mkvcodec/_types.py`、`_capabilities.py`、`_cpu.py`、`_gpu.py`、`_gpu_plane.py`、`_intel_usm.py`、`_writer.py`、`_capture.py`、`_api.py`
 - `LICENSE_POLICY.md`
 
 `build/docgen-src`と`build/docsite`は生成物であり、直接編集しない。

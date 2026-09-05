@@ -33,6 +33,7 @@ PYTHON_API_MODULES = (
     ROOT / "python" / "mkvcodec" / "_capabilities.py",
     ROOT / "python" / "mkvcodec" / "_cpu.py",
     ROOT / "python" / "mkvcodec" / "_gpu.py",
+    ROOT / "python" / "mkvcodec" / "_gpu_plane.py",
     ROOT / "python" / "mkvcodec" / "_intel_usm.py",
     ROOT / "python" / "mkvcodec" / "_writer.py",
     ROOT / "python" / "mkvcodec" / "_capture.py",

@@ -60,6 +60,15 @@ through `mkvcodec` and the former internal module continue to resolve. Docgen
 scans the physical implementation modules. Windows CPU/DLPack checks and the
 complete Linux Intel VA/OpenCL suite pass after the split.
 
+## 2026-09-06: Python GPU plane/interop split
+
+The `GpuPlane` DLPack protocol adapter now lives in `_gpu_plane.py`, while
+backend-neutral capability normalization lives in `_gpu_interop.py`. `GpuFrame`
+continues to expose both through `_gpu.py`, including the source-tree extension
+injection behavior used by hardware tests. Capsule ownership transfer, dependency
+registration, device checks, and managed-tensor failure cleanup are unchanged.
+Windows external-import checks and the complete Linux Intel suite pass.
+
 ## 2026-09-05: CMake test modules
 
 Repository Python script tests and unittest suites now use two small CMake
