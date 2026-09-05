@@ -9,6 +9,8 @@
 #include <ffnvcodec/dynlink_cuda.h>
 #include <ffnvcodec/dynlink_cuviddec.h>
 #include <ffnvcodec/dynlink_nvcuvid.h>
+
+#include "gpu/nvidia/cuda_context_guard.hpp"
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -122,12 +124,12 @@ namespace {
 bool destroy_deferred_runtime(NvidiaWebmDecoder::Impl& state) {
     if (state.runtime_destroyed || state.context == nullptr || state.outstanding_gpu_frames != 0)
         return true;
-    if (state.context_push(state.context) != CUDA_SUCCESS) return false;
+    gpu::nvidia::CudaContextGuard context_guard(state.context, state.context_push,
+                                                state.context_pop);
+    if (!context_guard) return false;
     if (state.decoder != nullptr) (void)state.decoder_destroy(state.decoder);
     state.decoder = nullptr;
-    CUcontext popped = nullptr;
-    const bool popped_ok = state.context_pop(&popped) == CUDA_SUCCESS && popped == state.context;
-    if (!popped_ok) return false;
+    if (!context_guard.release()) return false;
     (void)state.context_destroy(state.context);
     state.context = nullptr;
     state.runtime_destroyed = true;
@@ -138,11 +140,11 @@ void release_mapped_frame(const std::shared_ptr<NvidiaWebmDecoder::Impl>& state,
                           unsigned long long device_pointer) noexcept {
     if (!state) return;
     std::lock_guard<std::mutex> lock(state->runtime_mutex);
-    bool pushed = state->context != nullptr && state->context_push(state->context) == CUDA_SUCCESS;
-    if (pushed) {
+    gpu::nvidia::CudaContextGuard context_guard(state->context, state->context_push,
+                                                state->context_pop);
+    if (context_guard) {
         (void)state->unmap_frame(state->decoder, device_pointer);
-        CUcontext popped = nullptr;
-        (void)state->context_pop(&popped);
+        (void)context_guard.release();
     }
     if (state->outstanding_gpu_frames != 0) --state->outstanding_gpu_frames;
     if (state->closed && state->outstanding_gpu_frames == 0) {
@@ -438,7 +440,9 @@ mkvc_result NvidiaWebmDecoder::read(std::unique_ptr<DecodedFrame>& frame, std::s
         return MKVC_ERROR_INVALID_STATE;
     }
     state.output_mode = Impl::OutputMode::kCpu;
-    if (state.context_push(state.context) != CUDA_SUCCESS) {
+    gpu::nvidia::CudaContextGuard context_guard(state.context, state.context_push,
+                                                state.context_pop);
+    if (!context_guard) {
         error = "failed to activate CUDA context";
         return MKVC_ERROR_CODEC;
     }
@@ -487,8 +491,7 @@ mkvc_result NvidiaWebmDecoder::read(std::unique_ptr<DecodedFrame>& frame, std::s
             break;
         }
     }
-    CUcontext popped = nullptr;
-    if (state.context_pop(&popped) != CUDA_SUCCESS || popped != state.context) {
+    if (!context_guard.release()) {
         if (result == MKVC_OK) {
             error = "failed to release CUDA context";
             result = MKVC_ERROR_CODEC;
@@ -528,7 +531,9 @@ mkvc_result NvidiaWebmDecoder::read_gpu(mkvc_gpu_frame** frame, std::string& err
         error = "NVIDIA GPU frame pool is full";
         return MKVC_WOULD_BLOCK;
     }
-    if (state.context_push(state.context) != CUDA_SUCCESS) {
+    gpu::nvidia::CudaContextGuard context_guard(state.context, state.context_push,
+                                                state.context_pop);
+    if (!context_guard) {
         error = "failed to activate CUDA context";
         return MKVC_ERROR_CODEC;
     }
@@ -568,8 +573,7 @@ mkvc_result NvidiaWebmDecoder::read_gpu(mkvc_gpu_frame** frame, std::string& err
             break;
         }
     }
-    CUcontext popped = nullptr;
-    if (state.context_pop(&popped) != CUDA_SUCCESS || popped != state.context) {
+    if (!context_guard.release()) {
         if (result == MKVC_OK) {
             error = "failed to release CUDA context";
             result = MKVC_ERROR_CODEC;
@@ -599,16 +603,16 @@ mkvc_result NvidiaWebmDecoder::close(std::string& error) {
     {
         std::lock_guard<std::mutex> lock(state.runtime_mutex);
         if (state.context != nullptr && state.parser != nullptr) {
-            if (state.context_push(state.context) != CUDA_SUCCESS) {
+            gpu::nvidia::CudaContextGuard context_guard(state.context, state.context_push,
+                                                        state.context_pop);
+            if (!context_guard) {
                 error = "failed to activate CUDA context during close";
                 cleanup_failed = true;
             } else {
                 (void)state.parser_destroy(state.parser);
                 state.parser = nullptr;
                 state.parser_destroyed = true;
-                CUcontext popped = nullptr;
-                if (state.context_pop(&popped) != CUDA_SUCCESS || popped != state.context)
-                    cleanup_failed = true;
+                if (!context_guard.release()) cleanup_failed = true;
             }
         }
         state.closed = true;

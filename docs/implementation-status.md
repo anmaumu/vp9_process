@@ -28,6 +28,20 @@ visible after the split. The C ABI fingerprint is unchanged. All 32 configured
 Windows tests passed; the two hardware-dependent NVIDIA tests remained expected
 skips on the current runner.
 
+## 2026-09-05: Scoped CUDA context activation
+
+CUDA driver context push/pop is now represented by one Doxygen-documented,
+non-owning RAII guard. CUDA event polling, consumer-stream dependency insertion,
+NVDEC reads, mapped-frame release, deferred decoder teardown, and close cleanup
+use the same pairing and context-identity validation. Early returns receive a
+best-effort destructor pop, while normal paths explicitly validate the pop.
+
+The guard does not destroy contexts, streams, events, arrays, or decoder-owned
+resources, so the existing public ownership and deferred NVDEC frame-lifetime
+contract is unchanged. The NVIDIA build, real CUDA event/stream test, and NVDEC
+decode test pass; GPU transcode remains an expected skip when the configured
+hardware codec path is unavailable.
+
 ## 2026-09-05: C ABI translation-unit split
 
 The former single C ABI implementation is separated into stable entry points,

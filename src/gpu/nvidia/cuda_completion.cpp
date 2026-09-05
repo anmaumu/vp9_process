@@ -3,6 +3,8 @@
 #include <mutex>
 #include <utility>
 
+#include "cuda_context_guard.hpp"
+
 #ifdef _WIN32
 #include <windows.h>
 #else
@@ -13,7 +15,7 @@ namespace mkvc::gpu::nvidia {
 
 namespace {
 class CudaDriverLibrary {
- public:
+   public:
 #ifdef _WIN32
     using Handle = HMODULE;
 #else
@@ -51,7 +53,7 @@ class CudaDriverLibrary {
 #endif
     }
 
- private:
+   private:
     Handle handle_ = nullptr;
 };
 
@@ -67,40 +69,44 @@ std::shared_ptr<CudaDriverLibrary> load_cuda_driver(std::string& error) {
 }
 }  // namespace
 
-std::shared_ptr<Completion> make_cuda_event_completion(
-    CUcontext context, CUevent event, CudaCompletionFunctions functions,
-    std::shared_ptr<void> context_keepalive) {
+std::shared_ptr<Completion> make_cuda_event_completion(CUcontext context, CUevent event,
+                                                       CudaCompletionFunctions functions,
+                                                       std::shared_ptr<void> context_keepalive) {
     return std::make_shared<CallbackCompletion>(
-        [context, event, functions, keepalive = std::move(context_keepalive)](
-            bool& complete, std::string& error) {
+        [context, event, functions, keepalive = std::move(context_keepalive)](bool& complete,
+                                                                              std::string& error) {
             (void)keepalive;
-            if (context == nullptr || event == nullptr ||
-                functions.context_push == nullptr || functions.context_pop == nullptr ||
-                functions.event_query == nullptr) {
+            if (context == nullptr || event == nullptr || functions.context_push == nullptr ||
+                functions.context_pop == nullptr || functions.event_query == nullptr) {
                 error = "invalid CUDA event completion";
                 return MKVC_ERROR_INVALID_ARGUMENT;
             }
-            if (functions.context_push(context) != CUDA_SUCCESS) {
+            CudaContextGuard context_guard(context, functions.context_push, functions.context_pop);
+            if (!context_guard) {
                 error = "failed to activate CUDA context for event query";
                 return MKVC_ERROR_CODEC;
             }
             const CUresult queried = functions.event_query(event);
-            CUcontext popped = nullptr;
-            const CUresult pop_result = functions.context_pop(&popped);
-            if (pop_result != CUDA_SUCCESS || popped != context) {
+            if (!context_guard.release()) {
                 error = "failed to release CUDA context after event query";
                 return MKVC_ERROR_CODEC;
             }
-            if (queried == CUDA_SUCCESS) { complete = true; return MKVC_OK; }
-            if (queried == CUDA_ERROR_NOT_READY) { complete = false; return MKVC_OK; }
+            if (queried == CUDA_SUCCESS) {
+                complete = true;
+                return MKVC_OK;
+            }
+            if (queried == CUDA_ERROR_NOT_READY) {
+                complete = false;
+                return MKVC_OK;
+            }
             error = "CUDA event query failed";
             return MKVC_ERROR_CODEC;
         });
 }
 
-mkvc_result load_cuda_event_completion(
-    uint64_t context, uint64_t event,
-    std::shared_ptr<Completion>& completion, std::string& error) {
+mkvc_result load_cuda_event_completion(uint64_t context, uint64_t event,
+                                       std::shared_ptr<Completion>& completion,
+                                       std::string& error) {
     completion.reset();
     if (context == 0 || event == 0) {
         error = "CUDA context and event must be nonzero";
@@ -109,12 +115,11 @@ mkvc_result load_cuda_event_completion(
     auto library = load_cuda_driver(error);
     if (!library) return MKVC_ERROR_NOT_SUPPORTED;
     const auto init = library->symbol<tcuInit*>("cuInit");
-    CudaCompletionFunctions functions{
-        library->symbol<tcuCtxPushCurrent_v2*>("cuCtxPushCurrent_v2"),
-        library->symbol<tcuCtxPopCurrent_v2*>("cuCtxPopCurrent_v2"),
-        library->symbol<tcuEventQuery*>("cuEventQuery")};
-    if (init == nullptr || functions.context_push == nullptr ||
-        functions.context_pop == nullptr || functions.event_query == nullptr) {
+    CudaCompletionFunctions functions{library->symbol<tcuCtxPushCurrent_v2*>("cuCtxPushCurrent_v2"),
+                                      library->symbol<tcuCtxPopCurrent_v2*>("cuCtxPopCurrent_v2"),
+                                      library->symbol<tcuEventQuery*>("cuEventQuery")};
+    if (init == nullptr || functions.context_push == nullptr || functions.context_pop == nullptr ||
+        functions.event_query == nullptr) {
         error = "CUDA driver lacks required context/event functions";
         return MKVC_ERROR_NOT_SUPPORTED;
     }
@@ -124,14 +129,12 @@ mkvc_result load_cuda_event_completion(
     }
     completion = make_cuda_event_completion(
         reinterpret_cast<CUcontext>(static_cast<uintptr_t>(context)),
-        reinterpret_cast<CUevent>(static_cast<uintptr_t>(event)), functions,
-        std::move(library));
+        reinterpret_cast<CUevent>(static_cast<uintptr_t>(event)), functions, std::move(library));
     return MKVC_OK;
 }
 
-mkvc_result cuda_stream_wait_event(
-    uint64_t context, uint64_t event, uint64_t consumer_stream,
-    std::string& error) {
+mkvc_result cuda_stream_wait_event(uint64_t context, uint64_t event, uint64_t consumer_stream,
+                                   std::string& error) {
     if (context == 0 || event == 0 || consumer_stream == 0) {
         error = "CUDA stream dependency requires context, event, and stream";
         return MKVC_ERROR_INVALID_ARGUMENT;
@@ -139,12 +142,9 @@ mkvc_result cuda_stream_wait_event(
     auto library = load_cuda_driver(error);
     if (!library) return MKVC_ERROR_NOT_SUPPORTED;
     const auto init = library->symbol<tcuInit*>("cuInit");
-    const auto context_push = library->symbol<tcuCtxPushCurrent_v2*>(
-        "cuCtxPushCurrent_v2");
-    const auto context_pop = library->symbol<tcuCtxPopCurrent_v2*>(
-        "cuCtxPopCurrent_v2");
-    const auto stream_wait = library->symbol<tcuStreamWaitEvent*>(
-        "cuStreamWaitEvent");
+    const auto context_push = library->symbol<tcuCtxPushCurrent_v2*>("cuCtxPushCurrent_v2");
+    const auto context_pop = library->symbol<tcuCtxPopCurrent_v2*>("cuCtxPopCurrent_v2");
+    const auto stream_wait = library->symbol<tcuStreamWaitEvent*>("cuStreamWaitEvent");
     if (init == nullptr || context_push == nullptr || context_pop == nullptr ||
         stream_wait == nullptr) {
         error = "CUDA driver lacks required stream/event functions";
@@ -154,18 +154,16 @@ mkvc_result cuda_stream_wait_event(
         error = "CUDA driver initialization failed";
         return MKVC_ERROR_NOT_SUPPORTED;
     }
-    auto cuda_context = reinterpret_cast<CUcontext>(
-        static_cast<uintptr_t>(context));
-    if (context_push(cuda_context) != CUDA_SUCCESS) {
+    auto cuda_context = reinterpret_cast<CUcontext>(static_cast<uintptr_t>(context));
+    CudaContextGuard context_guard(cuda_context, context_push, context_pop);
+    if (!context_guard) {
         error = "failed to activate CUDA context for stream dependency";
         return MKVC_ERROR_CODEC;
     }
-    const CUresult waited = stream_wait(
-        reinterpret_cast<CUstream>(static_cast<uintptr_t>(consumer_stream)),
-        reinterpret_cast<CUevent>(static_cast<uintptr_t>(event)), 0);
-    CUcontext popped = nullptr;
-    const CUresult pop_result = context_pop(&popped);
-    if (pop_result != CUDA_SUCCESS || popped != cuda_context) {
+    const CUresult waited =
+        stream_wait(reinterpret_cast<CUstream>(static_cast<uintptr_t>(consumer_stream)),
+                    reinterpret_cast<CUevent>(static_cast<uintptr_t>(event)), 0);
+    if (!context_guard.release()) {
         error = "failed to release CUDA context after stream dependency";
         return MKVC_ERROR_CODEC;
     }
