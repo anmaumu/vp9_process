@@ -36,6 +36,10 @@ NVIDIA-specific native test target definitions now live in
 and encoder checks from the tests that consume the shared CPU VP9 fixture, while
 preserving the existing fixture dependency and hardware-skip contract. The root
 build file retains only the platform condition and the two composition calls.
+Intel oneVPL targets and Linux VA/OpenCL integration checks likewise live in
+`cmake/MkvcIntelTests.cmake`. Repeated AV1 OpenCL modes share one registration
+loop, while their individual test names, environment contracts, timeouts, and
+fixtures remain stable.
 
 ## 2026-09-05: Python API responsibility split
 
