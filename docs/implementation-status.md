@@ -44,6 +44,12 @@ The type-erased encoder backend interface and its compile-time CPU/GPU adapter
 now live in `src/encoder/encoder_backend.hpp`. This leaves session creation and
 scheduling independent from the forwarding mechanics while preserving concrete
 backend ownership and error propagation.
+Queue state and the asynchronous worker loop now live in
+`src/encoder/encoder_session_state.hpp` and `encoder_worker.*`. Ordered flush
+barriers, capacity wakeups, injected failure propagation, borrowed completion,
+metrics accumulation, and backend finalization remain under the same locking and
+FIFO contract. `encoder_session.cpp` is reduced to session-facing operations and
+backend selection.
 
 ## 2026-09-05: CMake test modules
 
