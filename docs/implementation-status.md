@@ -1,6 +1,9 @@
 # Implementation status
 
 この文書は仕様の正本を変更せず、実装・検証の到達状況を記録する。
+同じ機能について複数の記録がある場合は、上にある新しい日付の記録を
+現行状態として扱う。`PARTIAL`、`pending`、`unimplemented`などの表現は、
+各見出しの日付時点の履歴であり、後続実装を否定しない。
 
 ## Documentation tooling
 
@@ -222,6 +225,15 @@ with bounded RSS, file descriptors, threads and `xe` VRAM evidence for PCI
 qualify pooled allocation reuse or pool-exhaustion behavior.
 
 Traceability: EXT-GPU-008 -> INT-GPU-010/011 -> TEST-GPU-004/009/010.
+
+---
+
+### Historical checkpoint boundary
+
+以降は2026-09-04以前の時点別検証記録である。計測値、失敗経緯、当時の
+リスク判断を失わないため保持しているが、現在の機能有無は上の最新記録と
+末尾のtraceability tableを優先する。古い「未実装」「pending」は、その
+checkpoint以後に完了している場合がある。
 
 ## 2026-09-04: Intel device-USM DLPack and Level Zero event adapter
 

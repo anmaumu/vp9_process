@@ -1,6 +1,7 @@
 # MKVCodec 設計仕様
 
 実装の現在地は [implementation-status.md](implementation-status.md) を参照する。
+同文書は上から新しい順で、明示された境界より下は過去時点のcheckpointである。
 
 このディレクトリを、MKVCodecの外部仕様・内部仕様・受け入れ条件・テスト要求の正本とする。
 
