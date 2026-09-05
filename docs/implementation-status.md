@@ -68,6 +68,11 @@ continues to expose both through `_gpu.py`, including the source-tree extension
 injection behavior used by hardware tests. Capsule ownership transfer, dependency
 registration, device checks, and managed-tensor failure cleanup are unchanged.
 Windows external-import checks and the complete Linux Intel suite pass.
+External import implementations are separated into `_gpu_cuda.py` and
+`_gpu_intel.py`, with process-unique generation and optional-extension lookup in
+`_gpu_import_common.py`. Public `GpuFrame` classmethods retain their original
+signatures and documentation as thin delegators. This keeps IDE/API reference
+quality stable while isolating CUDA from D3D11/VA/USM validation and native calls.
 
 ## 2026-09-05: CMake test modules
 
