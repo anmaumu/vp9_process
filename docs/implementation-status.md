@@ -20,7 +20,7 @@
 - GitHub Actions builds strict MkDocs HTML and stores `mkvcodec-documentation` for 30 days.
 - GitHub Pages publication remains disabled until an explicit public-release decision.
 
-## 2026-09-05: CMake Python-check module
+## 2026-09-05: CMake test modules
 
 Repository Python script tests and unittest suites now use two small CMake
 helpers for interpreter selection, source-root path construction, and unittest
@@ -30,6 +30,12 @@ targets and platform test composition. Test names, arguments, properties,
 fixtures, and platform conditions are unchanged. Windows and Linux
 reconfiguration preserves their complete test inventories, and every migrated
 check passes on both systems.
+
+NVIDIA-specific native test target definitions now live in
+`cmake/MkvcNvidiaTests.cmake`. The module separates hardware-independent probe
+and encoder checks from the tests that consume the shared CPU VP9 fixture, while
+preserving the existing fixture dependency and hardware-skip contract. The root
+build file retains only the platform condition and the two composition calls.
 
 ## 2026-09-05: Python API responsibility split
 
