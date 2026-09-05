@@ -67,6 +67,17 @@ Linux Intel tests passed. The coverage includes CPU VP9 encode/decode/metadata,
 NVENC AV1 creation, Intel VP9/AV1 round trips, GPU-surface encode, OpenCL external
 processing, ABI guards, and artifact compliance checks.
 
+## 2026-09-05: Type-erased encoder backend dispatch
+
+`EncoderSession` now owns one `EncoderBackend` contract rather than four nullable
+CPU VP9, CPU AV1, Intel, and NVIDIA pointers. A Doxygen-documented adapter exposes
+write, flush, close, GPU-frame support, GPU submission, and hardware-pending
+metrics uniformly. CPU adapters reject GPU frames explicitly; Intel and NVIDIA
+adapters preserve their native zero-copy paths.
+
+Targeted synchronous, asynchronous, cancellation/failure, C API, C++ RAII, CPU,
+Intel GPU-surface, and NVIDIA encoder/event tests pass on both available hosts.
+
 ## 2026-09-05: Fixed-capacity external GPU/Intel USM pool
 
 A versioned C ABI reservation pool now bounds caller-preallocated GPU resources
