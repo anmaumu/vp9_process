@@ -378,6 +378,7 @@ Status: `PROPOSED`
 - `INT-ABI-002`: ABIには`std::string/vector/bool/long`を露出しない。
 - `INT-ABI-003`: allocatorを越境させず、Core生成物はCoreのrelease APIで解放する。
 - `INT-ABI-004`: compatible minor versionでは既存struct prefixを保持する。
+- `INT-ABI-005`: 公開C headerをbinding symbol schemaの正本とし、Python ctypesと.NET P/Invokeは全公開functionを宣言する。欠落symbolとheaderにない余分なsymbolはCIで拒否する。型・layout・calling conventionは各bindingのcompile/smokeおよびABI layout testで検証する。
 - `INT-PY-001`: pybind11 wrapperはNumPy dtype/shape/strideを検証し、native errorをPython exceptionへ変換する。
 - `INT-CS-001`: P/Invoke struct layoutを自動testし、handleをSafeHandleで所有する。
 

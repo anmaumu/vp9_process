@@ -204,6 +204,7 @@ wheel/NuGetへ同梱せず、実行時version/source revisionを成果ととも�
 | `TEST-ABI-001` | C create/read-write/flush/destroyとstruct_size互換 | integration | Windows/Linux |
 | `TEST-ABI-002` | null、不正handle/version、error code/detail | unit | Windows/Linux |
 | `TEST-ABI-003` | C++ exceptionがABI外へ漏れない | fault injection | Windows/Linux |
+| `TEST-ABI-004` | 公開C headerの全function symbolがPython ctypes/.NET P/Invokeに一対一で宣言され、欠落・余分な宣言をbinding guardがfail-closedで拒否する | source/schema | Windows/Linux CI |
 | `TEST-PY-001` | Python exception、GC中frame lifetime、GIL解放 | integration | Python CI |
 | `TEST-CS-001` | P/Invoke load、struct layout、SafeHandle/IDisposable | smoke | .NET CI |
 | `TEST-ERR-001` | disk full、I/O error、cancel、timeout、device lost cleanup | fault injection | backend CI |

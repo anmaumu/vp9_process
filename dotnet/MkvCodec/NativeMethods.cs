@@ -33,6 +33,9 @@ internal static class NativeMethods
     internal static extern nint mkvc_get_last_error();
 
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern nint mkvc_result_string(MkvResult result);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
     internal static extern MkvResult mkvc_encoder_create(
         ref NativeEncoderConfig config, out MkvEncoderHandle encoder);
 
@@ -49,6 +52,11 @@ internal static class NativeMethods
         MkvEncoderHandle encoder, ref NativeFrameView frame);
 
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern MkvResult mkvc_encoder_submit_frame_borrowed(
+        MkvEncoderHandle encoder, ref NativeFrameView frame,
+        out MkvSubmissionHandle submission);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
     internal static extern MkvResult mkvc_encoder_submit_cpu_buffer(
         MkvEncoderHandle encoder, MkvCpuBufferHandle buffer, long pts,
         out MkvSubmissionHandle submission);
@@ -56,6 +64,10 @@ internal static class NativeMethods
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
     internal static extern MkvResult mkvc_encoder_write_gpu_frame(
         MkvEncoderHandle encoder, MkvGpuFrameHandle frame);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern MkvResult mkvc_encoder_try_write_frame(
+        MkvEncoderHandle encoder, ref NativeFrameView frame);
 
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
     internal static extern MkvResult mkvc_encoder_flush(MkvEncoderHandle encoder);
@@ -161,15 +173,34 @@ internal static class NativeMethods
     internal static extern void mkvc_frame_release(nint frame);
 
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern void mkvc_frame_retain(MkvFrameHandle frame);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
     internal static extern MkvResult mkvc_frame_get_view(
         MkvFrameHandle frame, ref NativeFrameView view);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern MkvResult mkvc_frame_copy_to(
+        MkvFrameHandle frame, ref NativeMutableFrameView destination);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern MkvResult mkvc_frame_process(
+        MkvFrameHandle frame, ref NativeFrameProcessConfig config,
+        out MkvFrameHandle outputFrame);
 
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
     internal static extern void mkvc_gpu_frame_release(nint frame);
 
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern MkvResult mkvc_gpu_frame_retain(MkvGpuFrameHandle frame);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
     internal static extern MkvResult mkvc_gpu_frame_get_desc(
         MkvGpuFrameHandle frame, ref MkvGpuFrameDescriptor descriptor);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern MkvResult mkvc_gpu_frame_query_completion(
+        MkvGpuFrameHandle frame, out uint status);
 
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
     internal static extern MkvResult mkvc_gpu_frame_get_native_handle(
@@ -198,4 +229,17 @@ internal static class NativeMethods
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
     internal static extern MkvResult mkvc_gpu_frame_import_level_zero_event(
         ref NativeGpuExternalFrameConfig config, out MkvGpuFrameHandle frame);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern MkvResult mkvc_gpu_frame_export_dlpack(
+        MkvGpuFrameHandle frame, uint planeIndex, ulong consumerStream,
+        out nint managedTensor);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern MkvResult mkvc_gpu_frame_export_dlpack_with_dependency(
+        MkvGpuFrameHandle frame, uint planeIndex, ulong consumerStream,
+        nint callback, nint userData, out nint managedTensor);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern void mkvc_dlpack_managed_tensor_release(nint managedTensor);
 }

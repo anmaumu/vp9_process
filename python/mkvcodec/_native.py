@@ -42,6 +42,16 @@ MKVC_FRAME_FIT_CONTAIN = 1
 MKVC_FRAME_FIT_COVER = 2
 
 
+class Version(ct.Structure):
+    _fields_ = [
+        ("struct_size", ct.c_uint32),
+        ("abi_version", ct.c_uint32),
+        ("major", ct.c_uint32),
+        ("minor", ct.c_uint32),
+        ("patch", ct.c_uint32),
+    ]
+
+
 class EncoderConfig(ct.Structure):
     _fields_ = [
         ("struct_size", ct.c_uint32),
@@ -269,10 +279,14 @@ CpuBufferHandle = ct.c_void_p
 GpuResourcePoolHandle = ct.c_void_p
 GpuResourceReservationHandle = ct.c_void_p
 
+lib.mkvc_get_version.argtypes = [ct.POINTER(Version)]
+lib.mkvc_get_version.restype = ct.c_int
 lib.mkvc_get_backend_capabilities.argtypes = [
     ct.POINTER(BackendCapability), ct.POINTER(ct.c_size_t)
 ]
 lib.mkvc_get_backend_capabilities.restype = ct.c_int
+lib.mkvc_result_string.argtypes = [ct.c_int]
+lib.mkvc_result_string.restype = ct.c_char_p
 
 lib.mkvc_encoder_create.argtypes = [ct.POINTER(EncoderConfig), ct.POINTER(EncoderHandle)]
 lib.mkvc_encoder_create.restype = ct.c_int
@@ -373,9 +387,15 @@ lib.mkvc_frame_process.argtypes = [
     FrameHandle, ct.POINTER(FrameProcessConfig), ct.POINTER(FrameHandle)
 ]
 lib.mkvc_frame_process.restype = ct.c_int
+lib.mkvc_frame_retain.argtypes = [FrameHandle]
+lib.mkvc_frame_retain.restype = None
 lib.mkvc_frame_release.argtypes = [FrameHandle]
 lib.mkvc_gpu_frame_get_desc.argtypes = [GpuFrameHandle, ct.POINTER(GpuFrameDesc)]
 lib.mkvc_gpu_frame_get_desc.restype = ct.c_int
+lib.mkvc_gpu_frame_query_completion.argtypes = [
+    GpuFrameHandle, ct.POINTER(ct.c_uint32)
+]
+lib.mkvc_gpu_frame_query_completion.restype = ct.c_int
 lib.mkvc_gpu_frame_get_native_handle.argtypes = [
     GpuFrameHandle, ct.POINTER(GpuNativeHandleDesc)
 ]

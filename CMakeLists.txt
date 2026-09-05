@@ -209,6 +209,10 @@ if(MKVC_BUILD_TESTS)
             COMMAND "${Python3_EXECUTABLE}" -m unittest tests/test_abi_guard.py)
         set_tests_properties(mkvc_abi_guard PROPERTIES
             WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+        add_test(NAME mkvc_binding_guard
+            COMMAND "${Python3_EXECUTABLE}" -m unittest tests/test_binding_guard.py)
+        set_tests_properties(mkvc_binding_guard PROPERTIES
+            WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
         add_test(NAME mkvc_gpu_copy_audit_report
             COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_gpu_copy_audit.py")
         add_test(NAME mkvc_gpu_resource_monitor

@@ -100,6 +100,26 @@ internal struct NativeCopyPolicy
 }
 
 [StructLayout(LayoutKind.Sequential)]
+internal struct NativeFrameProcessConfig
+{
+    internal uint StructSize;
+    internal uint StructVersion;
+    internal MkvBackend Backend;
+    internal uint CropX;
+    internal uint CropY;
+    internal uint CropWidth;
+    internal uint CropHeight;
+    internal uint OutputWidth;
+    internal uint OutputHeight;
+    internal uint Fit;
+    internal uint Rotation;
+    internal byte FlipHorizontal;
+    internal byte FlipVertical;
+    internal ushort Reserved;
+    internal uint BackgroundRgba;
+}
+
+[StructLayout(LayoutKind.Sequential)]
 public struct MkvVersion
 {
     public uint StructSize;

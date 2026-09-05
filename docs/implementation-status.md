@@ -7,6 +7,8 @@
 - `docgen check/generate/build` validates specification IDs and generates Markdown/HTML.
 - `abi_guard check` fingerprints every C ABI function signature, enum value and
   public struct field against the reviewed v1 snapshot before refactors merge.
+- `binding_guard check` requires Python ctypes and .NET P/Invoke to declare the
+  complete function-symbol set extracted from the canonical public C header.
 - C ABI and Python API references are extracted from source declarations.
 - Doxygen generates C/C++ HTML and XML from public/internal source comments.
 - Every exported `MKVC_API` symbol must have a Doxygen comment; missing comments fail docgen.
@@ -27,6 +29,22 @@ signatures, so ownership, synchronization, and backpressure contracts remain
 visible after the split. The C ABI fingerprint is unchanged. All 32 configured
 Windows tests passed; the two hardware-dependent NVIDIA tests remained expected
 skips on the current runner.
+
+## 2026-09-05: C ABI language-binding synchronization
+
+Python ctypes and .NET P/Invoke now declare all 58 public C ABI functions,
+including previously internal-only retain, completion-query, processing,
+nonblocking submission, result-string, and DLPack entry points. This declaration
+completeness does not by itself make every low-level function a public idiomatic
+language API; the high-level wrappers remain the supported user surface.
+
+A NumPy-documented binding guard extracts the canonical symbol set from
+`mkvc.h` and rejects missing or invented Python/.NET declarations. It runs in
+CTest and documentation CI with negative tests for both failure directions.
+Python compile/import coverage, the guard tests, and the project-local .NET 8
+build and native smoke test pass. Struct layouts and parameter marshalling remain
+checked by the existing ABI and managed smoke tests; full declaration code
+generation is a later cleanup rather than an unreviewed rewrite.
 
 ## 2026-09-05: Scoped CUDA context activation
 
