@@ -46,6 +46,9 @@ endif()
 
 add_library(mkvcodec SHARED
     src/c_api.cpp
+    src/c_api_cpu.cpp
+    src/c_api_decoder.cpp
+    src/c_api_encoder.cpp
     src/backend_registry.cpp
     src/container_format.cpp
     src/cpu_vp9_encoder.cpp

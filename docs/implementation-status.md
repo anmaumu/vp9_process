@@ -28,6 +28,20 @@ visible after the split. The C ABI fingerprint is unchanged. All 32 configured
 Windows tests passed; the two hardware-dependent NVIDIA tests remained expected
 skips on the current runner.
 
+## 2026-09-05: C ABI translation-unit split
+
+The former single C ABI implementation is separated into stable entry points,
+encoder adapters, decoder/frame adapters, and CPU pool/submission adapters.
+Opaque handle state and the thread-local error helper live in one internal header
+with Doxygen ownership documentation. Public declarations, symbol names, calling
+conventions, enum values, and struct layouts are unchanged.
+
+The split builds with both MSVC/NVIDIA-enabled and GCC/Intel-enabled profiles.
+All 32 configured Windows tests passed with two expected hardware skips; all 40
+Linux tests passed after synchronizing the pre-existing ABI snapshot tooling.
+`docgen-check` passes locally. Full HTML generation remains a CI/environment step
+because the current Windows and Linux hosts do not have MkDocs/Doxygen installed.
+
 ## 2026-09-05: Fixed-capacity external GPU/Intel USM pool
 
 A versioned C ABI reservation pool now bounds caller-preallocated GPU resources
