@@ -17,13 +17,16 @@
 - GitHub Actions builds strict MkDocs HTML and stores `mkvcodec-documentation` for 30 days.
 - GitHub Pages publication remains disabled until an explicit public-release decision.
 
-## 2026-09-05: CMake Python-test registration helpers
+## 2026-09-05: CMake Python-check module
 
 Repository Python script tests and unittest suites now use two small CMake
 helpers for interpreter selection, source-root path construction, and unittest
-working-directory setup. Test names, arguments, properties, fixtures, and
-platform conditions remain at their existing call sites and are unchanged.
-Reconfiguration preserves all 33 Windows tests, and the 12 migrated checks pass.
+working-directory setup. The helpers and 13 repository-level checks now live in
+`cmake/MkvcPythonChecks.cmake`, leaving the root build file focused on product
+targets and platform test composition. Test names, arguments, properties,
+fixtures, and platform conditions are unchanged. Windows and Linux
+reconfiguration preserves their complete test inventories, and every migrated
+check passes on both systems.
 
 ## 2026-09-05: Python API responsibility split
 
