@@ -178,6 +178,21 @@ if(Python3_Interpreter_FOUND)
         COMMENT "Building generated HTML documentation")
 endif()
 
+# Register repository Python checks consistently while keeping each call site
+# focused on the test name and its actual payload.
+function(mkvc_add_python_script_test test_name script_path)
+    add_test(NAME "${test_name}"
+        COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/${script_path}" ${ARGN})
+endfunction()
+
+function(mkvc_add_python_unittest test_name)
+    add_test(NAME "${test_name}"
+        COMMAND "${Python3_EXECUTABLE}" -m unittest ${ARGN})
+    set_tests_properties("${test_name}" PROPERTIES
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+endfunction()
+
 if(MKVC_BUILD_TESTS)
     enable_testing()
     if(TARGET mkvc_python_dlpack AND Python3_Interpreter_FOUND)
@@ -205,39 +220,27 @@ if(MKVC_BUILD_TESTS)
     endif()
     target_compile_definitions(mkvcodec PRIVATE MKVC_ENABLE_TEST_HOOKS=1)
     if(Python3_Interpreter_FOUND)
-        add_test(NAME mkvc_abi_guard
-            COMMAND "${Python3_EXECUTABLE}" -m unittest tests/test_abi_guard.py)
-        set_tests_properties(mkvc_abi_guard PROPERTIES
-            WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
-        add_test(NAME mkvc_binding_guard
-            COMMAND "${Python3_EXECUTABLE}" -m unittest tests/test_binding_guard.py)
-        set_tests_properties(mkvc_binding_guard PROPERTIES
-            WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
-        add_test(NAME mkvc_gpu_copy_audit_report
-            COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_gpu_copy_audit.py")
-        add_test(NAME mkvc_gpu_resource_monitor
-            COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_gpu_resource_monitor.py")
-        add_test(NAME mkvc_usm_soak_report
-            COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_usm_soak_report.py")
-        add_test(NAME mkvc_intel_prime_layout
-            COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_intel_prime_layout.py")
-        add_test(NAME mkvc_intel_kernel_trace_report
-            COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_intel_kernel_trace.py")
-        add_test(NAME mkvc_media_oracle
-            COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_media_oracle.py")
-        add_test(NAME mkvc_intel_userspace_trace_report
-            COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_intel_userspace_trace.py")
-        add_test(NAME mkvc_opencl_reuse_session
-            COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/test_opencl_reuse_session.py")
-        add_test(NAME mkvc_compliance_source
-            COMMAND "${Python3_EXECUTABLE}"
-                "${CMAKE_CURRENT_SOURCE_DIR}/tools/compliance_gate.py" source)
-        add_test(NAME mkvc_compliance_unit
-            COMMAND "${Python3_EXECUTABLE}" -m unittest
-                tests/test_compliance_gate.py tests/test_collect_licenses.py
-                tests/test_build_wheel.py tests/test_build_nuget.py)
-        set_tests_properties(mkvc_compliance_unit PROPERTIES
-            WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+        mkvc_add_python_unittest(mkvc_abi_guard tests/test_abi_guard.py)
+        mkvc_add_python_unittest(mkvc_binding_guard tests/test_binding_guard.py)
+        mkvc_add_python_script_test(
+            mkvc_gpu_copy_audit_report tests/test_gpu_copy_audit.py)
+        mkvc_add_python_script_test(
+            mkvc_gpu_resource_monitor tests/test_gpu_resource_monitor.py)
+        mkvc_add_python_script_test(mkvc_usm_soak_report tests/test_usm_soak_report.py)
+        mkvc_add_python_script_test(mkvc_intel_prime_layout tests/test_intel_prime_layout.py)
+        mkvc_add_python_script_test(
+            mkvc_intel_kernel_trace_report tests/test_intel_kernel_trace.py)
+        mkvc_add_python_script_test(mkvc_media_oracle tests/test_media_oracle.py)
+        mkvc_add_python_script_test(
+            mkvc_intel_userspace_trace_report tests/test_intel_userspace_trace.py)
+        mkvc_add_python_script_test(
+            mkvc_opencl_reuse_session tests/test_opencl_reuse_session.py)
+        mkvc_add_python_script_test(
+            mkvc_compliance_source tools/compliance_gate.py source)
+        mkvc_add_python_unittest(
+            mkvc_compliance_unit tests/test_compliance_gate.py
+            tests/test_collect_licenses.py tests/test_build_wheel.py
+            tests/test_build_nuget.py)
     endif()
     add_executable(mkvc_c_api_tests tests/c_api_tests.cpp)
     target_compile_features(mkvc_c_api_tests PRIVATE cxx_std_17)
