@@ -42,6 +42,20 @@ contract is unchanged. The NVIDIA build, real CUDA event/stream test, and NVDEC
 decode test pass; GPU transcode remains an expected skip when the configured
 hardware codec path is unavailable.
 
+## 2026-09-05: oneVPL runtime lifetime owner
+
+Intel probe, decoder, and encoder now use one Doxygen-documented RAII owner for
+the dispatcher loader, session, and initialized codec component. It always tears
+down in component -> session -> loader order and also closes partially created
+runtimes when any configuration or initialization step fails.
+
+The decoder shares this owner with exported GPU surfaces, preserving the prior
+rule that closing Capture cannot invalidate a live surface. The encoder retains
+its deliberate imported-wrapper -> codec component -> session/loader -> original
+external-owner release ordering. Linux oneVPL builds without warnings and all 40
+tests pass, including VP9/AV1, VA surface synchronization, OpenCL processing,
+external import, and Python surface lifetime coverage.
+
 ## 2026-09-05: C ABI translation-unit split
 
 The former single C ABI implementation is separated into stable entry points,

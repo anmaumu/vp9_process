@@ -3,6 +3,8 @@
 #if defined(MKVC_HAS_INTEL_ONEVPL)
 #include <vpl/mfxdispatcher.h>
 #include <vpl/mfxvideo.h>
+
+#include "gpu/intel/vpl_session.hpp"
 #endif
 
 namespace mkvc {
@@ -58,32 +60,29 @@ IntelVplProbeResult probe_intel_vpl() {
     result.unavailable_reason = "oneVPL support was not built";
     return result;
 #else
-    mfxLoader loader = MFXLoad();
-    if (loader == nullptr) {
+    gpu::intel::VplSession lifetime;
+    if (!lifetime.load()) {
         result.unavailable_reason = "MFXLoad failed";
         return result;
     }
+    const mfxLoader loader = lifetime.loader();
     mfxConfig config = MFXCreateConfig(loader);
     if (config == nullptr) {
         result.unavailable_reason = "MFXCreateConfig failed";
-        MFXUnload(loader);
         return result;
     }
     mfxVariant hardware{};
     hardware.Type = MFX_VARIANT_TYPE_U32;
     hardware.Data.U32 = MFX_IMPL_TYPE_HARDWARE;
-    const auto* property = reinterpret_cast<const mfxU8*>(
-        "mfxImplDescription.Impl");
+    const auto* property = reinterpret_cast<const mfxU8*>("mfxImplDescription.Impl");
     if (MFXSetConfigFilterProperty(config, property, hardware) != MFX_ERR_NONE) {
         result.unavailable_reason = "oneVPL hardware filter was rejected";
-        MFXUnload(loader);
         return result;
     }
-    mfxSession session = nullptr;
-    const mfxStatus create_status = MFXCreateSession(loader, 0, &session);
+    const mfxStatus create_status = lifetime.create_session();
+    const mfxSession session = lifetime.session();
     if (create_status != MFX_ERR_NONE || session == nullptr) {
         result.unavailable_reason = "no oneVPL hardware implementation is available";
-        MFXUnload(loader);
         return result;
     }
     result.runtime_available = true;
@@ -96,8 +95,6 @@ IntelVplProbeResult probe_intel_vpl() {
     result.vp9_encode = query_encode(session, MFX_CODEC_VP9);
     result.av1_decode = query_decode(session, MFX_CODEC_AV1);
     result.av1_encode = query_encode(session, MFX_CODEC_AV1);
-    MFXClose(session);
-    MFXUnload(loader);
     return result;
 #endif
 }
