@@ -15,8 +15,11 @@ def valid_report():
         "high_water": {"rss_bytes": 12, "fds": 8, "threads": 12},
         "growth_budgets": {"rss_bytes": 4, "fds": 2, "threads": 4},
         "last_batch": {"validation": "passed", "public_api": True,
-                       "owners_released": 32, "allocations_released": 32,
-                       "events_released": 32, "consumer_dependencies": 32},
+                       "owners_released": 32, "allocations_released": 4,
+                       "events_released": 32, "consumer_dependencies": 32,
+                       "pool": {"capacity": 4, "peak_in_use": 4,
+                                "backpressure": 1, "acquisitions": 32,
+                                "rejected_acquisitions": 1, "wait_ns": 10}},
         "gpu_memory": {"processing_device": {"pci": "0000:83:00.0"},
                        "phases": {"active": {"0000:83:00.0": {
                            "high_water": {"drm-resident-vram0": 1}}}}},

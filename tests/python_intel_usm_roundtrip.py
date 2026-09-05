@@ -62,6 +62,7 @@ class UsmVaOwner:
 
     def __init__(self, source, array, library, width, height):
         self.source, self.array = source, array
+        self.usm_frame = None
         self.surface = U(0xFFFFFFFF)
         self.display = source.native_handle["handles"][0]
         va = ct.CDLL("libva.so.2")
@@ -102,6 +103,9 @@ class UsmVaOwner:
             check(self.destroy(self.display, ct.byref(self.surface), 1))
             self.surface.value = 0xFFFFFFFF
             UsmVaOwner.released += 1
+        if self.usm_frame is not None:
+            self.usm_frame.close()
+            self.usm_frame = None
 
 
 class SyclEventOwner:
@@ -170,16 +174,39 @@ def roundtrip(frames, monitor=None):
         source.wait(5000)
         desc = source.descriptor
     width, height = desc["width"], desc["height"]
+    pool_capacity = int(os.environ.get("MKVC_USM_POOL_CAPACITY", "8"))
+    assert 1 <= pool_capacity <= 64
     with tempfile.TemporaryDirectory() as directory:
         path = str(Path(directory) / "usm.webm")
+        pooled_resources = []
+        for _ in range(pool_capacity):
+            allocation = ExportableAllocation(queue, library, 2 * 1024**2)
+            memory = dpctl.memory.as_usm_memory(allocation)
+            view = dpnp.tensor.usm_ndarray(
+                (height * 3 // 2, width), dtype="u1", buffer=memory)
+            array = dpnp.asarray(view, copy=False)
+            pointer = array.__sycl_usm_array_interface__["data"][0]
+            pooled_resources.append((pointer, {
+                "allocation": allocation, "memory": memory,
+                "view": view, "array": array}))
+        del allocation, memory, view, array, pointer
+        pool = mkvcodec.IntelUsmFramePool(
+            pooled_resources,
+            context=queue.sycl_context.addressof_ref(),
+            queue=queue.addressof_ref(), device_id=0,
+            frame_size=(width, height), pitch=width,
+            dependency_registrar=register_dependency)
+        backpressure = 0
         with mkvcodec.VideoWriter(path, backend="intel", codec="av1", frame_size=(width, height),
                                  fps=30, queue_size=0, require_gpu_resident=True) as writer, \
                 (OpenClReuseSession() if reuse else nullcontext()) as session:
             for index in range(frames):
-                allocation = ExportableAllocation(queue, library, 2 * 1024**2)
-                memory = dpctl.memory.as_usm_memory(allocation)
-                view = dpnp.tensor.usm_ndarray((height * 3 // 2, width), dtype="u1", buffer=memory)
-                array = dpnp.asarray(view, copy=False)
+                slot = pool.try_acquire_slot()
+                if slot is None:
+                    backpressure += 1
+                    writer.flush()
+                    slot = pool.acquire_slot(5000)
+                array = slot.resource["array"]
                 owner = UsmVaOwner(source, array, library, width, height)
                 layout = export_layout(owner.display, owner.surface.value)
                 if not layout["linear_modifier"]:
@@ -201,16 +228,11 @@ def roundtrip(frames, monitor=None):
                 # Promote the synchronized device-USM allocation through the
                 # public frame/DLPack lease. This preserves pointer identity;
                 # the earlier tiled decode -> linear USM edge remains a GPU copy.
-                pointer = array.__sycl_usm_array_interface__["data"][0]
-                event_owner = SyclEventOwner(owner, array, library)
-                usm_frame = mkvcodec.GpuFrame.import_usm_nv12(
-                    pointer=pointer,
-                    context=array.sycl_queue.sycl_context.addressof_ref(),
-                    queue=array.sycl_queue.addressof_ref(),
-                    device_id=0, frame_size=(width, height), pitch=width,
-                    owner=event_owner, pts_ns=index * 33333333,
+                event_owner = SyclEventOwner(array, array, library)
+                usm_frame = slot.import_frame(
+                    pts_ns=index * 33333333,
                     event=event_owner.event.value,
-                    dependency_registrar=register_dependency)
+                    producer_owner=event_owner)
                 shared = dpnp.from_dlpack(QueueBoundPlane(
                     usm_frame.plane(0), array.sycl_queue.addressof_ref()))
                 assert shared.__sycl_usm_array_interface__["data"][0] == array.__sycl_usm_array_interface__["data"][0]
@@ -218,9 +240,9 @@ def roundtrip(frames, monitor=None):
                 shared.sycl_queue.wait()  # The DLPack consumer may choose another queue.
                 del shared
                 gc.collect()
-                usm_frame.close()
                 del event_owner
                 gc.collect()
+                owner.usm_frame = usm_frame
                 imported = mkvcodec.GpuFrame.import_va_surface(
                     display=owner.display, surface_id=owner.surface.value, device_id=desc["device_id"],
                     frame_size=(width, height), pts_ns=index * 33333333,
@@ -228,7 +250,7 @@ def roundtrip(frames, monitor=None):
                 owner_ref = weakref.ref(owner)
                 writer.write_surface(imported)
                 imported.close()
-                del imported, owner, array, usm_frame, allocation, view, memory
+                del imported, owner, array, usm_frame, slot
                 gc.collect()
                 # Runtime may have already retired non-anchor owners.
             assert writer.metrics.copy_path == "zero_copy"  # Final import boundary only.
@@ -236,7 +258,13 @@ def roundtrip(frames, monitor=None):
                 assert session.builds == 1 and session.completed_calls == frames
         gc.collect()
         assert UsmVaOwner.released == frames and owner_ref() is None
-        assert ExportableAllocation.released == frames
+        pool_stats = pool.stats
+        assert pool_stats.capacity == pool_capacity
+        assert pool_stats.in_use == 0 and pool_stats.peak_in_use <= pool_capacity
+        pool.close()
+        del pooled_resources
+        gc.collect()
+        assert ExportableAllocation.released == pool_capacity
         assert SyclEventOwner.released == frames
         assert dependency_registrations == frames
         source.close()
@@ -256,6 +284,12 @@ def roundtrip(frames, monitor=None):
               "allocations_released": ExportableAllocation.released,
               "events_released": SyclEventOwner.released,
               "consumer_dependencies": dependency_registrations,
+              "pool": {"capacity": pool_stats.capacity,
+                       "peak_in_use": pool_stats.peak_in_use,
+                       "backpressure": backpressure,
+                       "acquisitions": pool_stats.acquisitions,
+                       "rejected_acquisitions": pool_stats.rejected_acquisitions,
+                       "wait_ns": pool_stats.wait_ns},
               "edges": {"decode_to_linear_usm": "gpu_materialization", "usm_to_dlpack": "pointer_identical",
                         "usm_to_va_encode": "shared_import"}, "public_api": True}
 

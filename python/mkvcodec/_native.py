@@ -130,6 +130,31 @@ class CpuBufferDesc(ct.Structure):
     ]
 
 
+class GpuResourcePoolConfig(ct.Structure):
+    _fields_ = [
+        ("struct_size", ct.c_uint32), ("struct_version", ct.c_uint32),
+        ("capacity", ct.c_uint32), ("reserved", ct.c_uint32),
+    ]
+
+
+class GpuResourceReservationDesc(ct.Structure):
+    _fields_ = [
+        ("struct_size", ct.c_uint32), ("struct_version", ct.c_uint32),
+        ("slot_index", ct.c_uint32), ("reserved", ct.c_uint32),
+        ("generation", ct.c_uint64),
+    ]
+
+
+class GpuResourcePoolStats(ct.Structure):
+    _fields_ = [
+        ("struct_size", ct.c_uint32), ("struct_version", ct.c_uint32),
+        ("capacity", ct.c_uint32), ("in_use", ct.c_uint32),
+        ("peak_in_use", ct.c_uint32), ("reserved", ct.c_uint32),
+        ("acquisitions", ct.c_uint64),
+        ("rejected_acquisitions", ct.c_uint64), ("wait_ns", ct.c_uint64),
+    ]
+
+
 class PipelineMetrics(ct.Structure):
     _fields_ = [
         ("struct_size", ct.c_uint32),
@@ -241,6 +266,8 @@ GpuFrameHandle = ct.c_void_p
 SubmissionHandle = ct.c_void_p
 CpuFramePoolHandle = ct.c_void_p
 CpuBufferHandle = ct.c_void_p
+GpuResourcePoolHandle = ct.c_void_p
+GpuResourceReservationHandle = ct.c_void_p
 
 lib.mkvc_get_backend_capabilities.argtypes = [
     ct.POINTER(BackendCapability), ct.POINTER(ct.c_size_t)
@@ -306,6 +333,21 @@ lib.mkvc_encoder_submit_cpu_buffer.argtypes = [
     EncoderHandle, CpuBufferHandle, ct.c_int64, ct.POINTER(SubmissionHandle)
 ]
 lib.mkvc_encoder_submit_cpu_buffer.restype = ct.c_int
+
+lib.mkvc_gpu_resource_pool_create.argtypes = [
+    ct.POINTER(GpuResourcePoolConfig), ct.POINTER(GpuResourcePoolHandle)]
+lib.mkvc_gpu_resource_pool_create.restype = ct.c_int
+lib.mkvc_gpu_resource_pool_destroy.argtypes = [GpuResourcePoolHandle]
+lib.mkvc_gpu_resource_pool_acquire.argtypes = [
+    GpuResourcePoolHandle, ct.c_uint32, ct.POINTER(GpuResourceReservationHandle)]
+lib.mkvc_gpu_resource_pool_acquire.restype = ct.c_int
+lib.mkvc_gpu_resource_reservation_get_desc.argtypes = [
+    GpuResourceReservationHandle, ct.POINTER(GpuResourceReservationDesc)]
+lib.mkvc_gpu_resource_reservation_get_desc.restype = ct.c_int
+lib.mkvc_gpu_resource_reservation_release.argtypes = [GpuResourceReservationHandle]
+lib.mkvc_gpu_resource_pool_get_stats.argtypes = [
+    GpuResourcePoolHandle, ct.POINTER(GpuResourcePoolStats)]
+lib.mkvc_gpu_resource_pool_get_stats.restype = ct.c_int
 
 lib.mkvc_decoder_create.argtypes = [ct.POINTER(DecoderConfig), ct.POINTER(DecoderHandle)]
 lib.mkvc_decoder_create.restype = ct.c_int

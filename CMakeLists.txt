@@ -55,6 +55,7 @@ add_library(mkvcodec SHARED
     src/frame_processor.cpp
     src/gpu/gpu_frame.cpp
     src/gpu/gpu_frame_pool.cpp
+    src/gpu/gpu_resource_pool.cpp
     src/gpu/dlpack_adapter.cpp
     src/gpu/intel/intel_native_handle.cpp
     src/gpu/intel/va_completion.cpp
@@ -246,6 +247,9 @@ if(MKVC_BUILD_TESTS)
         target_compile_options(mkvc_gpu_frame_test PRIVATE -UNDEBUG)
     endif()
     add_test(NAME mkvc_gpu_frame COMMAND mkvc_gpu_frame_test)
+    add_executable(mkvc_gpu_resource_pool_test tests/gpu_resource_pool_test.cpp)
+    target_link_libraries(mkvc_gpu_resource_pool_test PRIVATE mkvcodec)
+    add_test(NAME mkvc_gpu_resource_pool COMMAND mkvc_gpu_resource_pool_test)
 
     if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SIZEOF_VOID_P EQUAL 8)
         include(CheckCSourceCompiles)

@@ -14,6 +14,29 @@ if (Marshal.SizeOf<MkvGpuFrameDescriptor>() != 136)
     throw new InvalidOperationException("MkvGpuFrameDescriptor ABI layout mismatch");
 if (Marshal.SizeOf<MkvGpuNativeHandleDescriptor>() != 64)
     throw new InvalidOperationException("MkvGpuNativeHandleDescriptor ABI layout mismatch");
+if (Marshal.SizeOf<MkvGpuResourceReservationDescriptor>() != 24 ||
+    Marshal.SizeOf<MkvGpuResourcePoolStatistics>() != 48)
+    throw new InvalidOperationException("GPU resource pool ABI layout mismatch");
+using (var gpuPool = new MkvGpuResourcePool(1))
+{
+    using var first = gpuPool.Acquire();
+    if (first.Descriptor.SlotIndex != 0 || first.Descriptor.Generation != 1 ||
+        gpuPool.TryAcquire(out _))
+        throw new InvalidOperationException("GPU resource pool backpressure failed");
+    try
+    {
+        using var unavailable = gpuPool.Acquire(5);
+        throw new InvalidOperationException("GPU resource pool timeout was not reported");
+    }
+    catch (MkvCodecException error) when (error.Result == MkvResult.Timeout)
+    {
+    }
+    var stats = gpuPool.Statistics;
+    if (stats.Capacity != 1 || stats.InUse != 1 || stats.PeakInUse != 1 ||
+        stats.Acquisitions != 1 || stats.RejectedAcquisitions != 2 ||
+        stats.WaitNanoseconds == 0)
+        throw new InvalidOperationException("GPU resource pool statistics mismatch");
+}
 if (Marshal.SizeOf<MkvCpuBufferDescriptor>() != 32)
     throw new InvalidOperationException("MkvCpuBufferDescriptor ABI layout mismatch");
 if (Marshal.SizeOf(typeof(NativeCopyPolicyForSmoke)) != 20)

@@ -11,6 +11,36 @@
 - GitHub Actions builds strict MkDocs HTML and stores `mkvcodec-documentation` for 30 days.
 - GitHub Pages publication remains disabled until an explicit public-release decision.
 
+## 2026-09-05: Fixed-capacity external GPU/Intel USM pool
+
+A versioned C ABI reservation pool now bounds caller-preallocated GPU resources
+without linking the production library to CUDA, SYCL, D3D11 or VA allocators.
+Reservations carry a slot index and monotonically changing per-slot generation;
+zero-timeout acquisition returns `WOULD_BLOCK`, finite waits return `TIMEOUT`, and
+the final reservation release wakes one waiter. Pool owner destruction does not
+invalidate existing reservations. Capacity, current/peak occupancy, successful
+acquisitions, rejected acquisitions and wait nanoseconds are observable.
+
+Python `IntelUsmFramePool` binds fixed `(pointer, owner)` resources to this native
+gate. An `IntelUsmPoolSlot` is acquired before producer submission and transfers
+its reservation into the imported USM frame. The Arc return path keeps that USM
+frame inside the VA owner through oneVPL encode, preventing early reuse after the
+DLPack consumer finishes. C++ exposes move-only RAII pool/reservations; .NET uses
+SafeHandle wrappers and permits a reservation to be the managed GPU-frame owner.
+
+Deterministic Windows/Linux tests cover capacity-one rejection, finite timeout,
+blocked-waiter wakeup, generation 1->2, occupancy metrics, DLPack-delayed recycle
+and pool-before-reservation destruction. Arc B580 passed eight AV1 frames with a
+single 2 MiB allocation, peak occupancy one and seven explicit backpressure
+events. Every frame/event/VA owner and the sole allocation was released; decoded
+pixels and PTS passed. A four-slot 240-frame run also passed while reusing only
+four allocations, with peak occupancy three and all 240 frame/event/dependency
+owners released. The earlier non-pooled 30-minute run passed 97,792 frames in
+3,056 batches, but does not replace a 30-minute qualification of this new pooled
+path.
+
+Traceability: EXT-GPU-002/009 -> INT-GPU-003/011 -> TEST-GPU-002/014.
+
 ## 2026-09-05: Intel USM consumer-queue dependency registration
 
 The versioned C ABI now accepts a synchronous consumer dependency callback for
@@ -34,13 +64,12 @@ USM allocations, Level Zero events and VA owners released; wall time was 2.47 s 
 peak process RSS was 646,864 KiB. This bounded run is not a substitute for the
 separate 30-minute VRAM/RSS qualification.
 
-The same test now supports bounded same-process soak batches and persists a
-fixed-size progress/failure report after every batch. A 2.43-second Arc smoke run
-passed four full teardown batches (128 frames): post-warm-up RSS grew by 102,400
-bytes, file descriptors and threads stayed constant, all per-batch owners were
-released, and active/post-close `xe` VRAM evidence was present for PCI
-`0000:83:00.0`. The 30-minute gate remains pending until its requested duration
-completes; the smoke result cannot satisfy it.
+The same test supports bounded same-process soak batches and persists a fixed-size
+progress/failure report after every batch. The legacy non-pooled path subsequently
+passed the full 30-minute gate: 3,056 batches and 97,792 frames in 1,800.4 seconds,
+with bounded RSS, file descriptors, threads and `xe` VRAM evidence for PCI
+`0000:83:00.0`. This result predates the fixed-capacity pool and therefore does not
+qualify pooled allocation reuse or pool-exhaustion behavior.
 
 Traceability: EXT-GPU-008 -> INT-GPU-010/011 -> TEST-GPU-004/009/010.
 
@@ -69,9 +98,10 @@ Arc B580 validation passed eight AV1 frames with public API enabled, identical
 USM/DLPack pointers, a linear DMA-BUF/VA identity, external dpnp processing,
 VA import to oneVPL encode, decoded-pixel/PTS oracle checks and all eight owner and
 allocation and Level Zero event-owner releases. Native and Python negative/lifetime
-tests pass on Windows and Linux. Consumer dependency registration was completed by
-the 2026-09-05 slice above. Allocator pool/backpressure, non-linear and
-cross-context fault qualification, Windows Intel and long soak remain pending.
+tests pass on Windows and Linux. Consumer dependency registration and bounded
+allocator pool/backpressure were completed by the 2026-09-05 slices above.
+Non-linear and cross-context fault qualification, Windows Intel and pooled long
+soak remain pending.
 
 Traceability: EXT-GPU-004/008/009 -> INT-GPU-011 -> TEST-GPU-009/010/018.
 
@@ -757,7 +787,7 @@ and an OS/oneVPL trace has not yet independently proven zero host pixel transfer
 | `EXT-OBS-001`, `INT-OBS-001/003/004` aggregate subset | versioned C ABI/Python metrics snapshots for frame counts, queue wait, backend time, capacity/peak, GPU pending peak and actual copy path | CPU native round-trip, Python benchmark smoke and Intel public round-trip | bounded queue/high-water and four pending Intel operations observed; per-stage conversion/codec/mux and GPU-event timing pending |
 | `INT-NV-001..003`, `TEST-NV-001`, `TEST-BACK-001`, `TEST-GPU-005` decode slice | runtime-only CUDA/NVCUVID loading, incremental libwebm demux, CPU I420 readback mode, and GPU mode returning leased mapped NVDEC CUDA pointers through the common C ABI/Python surface API | `mkvc_nvidia_probe`, `mkvc_nvidia_webm_decode` on Windows plus NVIDIA-free Linux strict build | RTX 2060 VP9 produces 30 ordered CUDA NV12 frames with pointer/context/pitch/plane offsets; holding the first lease does not drop frames; Capture close defers unmap/context destruction until final release. AV1 positive hardware, CUarray/event/stream export and trace proof remain pending |
 | `INT-NV-001..006`, `TEST-NV-002..005`, `TEST-GPU-007` encode/transcode slice | runtime-loaded CUDA/NVENC AV1 P4 synchronous adapter; CPU inputs plus leased CUDA pointer/array NV12 registration/map/encode/unmap/unregister; same-context enforcement, nanosecond PTS propagation and libwebm mux through the common Writer | `mkvc_nvidia_webm_encode`, `mkvc_nvidia_gpu_transcode`, NVIDIA-enabled Windows build and strict Linux build | VP9 encode is always rejected; unsupported AV1 hardware and NVIDIA-free hosts skip/fail without output. Source implementation and lifetime cleanup are present; RTX 2060 passes NVDEC, CUDA event/stream and real CUarray import regressions but cannot encode AV1, so positive pointer/array registered-resource encode, independent golden decode and DtoH/HtoD trace proof remain pending on an AV1-capable GPU |
-| `EXT-GPU-008`, `INT-GPU-010/011`, `TEST-GPU-009/010` DLPack foundation | C ABI exports linear CUDA and Intel device-USM NV12 planes as standard uint8 `DLManagedTensor`; Python imports synchronized USM or a borrowed Level Zero producer event with owner/context/queue/layout validation; native deleter retains every frame/event owner; optional consumer registrar imports the event into the consumer queue without host wait | native ABI/Python lifetime and negative tests; CuPy 14.2 on RTX 2060; dpnp 0.20/dpctl 0.22.1 on Arc B580 verifies kDLOneAPI pointer identity, eight Level Zero event releases/dependency barriers and public USM→VA→oneVPL AV1 roundtrip | CUDA dependency, Intel Level Zero producer event and direct consumer-SYCL-queue dependency slices complete. USM pool/backpressure/fault/soak, direct oneVPL USM consumption, processed-resource NVENC positive encode and built-wheel inspection remain pending |
+| `EXT-GPU-008`, `INT-GPU-010/011`, `TEST-GPU-009/010/014` DLPack foundation | C ABI exports linear CUDA and Intel device-USM NV12 planes as standard uint8 `DLManagedTensor`; Python imports synchronized USM or a borrowed Level Zero producer event with owner/context/queue/layout validation; native deleter retains every frame/event owner; optional consumer registrar imports the event into the consumer queue without host wait; fixed caller-preallocated pool bounds resource reuse | native ABI/Python lifetime and negative tests; CuPy 14.2 on RTX 2060; dpnp 0.20/dpctl 0.22.1 on Arc B580 verifies kDLOneAPI pointer identity, Level Zero dependency barriers and capacity-one USM→VA→oneVPL AV1 backpressure | CUDA dependency, Intel Level Zero producer event, direct consumer-SYCL-queue dependency and USM pool/backpressure slices complete. Cross-context fault/pooled 30-minute soak, direct oneVPL USM consumption, processed-resource NVENC positive encode and built-wheel inspection remain pending |
 | `EXT-PKG-001..004`, `AC-PKG-001`, `TEST-PKG-001..004` foundation | versioned dependency manifest, SPDX 2.3 generator, source policy scan and wheel/NuGet/ZIP content inspector | `mkvc_compliance_source`, `mkvc_compliance_unit`, documentation CI | manifest coverage, H.264/HEVC symbol exclusion, fail-closed legal-file checks and vendor GPU driver exclusion pass; real package construction, original LICENSE/PATENTS collection and final legal approval remain pending |
 | `EXT-PKG-002..004`, `TEST-PKG-001/003` legal-source collection | SHA-256 locked collector for libvpx/libwebm/libyuv/libaom/SVT-AV1/libvpl source texts, deduplicated nv-codec-headers MIT blocks and generated notice index | `tests/test_collect_licenses.py`, collection against the pinned Linux vcpkg/NVIDIA header trees | 13 legal payload files reproduced from exact build sources; hash drift and ambiguous source matches fail closed; project license decision and real wheel/NuGet embedding remain pending |
 | `EXT-PKG-001..004`, `AC-PKG-001`, `TEST-PKG-001/002` artifact assembly | platform wheel builder with RECORD and package-local native loader; RID-specific NuGet pack inputs with managed/native assets; both embed project-license input, legal payload and SPDX | `tests/test_build_wheel.py`, `tests/test_build_nuget.py`, real Linux wheel install/native load and local-source NuGet restore/full .NET round-trip | Linux wheel and NuGet artifacts pass content gate and execute without `MKVC_LIBRARY_PATH`; project license is mandatory and was represented only by a disposable test fixture; Windows artifacts and publication remain pending |

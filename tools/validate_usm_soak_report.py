@@ -32,10 +32,19 @@ def validate(report: dict, minimum_seconds: float = 0) -> None:
             raise ValueError(f"USM soak resource budget exceeded: {name}")
 
     batch = report.get("last_batch", {})
-    for name in ("owners_released", "allocations_released", "events_released",
-                 "consumer_dependencies"):
+    for name in ("owners_released", "events_released", "consumer_dependencies"):
         if batch.get(name) != per_batch:
             raise ValueError(f"USM soak ownership evidence is incomplete: {name}")
+    pool = batch.get("pool", {})
+    capacity = pool.get("capacity")
+    if (not isinstance(capacity, int) or capacity <= 0 or
+            batch.get("allocations_released") != capacity or
+            pool.get("peak_in_use", 0) > capacity or pool.get("peak_in_use", 0) <= 0):
+        raise ValueError("USM soak pool allocation evidence is incomplete")
+    if (pool.get("acquisitions") != per_batch or
+            pool.get("rejected_acquisitions") != pool.get("backpressure") or
+            not isinstance(pool.get("wait_ns"), int) or pool["wait_ns"] < 0):
+        raise ValueError("USM soak backpressure metrics are inconsistent")
     if batch.get("validation") != "passed" or not batch.get("public_api"):
         raise ValueError("USM soak last batch did not use the public API successfully")
 

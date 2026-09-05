@@ -196,6 +196,104 @@ class CpuFramePool {
     mkvc_cpu_frame_pool* handle_ = nullptr;
 };
 
+/** Move-only reservation for one caller-allocated external GPU resource. */
+class GpuResourceReservation {
+ public:
+    GpuResourceReservation() = default;
+    explicit GpuResourceReservation(mkvc_gpu_resource_reservation* handle)
+        : handle_(handle) {
+        desc_.struct_size = sizeof(desc_);
+        desc_.struct_version = 1;
+        try {
+            check(mkvc_gpu_resource_reservation_get_desc(handle_, &desc_));
+        } catch (...) {
+            mkvc_gpu_resource_reservation_release(
+                std::exchange(handle_, nullptr));
+            throw;
+        }
+    }
+    ~GpuResourceReservation() { reset(); }
+    GpuResourceReservation(const GpuResourceReservation&) = delete;
+    GpuResourceReservation& operator=(const GpuResourceReservation&) = delete;
+    GpuResourceReservation(GpuResourceReservation&& other) noexcept
+        : handle_(std::exchange(other.handle_, nullptr)), desc_(other.desc_) {}
+    GpuResourceReservation& operator=(GpuResourceReservation&& other) noexcept {
+        if (this != &other) {
+            reset();
+            handle_ = std::exchange(other.handle_, nullptr);
+            desc_ = other.desc_;
+        }
+        return *this;
+    }
+    uint32_t slot_index() const noexcept { return desc_.slot_index; }
+    uint64_t generation() const noexcept { return desc_.generation; }
+    explicit operator bool() const noexcept { return handle_ != nullptr; }
+    void reset() noexcept {
+        if (handle_) mkvc_gpu_resource_reservation_release(
+            std::exchange(handle_, nullptr));
+    }
+
+ private:
+    mkvc_gpu_resource_reservation* handle_ = nullptr;
+    mkvc_gpu_resource_reservation_desc desc_{};
+};
+
+/** Fixed-capacity backpressure gate for preallocated external GPU resources. */
+class GpuResourcePool {
+ public:
+    explicit GpuResourcePool(uint32_t capacity) {
+        mkvc_gpu_resource_pool_config config{};
+        config.struct_size = sizeof(config);
+        config.struct_version = 1;
+        config.capacity = capacity;
+        check(mkvc_gpu_resource_pool_create(&config, &handle_));
+    }
+    ~GpuResourcePool() { reset(); }
+    GpuResourcePool(const GpuResourcePool&) = delete;
+    GpuResourcePool& operator=(const GpuResourcePool&) = delete;
+    GpuResourcePool(GpuResourcePool&& other) noexcept
+        : handle_(std::exchange(other.handle_, nullptr)) {}
+    GpuResourcePool& operator=(GpuResourcePool&& other) noexcept {
+        if (this != &other) {
+            reset();
+            handle_ = std::exchange(other.handle_, nullptr);
+        }
+        return *this;
+    }
+    GpuResourceReservation acquire(uint32_t timeout_ms = UINT32_MAX) {
+        require_open();
+        mkvc_gpu_resource_reservation* value = nullptr;
+        check(mkvc_gpu_resource_pool_acquire(handle_, timeout_ms, &value));
+        return GpuResourceReservation(value);
+    }
+    std::optional<GpuResourceReservation> try_acquire() {
+        require_open();
+        mkvc_gpu_resource_reservation* value = nullptr;
+        const auto result = mkvc_gpu_resource_pool_acquire(handle_, 0, &value);
+        if (result == MKVC_WOULD_BLOCK) return std::nullopt;
+        check(result);
+        return GpuResourceReservation(value);
+    }
+    mkvc_gpu_resource_pool_stats stats() const {
+        require_open();
+        mkvc_gpu_resource_pool_stats value{};
+        value.struct_size = sizeof(value);
+        value.struct_version = 1;
+        check(mkvc_gpu_resource_pool_get_stats(handle_, &value));
+        return value;
+    }
+    void reset() noexcept {
+        if (handle_) mkvc_gpu_resource_pool_destroy(
+            std::exchange(handle_, nullptr));
+    }
+
+ private:
+    void require_open() const {
+        if (!handle_) throw std::logic_error("MKVCodec GPU resource pool is closed");
+    }
+    mkvc_gpu_resource_pool* handle_ = nullptr;
+};
+
 /** Move-only retained CPU decoder output. Borrowed views live with this owner. */
 class Frame {
  public:

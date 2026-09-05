@@ -210,7 +210,14 @@ kDLOneAPI DLPackへ公開できます。borrowed Level Zero eventも受け付け
 consumer SYCL queueへのevent dependency登録、dpnp処理とVA→oneVPL AV1 encodeまで
 確認済みです。`dependency_registrar`を指定しない場合は安全なhost待機へ戻ります。
 decode tiled imageからlinear USMへのmaterializationはGPU copyです。Windows Intelの
-encode実機検証、正式pool/backpressureと長時間fault/soak検証は未完了です。
+encode実機検証と長時間fault/soak検証は未完了です。
+
+反復処理では`IntelUsmFramePool`へcaller側で事前確保した`(USM pointer, owner)`を
+登録できます。`acquire_slot()`でproducer処理前に排他的slotを確保し、処理投入後に
+`slot.import_frame(event=..., producer_owner=...)`へ移譲します。frame/DLPack/encoderの
+最終leaseまでslotは再取得されず、`try_acquire_slot()`は満杯時に`None`を返します。
+native poolはSYCLをlinkせず、容量・peak・拒否回数・待機時間をC/Python/C++/.NETから
+照会できます。
 
 Windows D3D11のproducer fenceは`mkvc_gpu_frame_import_d3d11_fence()`、C++の
 `GpuFrame::import_d3d11_fence()`、.NETの`MkvGpuFrame.ImportD3D11Fence()`、Pythonの

@@ -108,6 +108,30 @@ internal static class NativeMethods
     internal static extern void mkvc_cpu_buffer_release(nint buffer);
 
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern MkvResult mkvc_gpu_resource_pool_create(
+        ref NativeGpuResourcePoolConfig config, out MkvGpuResourcePoolHandle pool);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern void mkvc_gpu_resource_pool_destroy(nint pool);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern MkvResult mkvc_gpu_resource_pool_acquire(
+        MkvGpuResourcePoolHandle pool, uint timeoutMilliseconds,
+        out MkvGpuResourceReservationHandle reservation);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern MkvResult mkvc_gpu_resource_reservation_get_desc(
+        MkvGpuResourceReservationHandle reservation,
+        ref MkvGpuResourceReservationDescriptor descriptor);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern void mkvc_gpu_resource_reservation_release(nint reservation);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern MkvResult mkvc_gpu_resource_pool_get_stats(
+        MkvGpuResourcePoolHandle pool, ref MkvGpuResourcePoolStatistics statistics);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
     internal static extern MkvResult mkvc_decoder_create(
         ref NativeDecoderConfig config, out MkvDecoderHandle decoder);
 

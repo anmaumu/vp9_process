@@ -64,6 +64,26 @@ public sealed class MkvCpuBufferHandle : SafeHandleZeroOrMinusOneIsInvalid
     }
 }
 
+public sealed class MkvGpuResourcePoolHandle : SafeHandleZeroOrMinusOneIsInvalid
+{
+    private MkvGpuResourcePoolHandle() : base(true) { }
+    protected override bool ReleaseHandle()
+    {
+        NativeMethods.mkvc_gpu_resource_pool_destroy(handle);
+        return true;
+    }
+}
+
+public sealed class MkvGpuResourceReservationHandle : SafeHandleZeroOrMinusOneIsInvalid
+{
+    private MkvGpuResourceReservationHandle() : base(true) { }
+    protected override bool ReleaseHandle()
+    {
+        NativeMethods.mkvc_gpu_resource_reservation_release(handle);
+        return true;
+    }
+}
+
 public sealed class MkvSubmissionHandle : SafeHandleZeroOrMinusOneIsInvalid
 {
     private MkvSubmissionHandle() : base(true) { }

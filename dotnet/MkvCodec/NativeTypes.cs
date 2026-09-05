@@ -45,6 +45,39 @@ internal struct NativeCpuFramePoolConfig
 }
 
 [StructLayout(LayoutKind.Sequential)]
+internal struct NativeGpuResourcePoolConfig
+{
+    internal uint StructSize;
+    internal uint StructVersion;
+    internal uint Capacity;
+    internal uint Reserved;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct MkvGpuResourceReservationDescriptor
+{
+    public uint StructSize;
+    public uint StructVersion;
+    public uint SlotIndex;
+    public uint Reserved;
+    public ulong Generation;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct MkvGpuResourcePoolStatistics
+{
+    public uint StructSize;
+    public uint StructVersion;
+    public uint Capacity;
+    public uint InUse;
+    public uint PeakInUse;
+    public uint Reserved;
+    public ulong Acquisitions;
+    public ulong RejectedAcquisitions;
+    public ulong WaitNanoseconds;
+}
+
+[StructLayout(LayoutKind.Sequential)]
 public struct MkvCpuBufferDescriptor
 {
     public uint StructSize;

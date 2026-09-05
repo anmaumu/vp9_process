@@ -68,7 +68,7 @@ profile: test-spec@1.0
 | `TEST-GPU-011` | `require_gpu_resident`、`allow_gpu_copy`、`allow_cpu_copy`の組合せ表どおり成功/失敗し、silent fallbackがない | parameterized | all |
 | `TEST-GPU-012` | decode/export/import/encode各stageのdevice lost、timeout、cancelで全waiterが起床し一度だけcleanupされる | fault injection | Intel/NVIDIA |
 | `TEST-GPU-013` | API traceとCUDA/oneVPL/OS traceでoperation別copy-pathを照合し、CPU transfer counterがzero | trace/performance | Intel/NVIDIA |
-| `TEST-GPU-014` | pool枯渇、遅いconsumer、複数stream、30分soakでdeadlockせずVRAM/handle/pending数がbounded | stress/soak | Intel/NVIDIA |
+| `TEST-GPU-014` | pool枯渇、遅いconsumer、複数stream、30分soakでdeadlockせずVRAM/handle/pending数がbounded。共通reservation poolはcapacity=1でWOULD_BLOCK/有限timeout/blocked waiter起床、slot generation更新、pool先行破棄、occupancy/rejection/wait metricsを常時CI検証する。Intel USM実機はpreallocated allocationを再利用し、capacity=1で8 frames中7回の明示backpressure→writer flush→再取得、全owner/event/allocation解放と画素/PTSを検証する | stress/soak | Intel/NVIDIA |
 | `TEST-GPU-015` | Linux VA Intel VP9/AV1 decode surfaceを`write_surface`へ渡し、lease即時解放、pool進行、frame数一致を検証 | end-to-end/hardware | Linux Intel |
 | `TEST-GPU-016` | `require_gpu_resident=True`でCPU read/writeを拒否し、GPU transcode metricsが`zero_copy`となる | API/end-to-end | Python/Linux Intel |
 | `TEST-GPU-017` | .NET strict Capture `ReadSurface`→Writer `WriteSurface`でlease解放順、frame数、PTS、`zero_copy` metricsを検証する | end-to-end/hardware | .NET Intel/NVIDIA |
@@ -136,11 +136,11 @@ Arc/USM追加検証（TEST-GPU-005/008/009/013/014/019/020）:
 - `mkvc_intel_opencl_av1_roundtrip`は128x128入力、32 frames、CPU FFmpeg oracle、PTS増加、Y-PSNR>25 dBを確認し、非同期import wrapperのPTS早期復元を回帰検知する。GPU source/inputはVP9、outputはAV1。`ffmpeg/ffprobe`があるLinux Intel buildで登録する。
 - `MKVC_TEST_INTEL_DRM_RENDER_NODE=129`はtest build限定のLinux選択hookで、128..255のみ受理する。`MKVC_TEST_GPU_PCI=0000:83:00.0`は外部OpenCL deviceの実PCI照合、`MKVC_REQUIRE_VRAM_OBSERVATION=1`はその処理先のVRAM観測を必須化する。番号はlinux-machineの例であり一般的なdevice numberingを意味しない。
 - copy auditは各symbolに16個の独立forwarding slotを持ち、dlmopen別namespaceへの追加呼出しも実際に捕捉する。table exhaustionはbinding_conflictsとして拒否する。loaded-runtimeの存在は内部全copyを捕捉した証明ではない。
-- `python_intel_usm_roundtrip.py`は公開済みのLevel Zero event付きlinear device-USM/DLPack sliceを実機検証するoptional試験である。export flag付き専用device USM→DMA-BUF→VA linear NV12の同一object identity、borrowed event query、kDLOneAPI DLPack pointer一致、eventを実consumer SYCL queueへimportしたbarrier登録回数、consumer queue完了、caller先行解放と全VA/USM/event owner解放、encode後のCPU画素/PTSを検証する。既定8 frames、`MKVC_USM_TEST_FRAMES=1..240`。decoder image→別linear USMはGPU materializationであり、strict zero-copyの成功例にしない。
+- `python_intel_usm_roundtrip.py`は公開済みのLevel Zero event付きlinear device-USM/DLPack sliceを実機検証するoptional試験である。`MKVC_USM_POOL_CAPACITY=1..64`個のexport flag付きdevice-USMを事前確保し、DMA-BUF→VA linear NV12の同一object identity、slot再利用、borrowed event query、kDLOneAPI DLPack pointer一致、eventを実consumer SYCL queueへimportしたbarrier登録回数、consumer queue完了、caller先行解放と全VA/USM/event owner解放、encode後のCPU画素/PTSを検証する。既定8 frames/8 slots、`MKVC_USM_TEST_FRAMES=1..240`。decoder image→別linear USMはGPU materializationであり、strict zero-copyの成功例にしない。
 - `MKVC_USM_SOAK_SECONDS=1..86400`では同一processでbatchごとにdecode/writer/SYCL/VA resourceを生成・破棄し、最低2 batchかつ要求秒数以上を実行する。warm-up後のpost-close RSS/FD/thread増分budgetは+256 MiB/+2/+4、active/post-close DRM fdinfo増分budgetはfieldごとに+256 MiBとする。`MKVC_REQUIRE_VRAM_OBSERVATION=1`では処理対象PCIのactive `drm-resident-vram*`を必須とし、固定サイズJSONへ各batch後の進捗と失敗状態を保存する。2秒smokeは基盤確認であり30分受入れの代用ではない。
 - `validate_usm_soak_report.py --minimum-seconds 1800`は`validation=passed`、要求時間、batch/frame整合、RSS/FD/thread budget、最終batchの全owner/allocation/event/dependency数、処理GPUのactive VRAM証拠を独立に再検査する。途中reportやfield欠落を0または成功として解釈しない。
 - C ABI unitはproducer pending中でも成功registrar付きDLPack exportがhost待機せず返ること、event/stream値、callback必須条件を検証する。Python registrar例外は元例外を再送出し、native tensorを生成しない。registrarなしのevent付きUSMは従来どおりhost待機する。
-- pool由来のphysical extent/offset不明、nonlinear export、違うdevice/context、host/shared USM、export失敗、fd枯渇、device loss、DLPack別consumerのshutdown、正式pool/backpressureは追加gateとする。Linux event sliceの成功だけではWindows USMや全pipelineの完全非同期化を完了としない。
+- pool由来でもphysical extent/offset不明、nonlinear export、違うdevice/context、host/shared USM、export失敗、fd枯渇、device loss、DLPack別consumerのshutdownは追加gateとする。固定slot/backpressureの成功だけではWindows USMや全pipelineの完全非同期化を完了としない。
 
 Optional USM実験の準備・実行例（Linux、oneVPL test build、Level Zero開発header/libraryが必要）:
 
@@ -149,6 +149,7 @@ MKVC_TEST_INTEL_DRM_RENDER_NODE=129 \
 MKVC_TEST_GPU_PCI=0000:83:00.0 \
 MKVC_REQUIRE_VRAM_OBSERVATION=1 \
 MKVC_USM_TEST_FRAMES=32 \
+MKVC_USM_POOL_CAPACITY=8 \
 MKVC_USM_SOAK_SECONDS=1800 \
 LD_LIBRARY_PATH="$PWD/build/usm-env/lib" \
 build/usm-env/bin/python3 tests/python_intel_usm_roundtrip.py \

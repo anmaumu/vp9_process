@@ -94,9 +94,9 @@
 - [ ] NVIDIA CUarray/stream decode export（外部CUarray importとCUDA event dependencyは完了）
 - [x] native NVIDIA linear CUDA-pointer DLPack plane adapter and native lease deleter
 - [x] Python stable-ABI DLPack capsule and `GpuFrame.plane()` protocol source API
-- [ ] Intel safe USM adapter（同期/Level Zero producer event、consumer queueへの直接dependency、同一processのRSS/FD/thread/VRAM bounded soak基盤は完了。正式pool/backpressure、cross-context/fault、30分完走は残る）
+- [ ] Intel safe USM adapter（同期/Level Zero producer event、consumer queueへの直接dependency、caller-preallocated固定容量pool/backpressure、同一processのRSS/FD/thread/VRAM bounded soak基盤は完了。cross-context/fault、pool版30分完走は残る）
 - [x] versioned C ABI/Python synchronized device-USM import -> kDLOneAPI DLPack/dpnp -> linear VA shared import -> AV1 encode on Arc; explicit tiled-to-linear GPU materialization
-- [ ] promote the experimental USM path to versioned C ABI/Python APIs with copy policy, allocator pool, layout/context validation and fault/lifetime qualification
+- [ ] promote the experimental USM path to production qualification（versioned C ABI/Python API、caller-preallocated reservation pool、基本layout/context/lifetime検証は完了。全edge copy policy、cross-context/device-loss/fd-exhaustion、pooled長時間試験は残る）
 - [x] backend-neutral external GPU frame wrapper with producer-query and single-shot release callbacks; CUDA-pointer NV12 is NVIDIA-encode compatible
 - [x] Python stable-ABI owner holder and synchronized/CUDA-event CUDA-pointer NV12 import adapter
 - [x] external CUDA CUarray/linear-DLPack import with producer event/deleter ownership（CUarray NVENC positive encodeはAV1対応GPU待ち）

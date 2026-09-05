@@ -14,6 +14,19 @@ void release_external(void* opaque) {
 
 int main(int argc, char** argv) {
     assert(argc == 2);
+    mkvcodec::GpuResourcePool gpu_pool(1);
+    auto gpu_slot = gpu_pool.acquire();
+    assert(gpu_slot.slot_index() == 0 && gpu_slot.generation() == 1);
+    assert(!gpu_pool.try_acquire().has_value());
+    gpu_slot.reset();
+    auto gpu_slot_again = gpu_pool.try_acquire();
+    assert(gpu_slot_again && gpu_slot_again->generation() == 2);
+    auto gpu_stats = gpu_pool.stats();
+    assert(gpu_stats.capacity == 1 && gpu_stats.in_use == 1 &&
+           gpu_stats.peak_in_use == 1);
+    assert(gpu_stats.acquisitions == 2 &&
+           gpu_stats.rejected_acquisitions == 1);
+    gpu_slot_again.reset();
     constexpr uint32_t width = 64;
     constexpr uint32_t height = 48;
     const std::string output = argv[1];

@@ -269,6 +269,36 @@ typedef struct mkvc_cpu_frame_pool_config {
     uint32_t capacity;       /**< Number of fixed native frame slots. */
 } mkvc_cpu_frame_pool_config;
 
+/** Fixed-capacity reservation pool for caller-allocated GPU resources. */
+typedef struct mkvc_gpu_resource_pool_config {
+    uint32_t struct_size;
+    uint32_t struct_version; /**< Must be 1. */
+    uint32_t capacity;       /**< Number of preallocated external resources. */
+    uint32_t reserved;       /**< Must be zero. */
+} mkvc_gpu_resource_pool_config;
+
+/** Immutable identity of one external GPU resource reservation. */
+typedef struct mkvc_gpu_resource_reservation_desc {
+    uint32_t struct_size;
+    uint32_t struct_version; /**< Must be 1. */
+    uint32_t slot_index;
+    uint32_t reserved;
+    uint64_t generation;     /**< Increments whenever this slot is reacquired. */
+} mkvc_gpu_resource_reservation_desc;
+
+/** Current bounded external GPU resource-pool occupancy. */
+typedef struct mkvc_gpu_resource_pool_stats {
+    uint32_t struct_size;
+    uint32_t struct_version; /**< Must be 1. */
+    uint32_t capacity;
+    uint32_t in_use;
+    uint32_t peak_in_use;
+    uint32_t reserved;
+    uint64_t acquisitions;
+    uint64_t rejected_acquisitions;
+    uint64_t wait_ns;
+} mkvc_gpu_resource_pool_stats;
+
 /** Immutable identity and layout summary for one native CPU buffer lease. */
 typedef struct mkvc_cpu_buffer_desc {
     uint32_t struct_size;
@@ -345,6 +375,10 @@ typedef struct mkvc_submission mkvc_submission;
 typedef struct mkvc_cpu_frame_pool mkvc_cpu_frame_pool;
 /** Generation-checked lease over one native CPU frame pool slot. */
 typedef struct mkvc_cpu_buffer mkvc_cpu_buffer;
+/** Opaque fixed-capacity reservation pool for external GPU allocations. */
+typedef struct mkvc_gpu_resource_pool mkvc_gpu_resource_pool;
+/** Lease that prevents one external GPU pool slot from being reused. */
+typedef struct mkvc_gpu_resource_reservation mkvc_gpu_resource_reservation;
 
 /** Synchronous decoder creation parameters. */
 typedef struct mkvc_decoder_config {
@@ -463,6 +497,28 @@ MKVC_API mkvc_result mkvc_encoder_submit_cpu_buffer(
     const mkvc_cpu_buffer* buffer,
     int64_t pts,
     mkvc_submission** out_submission);
+
+/** Create a bounded reservation pool; callers preallocate and own each resource. */
+MKVC_API mkvc_result mkvc_gpu_resource_pool_create(
+    const mkvc_gpu_resource_pool_config* config,
+    mkvc_gpu_resource_pool** out_pool);
+/** Destroy the pool owner; outstanding reservations remain valid. */
+MKVC_API void mkvc_gpu_resource_pool_destroy(mkvc_gpu_resource_pool* pool);
+/** Acquire one slot; zero timeout returns WOULD_BLOCK when the pool is full. */
+MKVC_API mkvc_result mkvc_gpu_resource_pool_acquire(
+    mkvc_gpu_resource_pool* pool, uint32_t timeout_ms,
+    mkvc_gpu_resource_reservation** out_reservation);
+/** Query the slot and generation of a live reservation. */
+MKVC_API mkvc_result mkvc_gpu_resource_reservation_get_desc(
+    const mkvc_gpu_resource_reservation* reservation,
+    mkvc_gpu_resource_reservation_desc* out_desc);
+/** Release one reservation and wake one blocked acquirer. */
+MKVC_API void mkvc_gpu_resource_reservation_release(
+    mkvc_gpu_resource_reservation* reservation);
+/** Snapshot capacity, current occupancy and peak occupancy. */
+MKVC_API mkvc_result mkvc_gpu_resource_pool_get_stats(
+    const mkvc_gpu_resource_pool* pool,
+    mkvc_gpu_resource_pool_stats* out_stats);
 
 /** Return thread-local error detail valid until the next API call on this thread. */
 MKVC_API const char* mkvc_get_last_error(void);
