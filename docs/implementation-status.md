@@ -51,6 +51,15 @@ metrics accumulation, and backend finalization remain under the same locking and
 FIFO contract. `encoder_session.cpp` is reduced to session-facing operations and
 backend selection.
 
+## 2026-09-06: Python capture/writer split
+
+`VideoWriter` and `VideoCapture` now live in `_writer.py` and `_capture.py`;
+metrics, FPS normalization, and NumPy plane-pointer helpers live in
+`_io_common.py`. `_io.py` remains a compatibility re-export, so public imports
+through `mkvcodec` and the former internal module continue to resolve. Docgen
+scans the physical implementation modules. Windows CPU/DLPack checks and the
+complete Linux Intel VA/OpenCL suite pass after the split.
+
 ## 2026-09-05: CMake test modules
 
 Repository Python script tests and unittest suites now use two small CMake
