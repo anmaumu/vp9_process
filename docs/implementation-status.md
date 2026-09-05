@@ -127,8 +127,10 @@ A NumPy-documented binding guard extracts the canonical symbol set from
 CTest and documentation CI with negative tests for both failure directions.
 Python compile/import coverage, the guard tests, and the project-local .NET 8
 build and native smoke test pass. Struct layouts and parameter marshalling remain
-checked by the existing ABI and managed smoke tests. Their declarations are now
-generated in the next implementation slice.
+checked by the existing ABI and managed smoke tests. Python structure declarations
+are generated from the same header; .NET structure generation remains a separate
+implementation slice because its public names and fixed-array marshalling are part
+of the managed compatibility surface.
 
 ## 2026-09-05: Generated Python/.NET native signatures
 
@@ -139,13 +141,30 @@ integers, structs, callbacks, and opaque handles; any new unmapped C type fails
 closed instead of falling back to an unsafe default. The .NET mapping explicitly
 preserves raw pointers for SafeHandle release/close and existing metrics calls,
 while ordinary calls retain typed SafeHandle parameters. Hand-maintained files
-retain library discovery, type definitions, ownership wrappers, and error mapping.
+retain library discovery, opaque handles and callbacks, ownership wrappers, and
+error mapping. .NET type declarations remain hand-maintained at this stage.
 
 Generated files are checked into source so wheel and NuGet builds do not require
 the generator. Unit tests verify reproducibility, all public functions, unknown-
 type rejection, SafeHandle release signatures, typed submission status, and
 binding symbol completeness. CTest and documentation CI run the generator check
 without rewriting the worktree; the .NET 8 build and native smoke test pass.
+
+## 2026-09-06: Generated Python C ABI types
+
+Python enum constants and all concrete ctypes structures are now generated from
+the canonical `mkvc.h` ABI surface. The generator preserves fixed-width scalar
+types, pointers, fixed arrays, and nested structures, and orders nested structure
+definitions by dependency. Opaque handles, callback prototypes, dynamic-library
+loading, ownership wrappers, and exception translation remain explicit Python
+code because they express runtime policy rather than C data layout.
+
+The generated module is checked into source so installed wheels do not need the
+generator or C headers. Reproducibility checks reject stale output, and focused
+tests require every public enum and structure field to be emitted and reject an
+unknown field type instead of guessing its layout. The complete Windows suite
+passes with the two hardware-dependent NVIDIA tests skipped as expected; the
+same generated declarations are also validated by the complete Intel Linux suite.
 
 ## 2026-09-05: Scoped CUDA context activation
 

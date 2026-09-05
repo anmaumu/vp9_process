@@ -12,6 +12,7 @@ import abi_guard
 ROOT = Path(__file__).resolve().parents[1]
 PYTHON_NATIVE = ROOT / "python" / "mkvcodec" / "_native.py"
 PYTHON_SIGNATURES = ROOT / "python" / "mkvcodec" / "_native_signatures.py"
+PYTHON_TYPES = ROOT / "python" / "mkvcodec" / "_native_types.py"
 DOTNET_NATIVE = ROOT / "dotnet" / "MkvCodec" / "NativeMethods.cs"
 DOTNET_METHODS = ROOT / "dotnet" / "MkvCodec" / "NativeMethods.Generated.cs"
 START_MARKER = "# BEGIN MKVC GENERATED CTYPES SIGNATURES"
@@ -55,6 +56,18 @@ _CTYPES = {
     "uint32_t": "ct.c_uint32",
     "uint64_t": "ct.c_uint64",
     "void": "None",
+}
+_PYTHON_FIELD_TYPES = {
+    "char*": "ct.c_char_p",
+    "const char*": "ct.c_char_p",
+    "int32_t": "ct.c_int32",
+    "int64_t": "ct.c_int64",
+    "uint8_t": "ct.c_uint8",
+    "uint32_t": "ct.c_uint32",
+    "uint64_t": "ct.c_uint64",
+    "void*": "ct.c_void_p",
+    "mkvc_gpu_external_query_callback": "ct.c_void_p",
+    "mkvc_gpu_external_release_callback": "ct.c_void_p",
 }
 _OPAQUE_TYPES = {
     "mkvc_cpu_buffer", "mkvc_cpu_frame_pool", "mkvc_decoder", "mkvc_encoder",
@@ -202,6 +215,89 @@ def render_python(header: Path = abi_guard.HEADER) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _struct_field(field: str) -> tuple[str, str, int | None]:
+    match = re.fullmatch(r"(.+?[*\s])\s*(\w+)(?:\[(\d+)\])?", field)
+    if match is None:
+        raise BindingGenerationError(f"invalid C ABI struct field: {field}")
+    return " ".join(match.group(1).split()), match.group(2), (
+        int(match.group(3)) if match.group(3) else None
+    )
+
+
+def _python_field_type(c_type: str, array_size: int | None) -> str:
+    normalized = " ".join(c_type.split())
+    pointer_depth = normalized.count("*")
+    base = normalized.replace("const", "").replace("*", "").strip()
+    if normalized in _PYTHON_FIELD_TYPES:
+        result = _PYTHON_FIELD_TYPES[normalized]
+    elif pointer_depth == 1 and base == "uint8_t":
+        result = "ct.POINTER(ct.c_uint8)"
+    elif pointer_depth == 0 and base in _PYTHON_FIELD_TYPES:
+        result = _PYTHON_FIELD_TYPES[base]
+    elif pointer_depth == 0 and base in _PYTHON_TYPES:
+        result = _PYTHON_TYPES[base]
+    else:
+        raise BindingGenerationError(f"unmapped C ABI struct field type: {c_type}")
+    if array_size is not None:
+        result = f"{result} * {array_size}"
+    return result
+
+
+def render_python_types(header: Path = abi_guard.HEADER) -> str:
+    """Render ctypes constants and structures from the canonical C ABI."""
+    surface = abi_guard._surface(header)
+    enums = surface["enums"]
+    pending = dict(surface["structs"])
+    ordered: list[tuple[str, list[str]]] = []
+    while pending:
+        progressed = False
+        for name, fields in list(pending.items()):
+            dependencies = {
+                _struct_field(field)[0].replace("const", "").replace("*", "").strip()
+                for field in fields
+            } & set(pending)
+            if dependencies:
+                continue
+            ordered.append((name, fields))
+            del pending[name]
+            progressed = True
+        if not progressed:
+            raise BindingGenerationError(
+                "cyclic or unresolved C ABI struct dependencies: "
+                + ", ".join(sorted(pending))
+            )
+    exported = ["MKVC_ABI_VERSION"]
+    lines = [
+        '"""Generated ctypes constants and structures; do not edit."""',
+        "",
+        "from __future__ import annotations",
+        "",
+        "import ctypes as ct",
+        "",
+        f'MKVC_ABI_VERSION = {surface["abi_version"]}',
+    ]
+    for values in enums.values():
+        for name, value in values.items():
+            lines.append(f"{name} = {value}")
+            exported.append(name)
+    for struct_name, fields in ordered:
+        class_name = _PYTHON_TYPES.get(struct_name)
+        if class_name is None:
+            raise BindingGenerationError(f"unmapped Python ABI struct: {struct_name}")
+        exported.append(class_name)
+        lines.extend(("", "", f"class {class_name}(ct.Structure):", "    _fields_ = ["))
+        for field in fields:
+            c_type, name, array_size = _struct_field(field)
+            lines.append(
+                f'        ("{name}", {_python_field_type(c_type, array_size)}),'
+            )
+        lines.append("    ]")
+    lines.extend(("", "", "__all__ = ["))
+    lines.extend(f'    "{name}",' for name in exported)
+    lines.append("]")
+    return "\n".join(lines) + "\n"
+
+
 def _dotnet_return(c_type: str) -> str:
     normalized = " ".join(c_type.split())
     values = {"mkvc_result": "MkvResult", "void": "void", "const char*": "nint"}
@@ -309,6 +405,7 @@ def _dotnet_loader(source: str) -> str:
 def generate() -> None:
     """Write deterministic Python binding artifacts."""
     PYTHON_SIGNATURES.write_text(render_python(), encoding="utf-8")
+    PYTHON_TYPES.write_text(render_python_types(), encoding="utf-8")
     source = PYTHON_NATIVE.read_text(encoding="utf-8")
     PYTHON_NATIVE.write_text(_native_loader(source), encoding="utf-8")
     DOTNET_METHODS.write_text(render_dotnet(), encoding="utf-8")
@@ -322,6 +419,10 @@ def check() -> None:
             encoding="utf-8") != render_python():
         raise BindingGenerationError(
             "generated Python signatures are stale; run tools/generate_bindings.py generate")
+    if not PYTHON_TYPES.exists() or PYTHON_TYPES.read_text(
+            encoding="utf-8") != render_python_types():
+        raise BindingGenerationError(
+            "generated Python types are stale; run tools/generate_bindings.py generate")
     source = PYTHON_NATIVE.read_text(encoding="utf-8")
     if source != _native_loader(source):
         raise BindingGenerationError("_native.py contains hand-edited generated declarations")
