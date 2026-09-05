@@ -9,6 +9,8 @@
   public struct field against the reviewed v1 snapshot before refactors merge.
 - `binding_guard check` requires Python ctypes and .NET P/Invoke to declare the
   complete function-symbol set extracted from the canonical public C header.
+- `generate_bindings check` reproduces Python ctypes function signatures from
+  that header and rejects stale checked-in generated code.
 - C ABI and Python API references are extracted from source declarations.
 - Doxygen generates C/C++ HTML and XML from public/internal source comments.
 - Every exported `MKVC_API` symbol must have a Doxygen comment; missing comments fail docgen.
@@ -51,8 +53,22 @@ A NumPy-documented binding guard extracts the canonical symbol set from
 CTest and documentation CI with negative tests for both failure directions.
 Python compile/import coverage, the guard tests, and the project-local .NET 8
 build and native smoke test pass. Struct layouts and parameter marshalling remain
-checked by the existing ABI and managed smoke tests; full declaration code
-generation is a later cleanup rather than an unreviewed rewrite.
+checked by the existing ABI and managed smoke tests; .NET declaration generation
+remains a later cleanup rather than an unreviewed rewrite.
+
+## 2026-09-05: Generated Python ctypes signatures
+
+All 58 Python ctypes `argtypes` and `restype` declarations are now generated
+deterministically from the normalized public C header. A small reviewed mapping
+defines ctypes representations for fixed-width integers, structs, callbacks,
+and opaque handles; any new unmapped C type fails closed instead of falling back
+to an unsafe default. The hand-maintained `_native.py` retains library discovery,
+struct definitions, callback types, and error translation only.
+
+The generated module has NumPy-style documentation and is checked into source so
+wheel builds do not require a generator. Unit tests verify reproducibility, all
+public functions, unknown-type rejection, and binding symbol completeness. CTest
+and documentation CI run the generator check without rewriting the worktree.
 
 ## 2026-09-05: Scoped CUDA context activation
 

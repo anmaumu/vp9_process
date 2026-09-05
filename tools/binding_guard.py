@@ -10,7 +10,7 @@ from pathlib import Path
 import abi_guard
 
 ROOT = Path(__file__).resolve().parents[1]
-PYTHON_BINDING = ROOT / "python" / "mkvcodec" / "_native.py"
+PYTHON_BINDING = ROOT / "python" / "mkvcodec" / "_native_signatures.py"
 DOTNET_BINDING = ROOT / "dotnet" / "MkvCodec" / "NativeMethods.cs"
 
 

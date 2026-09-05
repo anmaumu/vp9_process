@@ -222,6 +222,8 @@ if(MKVC_BUILD_TESTS)
     if(Python3_Interpreter_FOUND)
         mkvc_add_python_unittest(mkvc_abi_guard tests/test_abi_guard.py)
         mkvc_add_python_unittest(mkvc_binding_guard tests/test_binding_guard.py)
+        mkvc_add_python_unittest(
+            mkvc_generate_bindings tests/test_generate_bindings.py)
         mkvc_add_python_script_test(
             mkvc_gpu_copy_audit_report tests/test_gpu_copy_audit.py)
         mkvc_add_python_script_test(

@@ -28,7 +28,7 @@ jobs:
       - name: Validate stable C ABI
         run: python -m unittest tests/test_abi_guard.py
       - name: Validate language bindings
-        run: python -m unittest tests/test_binding_guard.py
+        run: python -m unittest tests/test_binding_guard.py tests/test_generate_bindings.py
       - name: Test docgen
         run: python -m unittest tests/test_docgen.py
       - name: Validate source compliance manifest
