@@ -28,6 +28,15 @@ Simple format-specific read/write methods document their copy and end-of-stream
 semantics. Generated class references show the constructor signature directly
 and no longer emit a separate empty `__init__` section.
 
+## 2026-09-06: Encoder session responsibility split
+
+CPU frame validation and asynchronous deep-copy ownership now live in
+`src/encoder/cpu_frame_copy.*`, separate from queue scheduling and backend
+lifecycle in `encoder_session.cpp`. The internal interface documents packed-row
+ownership, borrowed validation, and view lifetime with Doxygen comments. Public
+C ABI and language APIs are unchanged; Windows NVIDIA and Linux Intel complete
+regression suites pass after the split.
+
 ## 2026-09-05: CMake test modules
 
 Repository Python script tests and unittest suites now use two small CMake
