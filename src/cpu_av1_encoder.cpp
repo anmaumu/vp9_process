@@ -1,11 +1,10 @@
 #include "cpu_av1_encoder.hpp"
-#include "container_format.hpp"
+
+#include "webm_muxer.hpp"
 
 #if defined(MKVC_HAS_CPU_AV1)
-#include <svt-av1/EbSvtAv1Enc.h>
 #include <libyuv/convert.h>
-#include <webm/mkvmuxer/mkvmuxer.h>
-#include <webm/mkvmuxer/mkvwriter.h>
+#include <svt-av1/EbSvtAv1Enc.h>
 #endif
 
 #include <algorithm>
@@ -20,11 +19,7 @@ struct CpuAv1Encoder::Impl {
 #if defined(MKVC_HAS_CPU_AV1)
     EbComponentType* codec = nullptr;
     bool codec_initialized = false;
-    mkvmuxer::MkvWriter writer;
-    bool writer_open = false;
-    mkvmuxer::Segment segment;
-    bool segment_initialized = false;
-    uint64_t track_number = 0;
+    std::unique_ptr<WebmMuxer> muxer;
 #endif
     uint32_t width = 0;
     uint32_t height = 0;
@@ -36,8 +31,6 @@ struct CpuAv1Encoder::Impl {
     uint64_t frames_in_sequence = 0;
     bool eos_sent = false;
     bool closed = false;
-    std::string output_path;
-    ContainerFormat container = ContainerFormat::WebM;
     std::vector<uint8_t> image;
 };
 
@@ -50,21 +43,17 @@ CpuAv1Encoder::~CpuAv1Encoder() {
 #if defined(MKVC_HAS_CPU_AV1)
 namespace {
 
-void copy_plane(uint8_t* destination, int destination_stride,
-                const uint8_t* source, int source_stride,
-                uint32_t width, uint32_t height) {
+void copy_plane(uint8_t* destination, int destination_stride, const uint8_t* source,
+                int source_stride, uint32_t width, uint32_t height) {
     for (uint32_t row = 0; row < height; ++row) {
-        std::memcpy(destination + row * destination_stride,
-                    source + row * source_stride, width);
+        std::memcpy(destination + row * destination_stride, source + row * source_stride, width);
     }
 }
 
-mkvc_result convert_to_i420(CpuAv1Encoder::Impl& impl,
-                            const mkvc_frame_view& frame,
+mkvc_result convert_to_i420(CpuAv1Encoder::Impl& impl, const mkvc_frame_view& frame,
                             std::string& error) {
     const size_t y_size = static_cast<size_t>(impl.width) * impl.height;
-    const size_t uv_size = static_cast<size_t>(impl.width / 2) *
-                           (impl.height / 2);
+    const size_t uv_size = static_cast<size_t>(impl.width / 2) * (impl.height / 2);
     uint8_t* y = impl.image.data();
     uint8_t* u = y + y_size;
     uint8_t* v = u + uv_size;
@@ -72,19 +61,18 @@ mkvc_result convert_to_i420(CpuAv1Encoder::Impl& impl,
     switch (frame.pixel_format) {
         case MKVC_PIXEL_FORMAT_I420:
             if (frame.planes[0] == nullptr || frame.planes[1] == nullptr ||
-                frame.planes[2] == nullptr ||
-                frame.strides[0] < static_cast<int32_t>(impl.width) ||
+                frame.planes[2] == nullptr || frame.strides[0] < static_cast<int32_t>(impl.width) ||
                 frame.strides[1] < static_cast<int32_t>(impl.width / 2) ||
                 frame.strides[2] < static_cast<int32_t>(impl.width / 2)) {
                 error = "I420 requires three positive-stride planes";
                 return MKVC_ERROR_INVALID_ARGUMENT;
             }
-            copy_plane(y, static_cast<int>(impl.width), frame.planes[0],
-                       frame.strides[0], impl.width, impl.height);
-            copy_plane(u, static_cast<int>(impl.width / 2), frame.planes[1],
-                       frame.strides[1], impl.width / 2, impl.height / 2);
-            copy_plane(v, static_cast<int>(impl.width / 2), frame.planes[2],
-                       frame.strides[2], impl.width / 2, impl.height / 2);
+            copy_plane(y, static_cast<int>(impl.width), frame.planes[0], frame.strides[0],
+                       impl.width, impl.height);
+            copy_plane(u, static_cast<int>(impl.width / 2), frame.planes[1], frame.strides[1],
+                       impl.width / 2, impl.height / 2);
+            copy_plane(v, static_cast<int>(impl.width / 2), frame.planes[2], frame.strides[2],
+                       impl.width / 2, impl.height / 2);
             break;
         case MKVC_PIXEL_FORMAT_NV12:
             if (frame.planes[0] == nullptr || frame.planes[1] == nullptr ||
@@ -94,9 +82,8 @@ mkvc_result convert_to_i420(CpuAv1Encoder::Impl& impl,
                 return MKVC_ERROR_INVALID_ARGUMENT;
             }
             conversion_result = libyuv::NV12ToI420(
-                frame.planes[0], frame.strides[0], frame.planes[1],
-                frame.strides[1], y, static_cast<int>(impl.width), u,
-                static_cast<int>(impl.width / 2), v,
+                frame.planes[0], frame.strides[0], frame.planes[1], frame.strides[1], y,
+                static_cast<int>(impl.width), u, static_cast<int>(impl.width / 2), v,
                 static_cast<int>(impl.width / 2), static_cast<int>(impl.width),
                 static_cast<int>(impl.height));
             break;
@@ -106,31 +93,24 @@ mkvc_result convert_to_i420(CpuAv1Encoder::Impl& impl,
             const uint32_t bytes_per_pixel =
                 frame.pixel_format == MKVC_PIXEL_FORMAT_BGRA32 ? 4u : 3u;
             if (frame.planes[0] == nullptr ||
-                frame.strides[0] <
-                    static_cast<int32_t>(impl.width * bytes_per_pixel)) {
+                frame.strides[0] < static_cast<int32_t>(impl.width * bytes_per_pixel)) {
                 error = "packed RGB input has an invalid pointer or stride";
                 return MKVC_ERROR_INVALID_ARGUMENT;
             }
             if (frame.pixel_format == MKVC_PIXEL_FORMAT_BGR24) {
                 conversion_result = libyuv::RGB24ToI420(
-                    frame.planes[0], frame.strides[0], y,
-                    static_cast<int>(impl.width), u,
-                    static_cast<int>(impl.width / 2), v,
-                    static_cast<int>(impl.width / 2),
+                    frame.planes[0], frame.strides[0], y, static_cast<int>(impl.width), u,
+                    static_cast<int>(impl.width / 2), v, static_cast<int>(impl.width / 2),
                     static_cast<int>(impl.width), static_cast<int>(impl.height));
             } else if (frame.pixel_format == MKVC_PIXEL_FORMAT_RGB24) {
                 conversion_result = libyuv::RAWToI420(
-                    frame.planes[0], frame.strides[0], y,
-                    static_cast<int>(impl.width), u,
-                    static_cast<int>(impl.width / 2), v,
-                    static_cast<int>(impl.width / 2),
+                    frame.planes[0], frame.strides[0], y, static_cast<int>(impl.width), u,
+                    static_cast<int>(impl.width / 2), v, static_cast<int>(impl.width / 2),
                     static_cast<int>(impl.width), static_cast<int>(impl.height));
             } else {
                 conversion_result = libyuv::ARGBToI420(
-                    frame.planes[0], frame.strides[0], y,
-                    static_cast<int>(impl.width), u,
-                    static_cast<int>(impl.width / 2), v,
-                    static_cast<int>(impl.width / 2),
+                    frame.planes[0], frame.strides[0], y, static_cast<int>(impl.width), u,
+                    static_cast<int>(impl.width / 2), v, static_cast<int>(impl.width / 2),
                     static_cast<int>(impl.width), static_cast<int>(impl.height));
             }
             break;
@@ -146,12 +126,10 @@ mkvc_result convert_to_i420(CpuAv1Encoder::Impl& impl,
     return MKVC_OK;
 }
 
-mkvc_result collect_packets(CpuAv1Encoder::Impl& impl, bool drain,
-                            std::string& error) {
+mkvc_result collect_packets(CpuAv1Encoder::Impl& impl, bool drain, std::string& error) {
     while (true) {
         EbBufferHeaderType* packet = nullptr;
-        const EbErrorType status =
-            svt_av1_enc_get_packet(impl.codec, &packet, drain ? 1 : 0);
+        const EbErrorType status = svt_av1_enc_get_packet(impl.codec, &packet, drain ? 1 : 0);
         if (status == EB_NoErrorEmptyQueue) {
             return MKVC_OK;
         }
@@ -162,24 +140,16 @@ mkvc_result collect_packets(CpuAv1Encoder::Impl& impl, bool drain,
         const bool eos = (packet->flags & EB_BUFFERFLAG_EOS) != 0;
         if (packet->n_filled_len > 0) {
             const uint64_t timestamp_ns =
-                static_cast<uint64_t>(packet->pts) * impl.fps_den *
-                1000000000ULL / impl.fps_num;
-            mkvmuxer::Frame frame;
-            const bool initialized = frame.Init(packet->p_buffer,
-                                                packet->n_filled_len);
-            frame.set_track_number(impl.track_number);
-            frame.set_timestamp(timestamp_ns);
-            frame.set_duration(static_cast<uint64_t>(impl.fps_den) *
-                               1000000000ULL / impl.fps_num);
-            frame.set_is_key(packet->pic_type == EB_AV1_KEY_PICTURE ||
-                             packet->pic_type == EB_AV1_INTRA_ONLY_PICTURE);
-            if (!initialized || !impl.segment.AddGenericFrame(&frame)) {
-                error = "libwebm failed to mux AV1 packet pts=" +
-                        std::to_string(packet->pts) + " type=" +
-                        std::to_string(static_cast<int>(packet->pic_type)) +
-                        " flags=" + std::to_string(packet->flags);
+                static_cast<uint64_t>(packet->pts) * impl.fps_den * 1000000000ULL / impl.fps_num;
+            const mkvc_result mux_result = impl.muxer->add_frame(
+                packet->p_buffer, packet->n_filled_len, timestamp_ns,
+                static_cast<uint64_t>(impl.fps_den) * 1000000000ULL / impl.fps_num,
+                packet->pic_type == EB_AV1_KEY_PICTURE ||
+                    packet->pic_type == EB_AV1_INTRA_ONLY_PICTURE,
+                error);
+            if (mux_result != MKVC_OK) {
                 svt_av1_enc_release_out_buffer(&packet);
-                return MKVC_ERROR_IO;
+                return mux_result;
             }
         }
         svt_av1_enc_release_out_buffer(&packet);
@@ -210,8 +180,8 @@ mkvc_result initialize_codec(CpuAv1Encoder::Impl& impl, std::string& error) {
     config.enc_mode = 8;
     config.pred_structure = RANDOM_ACCESS;
     config.intra_period_length = impl.keyframe_interval_frames == 0
-        ? static_cast<int32_t>(impl.fps_num * 4 / impl.fps_den) - 1
-        : static_cast<int32_t>(impl.keyframe_interval_frames) - 1;
+                                     ? static_cast<int32_t>(impl.fps_num * 4 / impl.fps_den) - 1
+                                     : static_cast<int32_t>(impl.keyframe_interval_frames) - 1;
     if (svt_av1_enc_set_parameter(impl.codec, &config) != EB_ErrorNone ||
         svt_av1_enc_init(impl.codec) != EB_ErrorNone) {
         error = "SVT-AV1 rejected the encoder configuration";
@@ -248,8 +218,8 @@ void destroy_codec(CpuAv1Encoder::Impl& impl) {
 }  // namespace
 #endif
 
-std::unique_ptr<CpuAv1Encoder> CpuAv1Encoder::create(
-    const mkvc_encoder_config& config, std::string& error) {
+std::unique_ptr<CpuAv1Encoder> CpuAv1Encoder::create(const mkvc_encoder_config& config,
+                                                     std::string& error) {
 #if !defined(MKVC_HAS_CPU_AV1)
     (void)config;
     error = "CPU AV1 backend was not built";
@@ -257,9 +227,6 @@ std::unique_ptr<CpuAv1Encoder> CpuAv1Encoder::create(
 #else
     auto encoder = std::unique_ptr<CpuAv1Encoder>(new CpuAv1Encoder());
     auto& impl = *encoder->impl_;
-    if (!resolve_container_format(config.output_path_utf8, impl.container, error))
-        return nullptr;
-    impl.output_path = config.output_path_utf8;
     impl.width = config.width;
     impl.height = config.height;
     impl.fps_num = config.fps_num;
@@ -267,43 +234,11 @@ std::unique_ptr<CpuAv1Encoder> CpuAv1Encoder::create(
     impl.quality = config.quality;
     impl.keyframe_interval_frames = config.keyframe_interval_frames;
     if (initialize_codec(impl, error) != MKVC_OK) return nullptr;
-    if (!impl.writer.Open(config.output_path_utf8)) {
-        error = "failed to open output";
-        return nullptr;
-    }
-    impl.writer_open = true;
-    if (!impl.segment.Init(&impl.writer)) {
-        error = "failed to initialize libwebm";
-        return nullptr;
-    }
-    impl.segment_initialized = true;
-    impl.segment.set_mode(mkvmuxer::Segment::kFile);
-    impl.track_number = impl.segment.AddVideoTrack(
-        static_cast<int32_t>(config.width), static_cast<int32_t>(config.height), 0);
-    auto* track = static_cast<mkvmuxer::VideoTrack*>(
-        impl.segment.GetTrackByNumber(impl.track_number));
-    if (impl.track_number == 0 || track == nullptr) {
-        error = "libwebm failed to create the AV1 video track";
-        return nullptr;
-    }
-    track->set_codec_id("V_AV1");
-    const uint8_t av1_codec_configuration[4] = {
-        0x81,  // marker=1, version=1
-        19,    // profile=0, level index 19 (AV1 level 6.3)
-        0x0c,  // 8-bit, 4:2:0, chroma sample position unknown
-        0x00,
-    };
-    if (!track->SetCodecPrivate(av1_codec_configuration,
-                                sizeof(av1_codec_configuration))) {
-        error = "libwebm rejected the AV1 codec configuration";
-        return nullptr;
-    }
-    track->set_frame_rate(static_cast<double>(config.fps_num) / config.fps_den);
-    track->set_default_duration(static_cast<uint64_t>(config.fps_den) *
-                                1000000000ULL / config.fps_num);
+    impl.muxer = WebmMuxer::create(config.output_path_utf8, MKVC_CODEC_AV1, config.width,
+                                   config.height, config.fps_num, config.fps_den, error);
+    if (!impl.muxer) return nullptr;
     const uint64_t y_size = static_cast<uint64_t>(config.width) * config.height;
-    const uint64_t uv_size = static_cast<uint64_t>(config.width / 2) *
-                             (config.height / 2);
+    const uint64_t uv_size = static_cast<uint64_t>(config.width / 2) * (config.height / 2);
     if (y_size + 2 * uv_size > std::numeric_limits<size_t>::max()) {
         error = "frame dimensions exceed addressable memory";
         return nullptr;
@@ -313,8 +248,7 @@ std::unique_ptr<CpuAv1Encoder> CpuAv1Encoder::create(
 #endif
 }
 
-mkvc_result CpuAv1Encoder::write(const mkvc_frame_view& frame,
-                                 std::string& error) {
+mkvc_result CpuAv1Encoder::write(const mkvc_frame_view& frame, std::string& error) {
 #if !defined(MKVC_HAS_CPU_AV1)
     (void)frame;
     error = "CPU AV1 backend was not built";
@@ -332,8 +266,7 @@ mkvc_result CpuAv1Encoder::write(const mkvc_frame_view& frame,
     const mkvc_result conversion = convert_to_i420(impl, frame, error);
     if (conversion != MKVC_OK) return conversion;
     const size_t y_size = static_cast<size_t>(impl.width) * impl.height;
-    const size_t uv_size = static_cast<size_t>(impl.width / 2) *
-                           (impl.height / 2);
+    const size_t uv_size = static_cast<size_t>(impl.width / 2) * (impl.height / 2);
     EbSvtIOFormat input{};
     input.luma = impl.image.data();
     input.cb = input.luma + y_size;
@@ -380,18 +313,8 @@ mkvc_result CpuAv1Encoder::close(std::string& error) {
     if (impl.closed) return MKVC_OK;
     mkvc_result result = MKVC_OK;
     if (impl.codec_initialized && !impl.eos_sent) result = end_sequence(impl, error);
-    if (result == MKVC_OK && impl.segment_initialized &&
-        !impl.segment.Finalize()) {
-        error = "libwebm failed to finalize AV1 output";
-        result = MKVC_ERROR_IO;
-    }
-    if (impl.writer_open) impl.writer.Close();
-    if (result == MKVC_OK && !finalize_container_doc_type(
-            impl.output_path.c_str(), impl.container, error)) {
-        result = MKVC_ERROR_IO;
-    }
+    if (result == MKVC_OK && impl.muxer) result = impl.muxer->finalize(error);
     destroy_codec(impl);
-    impl.writer_open = false;
     impl.closed = true;
     return result;
 #endif

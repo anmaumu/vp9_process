@@ -79,7 +79,9 @@ add_library(mkvcodec SHARED
 )
 
 if(MKVC_ENABLE_CPU_VP9 OR MKVC_ENABLE_CPU_AV1 OR MKVC_ENABLE_INTEL_ONEVPL OR MKVC_ENABLE_NVIDIA)
-    target_sources(mkvcodec PRIVATE src/webm_packet_reader.cpp)
+    target_sources(mkvcodec PRIVATE
+        src/webm_muxer.cpp
+        src/webm_packet_reader.cpp)
 endif()
 
 target_compile_features(mkvcodec PRIVATE cxx_std_17)

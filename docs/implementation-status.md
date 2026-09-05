@@ -54,6 +54,19 @@ Targeted decode and round-trip tests pass on Windows/NVIDIA and Linux/Intel,
 including VP9 metadata, Intel GPU surfaces, VA synchronization, OpenCL processing,
 and AV1 output. Codec decode and GPU surface creation remain backend-specific.
 
+## 2026-09-05: Shared WebM/Matroska muxer
+
+CPU VP9, CPU AV1, Intel oneVPL, and NVIDIA NVENC now submit encoded packets to
+one Doxygen-documented muxer. It owns libwebm writer/segment lifetime, VP9/AV1
+track metadata, AV1 codec-private bytes, nanosecond packet timing, keyframe flags,
+container finalization, and the WebM/MKV DocType patch. Codec packet acquisition
+and backend-specific keyframe decisions remain in their encoder implementations.
+
+All 32 Windows tests passed with two expected GPU hardware skips, and all 40
+Linux Intel tests passed. The coverage includes CPU VP9 encode/decode/metadata,
+NVENC AV1 creation, Intel VP9/AV1 round trips, GPU-surface encode, OpenCL external
+processing, ABI guards, and artifact compliance checks.
+
 ## 2026-09-05: Fixed-capacity external GPU/Intel USM pool
 
 A versioned C ABI reservation pool now bounds caller-preallocated GPU resources
