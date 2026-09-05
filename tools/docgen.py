@@ -108,6 +108,15 @@ def validate() -> tuple[dict[str, object], dict[str, object], dict[str, set[str]
         flags=re.MULTILINE,
     ):
         mismatches.append("Doxyfile must use WARN_AS_ERROR = FAIL_ON_WARNINGS")
+    abi_guard = subprocess.run(
+        [sys.executable, str(ROOT / "tools" / "abi_guard.py"), "check"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+    if abi_guard.returncode != 0:
+        detail = abi_guard.stderr.strip() or abi_guard.stdout.strip()
+        mismatches.append(detail or "stable C ABI validation failed")
     if mismatches:
         raise DocgenError("\n".join(mismatches))
     return model, gate, ids
@@ -224,6 +233,7 @@ def generate(output: Path) -> None:
         ROOT / "docs" / "implementation-status.md":
             output / "implementation-status.md",
         ROOT / "docs" / "docgen.md": output / "docgen.md",
+        ROOT / "docs" / "abi-governance.md": output / "abi-governance.md",
         ROOT / "LICENSE_POLICY.md": output / "license-policy.md",
     }
     for source, destination in copies.items():

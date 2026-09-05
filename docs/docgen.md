@@ -1,5 +1,9 @@
 # Docgen specification
 
+Public Python APIs use NumPy-style docstrings. C/C++ declarations use Doxygen
+comments. Stable C ABI declarations are additionally protected by
+`python tools/abi_guard.py check`; see `docs/abi-governance.md`.
+
 ## Purpose
 
 `docgen`は、MKVCodecの仕様・API・quality gateを検証し、レビュー可能なMarkdownと
@@ -16,6 +20,7 @@
 - `docs/design-model.json`
 - `docs/quality-gate.json`
 - `docs/implementation-status.md`
+- `docs/abi-governance.md`
 - `include/mkvcodec/mkvc.h`
 - `python/mkvcodec/_api.py`
 - `LICENSE_POLICY.md`
@@ -45,6 +50,7 @@
 - quality gateにfailureがある
 - C ABI symbolを抽出できない
 - 公開`MKVC_API` symbolにDoxygen commentがない
+- C ABIのsignature、enum値、struct fieldがreview済みv1 snapshotと異なる
 - Doxygenがない、またはsource commentの解析で警告・errorがある
 - MkDocs strict buildが失敗する
 

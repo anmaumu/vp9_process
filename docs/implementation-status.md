@@ -5,6 +5,8 @@
 ## Documentation tooling
 
 - `docgen check/generate/build` validates specification IDs and generates Markdown/HTML.
+- `abi_guard check` fingerprints every C ABI function signature, enum value and
+  public struct field against the reviewed v1 snapshot before refactors merge.
 - C ABI and Python API references are extracted from source declarations.
 - Doxygen generates C/C++ HTML and XML from public/internal source comments.
 - Every exported `MKVC_API` symbol must have a Doxygen comment; missing comments fail docgen.

@@ -31,6 +31,7 @@ class DocgenTests(unittest.TestCase):
                 "api/python.md",
                 "specification/external.md",
                 "docgen.md",
+                "abi-governance.md",
             )
             for relative in expected:
                 self.assertTrue((output / relative).is_file(), relative)

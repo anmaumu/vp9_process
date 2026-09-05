@@ -25,6 +25,8 @@ jobs:
           python -m pip install -r requirements-docs.txt
       - name: Validate documentation model
         run: python tools/docgen.py check
+      - name: Validate stable C ABI
+        run: python -m unittest tests/test_abi_guard.py
       - name: Test docgen
         run: python -m unittest tests/test_docgen.py
       - name: Validate source compliance manifest
