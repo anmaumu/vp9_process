@@ -181,6 +181,19 @@ structure field cannot be represented. The .NET 8 build and native smoke test
 verify the generated layouts and exercise CPU encode/decode, pools, submission,
 GPU descriptors, and external-frame lifetime behavior.
 
+## 2026-09-06: Isolated oneVPL external-surface import
+
+Intel encoder D3D11/VA-API surface import is now isolated from encoder session,
+queue, and bitstream logic in a Doxygen-documented interop module. The module
+owns no resource: it validates the native handle, requests shared import from the
+oneVPL memory interface, rejects copy-import fallback, and returns one referenced
+surface for the encoder lease to release. This keeps OS-specific native-resource
+rules at the GPU interop boundary without changing completion or backpressure.
+
+The NVIDIA/CPU Windows suite and the complete Intel Linux suite pass after the
+split. Intel tests cover real VA surface decode-to-encode, external OpenCL/USM
+round trips, explicit copy auditing, asynchronous depth, and resource recycling.
+
 ## 2026-09-05: Scoped CUDA context activation
 
 CUDA driver context push/pop is now represented by one Doxygen-documented,
