@@ -10,6 +10,7 @@
 #include "gpu/nvidia/nvenc_api.hpp"
 #include "gpu/nvidia/nvenc_cpu_conversion.hpp"
 #include "gpu/nvidia/nvenc_cpu_submission.hpp"
+#include "gpu/nvidia/nvenc_gpu_frame_validation.hpp"
 #include "gpu/nvidia/nvenc_gpu_submission.hpp"
 #include "gpu/nvidia/nvenc_packet_io.hpp"
 #include "gpu/nvidia/nvenc_session.hpp"
@@ -139,49 +140,17 @@ mkvc_result NvidiaWebmEncoder::write_gpu(const std::shared_ptr<gpu::GpuFrameCore
     error = "NVIDIA backend was not built";
     return MKVC_ERROR_NOT_SUPPORTED;
 #else
-    if (!frame) {
-        error = "GPU frame is null";
-        return MKVC_ERROR_INVALID_ARGUMENT;
-    }
     auto& state = *impl_;
     if (state.closed) {
         error = "NVIDIA encoder is closed";
         return MKVC_ERROR_INVALID_STATE;
     }
-    const mkvc_gpu_frame_desc& desc = frame->desc();
-    const bool cuda_pointer = desc.memory_type == MKVC_GPU_MEMORY_CUDA_POINTER;
-    const bool cuda_array = desc.memory_type == MKVC_GPU_MEMORY_CUDA_ARRAY;
-    if (desc.backend != MKVC_BACKEND_NVIDIA || (!cuda_pointer && !cuda_array) ||
-        desc.pixel_format != MKVC_PIXEL_FORMAT_NV12 || desc.plane_count != 2) {
-        error = "NVENC requires a NVIDIA CUDA pointer/array NV12 frame";
-        return MKVC_ERROR_NOT_SUPPORTED;
-    }
-    if (desc.width != state.width || desc.height != state.height || desc.pitches[0] < state.width ||
-        desc.pitches[0] != desc.pitches[1] ||
-        desc.pitches[0] > std::numeric_limits<uint32_t>::max()) {
-        error = "GPU frame dimensions or NV12 pitch do not match NVENC";
-        return MKVC_ERROR_INVALID_ARGUMENT;
-    }
-    const auto producer = frame->producer_completion();
-    if (!producer) {
-        error = "GPU frame has no producer completion";
-        return MKVC_ERROR_INVALID_STATE;
-    }
-    mkvc_result result = producer->wait(std::numeric_limits<uint32_t>::max(), error);
+    gpu::nvidia::NvencCudaFrameView input;
+    mkvc_result result =
+        gpu::nvidia::prepare_nvenc_cuda_frame(frame, state.width, state.height, input, error);
     if (result != MKVC_OK) return result;
-    mkvc_gpu_native_handle_desc native{};
-    result = frame->get_native_handle(native, error);
-    if (result != MKVC_OK) return result;
-    const uint32_t expected_native_type =
-        cuda_pointer ? MKVC_GPU_NATIVE_CUDA_POINTER : MKVC_GPU_NATIVE_CUDA_ARRAY;
-    if (native.type != expected_native_type || native.handles[0] == 0 || native.handles[1] == 0 ||
-        native.handles[0] !=
-            static_cast<uint64_t>(reinterpret_cast<uintptr_t>(frame->backend_resource().object))) {
-        error = "GPU frame has an inconsistent CUDA native handle";
-        return MKVC_ERROR_INVALID_ARGUMENT;
-    }
     const auto source_context =
-        reinterpret_cast<CUcontext>(static_cast<uintptr_t>(native.handles[1]));
+        reinterpret_cast<CUcontext>(static_cast<uintptr_t>(input.context_handle));
     if (state.external_context == nullptr) {
         if (state.frame_index != 0) {
             error = "cannot switch a running CPU-input NVENC session to GPU input";
@@ -196,11 +165,11 @@ mkvc_result NvidiaWebmEncoder::write_gpu(const std::shared_ptr<gpu::GpuFrameCore
         return MKVC_ERROR_NOT_SUPPORTED;
     }
 
-    const PictureTiming timing = select_picture_timing(state, desc.pts);
-    result = gpu::nvidia::submit_nvenc_cuda_frame(
-        *state.api, state.session, cuda_array, native.handles[0], state.width, state.height,
-        static_cast<uint32_t>(desc.pitches[0]), state.frame_index, timing.pts_ns,
-        timing.duration_ns, timing.force_keyframe, error);
+    const PictureTiming timing = select_picture_timing(state, input.pts_ns);
+    result = gpu::nvidia::submit_nvenc_cuda_frame(*state.api, state.session, input.cuda_array,
+                                                  input.resource_handle, state.width, state.height,
+                                                  input.pitch, state.frame_index, timing.pts_ns,
+                                                  timing.duration_ns, timing.force_keyframe, error);
     if (result == MKVC_OK) result = mux_packet(state, error);
     if (result == MKVC_OK) commit_picture(state, timing);
     return result;

@@ -1201,7 +1201,11 @@ submission, including balanced unlock on an invalid driver-returned layout.
 packet copy and centralizes the EOS drain used by flush and close. A successful
 bitstream lock is unlocked after both mux success and mux failure; empty
 driver-returned buffers are rejected as codec failures.
-Public frame validation and same-context enforcement remain in the writer.
+`nvenc_gpu_frame_validation` normalizes CUDA pointer/array input after checking
+backend, NV12 plane layout, pitch, dimensions, producer completion and native
+handle consistency. GPU-independent tests cover the accepted pointer descriptor,
+mismatched plane pitch and missing-completion rejection. Same-context enforcement
+remains in the writer.
 Backend capability
 rows are emitted
 only for runtime-supported directions; NVENC AV1 is advertised only when the
