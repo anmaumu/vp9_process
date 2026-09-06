@@ -1183,7 +1183,11 @@ converts supported 8-bit CPU inputs to NV12, submits one synchronous NVENC AV1
 operation at a time, and immediately muxes the returned packet. Backend capability
 and CUDA driver loading use the shared `DynamicLibrary` abstraction. `NvencApi`
 owns both driver modules, resolves the required CUDA context functions and validates
-the NVENC function table before an encode session can be created. Backend capability
+the NVENC function table before an encode session can be created. `NvencSession`
+then owns the encoder, input buffer, bitstream buffer and any internally created
+CUDA context; externally supplied decode contexts remain borrowed. Session setup
+contains the synchronous AV1 P4 constant-QP configuration, and one cleanup path is
+used by close, flush/recreate and CPU-to-GPU input switching. Backend capability
 rows are emitted
 only for runtime-supported directions; NVENC AV1 is advertised only when the
 runtime encode GUID query succeeds, while NVENC VP9 is never advertised.
