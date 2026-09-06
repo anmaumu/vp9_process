@@ -20,6 +20,16 @@
 - GitHub Actions builds strict MkDocs HTML and stores `mkvcodec-documentation` for 30 days.
 - GitHub Pages publication remains disabled until an explicit public-release decision.
 
+## 2026-09-06: oneVPL encoder runtime responsibility split
+
+Hardware/codec dispatcher filters, optional D3D11-device or VA-display binding,
+NV12 encoder parameter construction, component initialization and negotiated
+bitstream sizing now live in the Doxygen-documented `VplEncoderRuntime` module.
+Its external-device frame lease is released only after the encode component,
+session and loader are destroyed. `IntelVplEncoder` retains frame compatibility,
+same-device validation, imported-surface retirement, queueing and timestamp
+progression, while public C/C++/Python/.NET behavior remains unchanged.
+
 ## 2026-09-06: External GPU import responsibility split
 
 External CUDA pointer/array, D3D11 texture, VA surface and Intel device-USM
