@@ -2,6 +2,20 @@
 # after the CPU VP9 sample fixture has been registered.
 
 function(mkvc_add_nvidia_foundation_tests)
+    add_executable(mkvc_nvenc_cpu_conversion_test
+        tests/nvenc_cpu_conversion_test.cpp
+        src/gpu/nvidia/nvenc_cpu_conversion.cpp)
+    target_compile_features(mkvc_nvenc_cpu_conversion_test PRIVATE cxx_std_17)
+    target_include_directories(mkvc_nvenc_cpu_conversion_test PRIVATE src include)
+    target_link_libraries(mkvc_nvenc_cpu_conversion_test PRIVATE yuv)
+    if(MSVC)
+        target_compile_options(mkvc_nvenc_cpu_conversion_test PRIVATE /W4 /permissive- /EHsc)
+    else()
+        target_compile_options(mkvc_nvenc_cpu_conversion_test PRIVATE
+            -Wall -Wextra -Wpedantic -Werror)
+    endif()
+    add_test(NAME mkvc_nvenc_cpu_conversion COMMAND mkvc_nvenc_cpu_conversion_test)
+
     add_executable(mkvc_nvidia_probe_test
         tests/nvidia_probe_test.cpp src/nvidia_probe.cpp)
     target_compile_features(mkvc_nvidia_probe_test PRIVATE cxx_std_17)

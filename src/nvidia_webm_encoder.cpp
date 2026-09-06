@@ -7,10 +7,9 @@
 #if defined(MKVC_HAS_NVIDIA)
 #include <ffnvcodec/dynlink_cuda.h>
 #include <ffnvcodec/nvEncodeAPI.h>
-#include <libyuv/convert.h>
-#include <libyuv/planar_functions.h>
 
 #include "gpu/nvidia/nvenc_api.hpp"
+#include "gpu/nvidia/nvenc_cpu_conversion.hpp"
 #include "gpu/nvidia/nvenc_gpu_submission.hpp"
 #include "gpu/nvidia/nvenc_session.hpp"
 #endif
@@ -57,82 +56,6 @@ void copy_plane(uint8_t* destination, int destination_stride, const uint8_t* sou
     for (uint32_t row = 0; row < height; ++row)
         std::memcpy(destination + static_cast<size_t>(row) * destination_stride,
                     source + static_cast<size_t>(row) * source_stride, width);
-}
-
-mkvc_result convert_to_nv12(NvidiaWebmEncoder::Impl& state, const mkvc_frame_view& frame,
-                            std::string& error) {
-    const size_t y_size = static_cast<size_t>(state.width) * state.height;
-    const size_t chroma = y_size / 4;
-    uint8_t* y = state.i420.data();
-    uint8_t* u = y + y_size;
-    uint8_t* v = u + chroma;
-    uint8_t* nv_y = state.nv12.data();
-    uint8_t* nv_uv = nv_y + y_size;
-    int converted = 0;
-    switch (frame.pixel_format) {
-        case MKVC_PIXEL_FORMAT_NV12:
-            if (frame.planes[0] == nullptr || frame.planes[1] == nullptr ||
-                frame.strides[0] < static_cast<int32_t>(state.width) ||
-                frame.strides[1] < static_cast<int32_t>(state.width)) {
-                error = "NV12 requires valid Y and UV planes";
-                return MKVC_ERROR_INVALID_ARGUMENT;
-            }
-            copy_plane(nv_y, static_cast<int>(state.width), frame.planes[0], frame.strides[0],
-                       state.width, state.height);
-            copy_plane(nv_uv, static_cast<int>(state.width), frame.planes[1], frame.strides[1],
-                       state.width, state.height / 2);
-            return MKVC_OK;
-        case MKVC_PIXEL_FORMAT_I420:
-            if (frame.planes[0] == nullptr || frame.planes[1] == nullptr ||
-                frame.planes[2] == nullptr ||
-                frame.strides[0] < static_cast<int32_t>(state.width) ||
-                frame.strides[1] < static_cast<int32_t>(state.width / 2) ||
-                frame.strides[2] < static_cast<int32_t>(state.width / 2)) {
-                error = "I420 requires three valid planes";
-                return MKVC_ERROR_INVALID_ARGUMENT;
-            }
-            converted = libyuv::I420ToNV12(
-                frame.planes[0], frame.strides[0], frame.planes[1], frame.strides[1],
-                frame.planes[2], frame.strides[2], nv_y, static_cast<int>(state.width), nv_uv,
-                static_cast<int>(state.width), static_cast<int>(state.width),
-                static_cast<int>(state.height));
-            break;
-        case MKVC_PIXEL_FORMAT_BGR24:
-        case MKVC_PIXEL_FORMAT_RGB24:
-        case MKVC_PIXEL_FORMAT_BGRA32: {
-            const uint32_t channels = frame.pixel_format == MKVC_PIXEL_FORMAT_BGRA32 ? 4u : 3u;
-            if (frame.planes[0] == nullptr ||
-                frame.strides[0] < static_cast<int32_t>(state.width * channels)) {
-                error = "packed RGB input has an invalid plane or stride";
-                return MKVC_ERROR_INVALID_ARGUMENT;
-            }
-            if (frame.pixel_format == MKVC_PIXEL_FORMAT_BGR24)
-                converted = libyuv::RGB24ToI420(frame.planes[0], frame.strides[0], y, state.width,
-                                                u, state.width / 2, v, state.width / 2, state.width,
-                                                state.height);
-            else if (frame.pixel_format == MKVC_PIXEL_FORMAT_RGB24)
-                converted = libyuv::RAWToI420(frame.planes[0], frame.strides[0], y, state.width, u,
-                                              state.width / 2, v, state.width / 2, state.width,
-                                              state.height);
-            else
-                converted = libyuv::ARGBToI420(frame.planes[0], frame.strides[0], y, state.width, u,
-                                               state.width / 2, v, state.width / 2, state.width,
-                                               state.height);
-            if (converted == 0)
-                converted =
-                    libyuv::I420ToNV12(y, state.width, u, state.width / 2, v, state.width / 2, nv_y,
-                                       state.width, nv_uv, state.width, state.width, state.height);
-            break;
-        }
-        default:
-            error = "unsupported NVIDIA encoder input format";
-            return MKVC_ERROR_NOT_SUPPORTED;
-    }
-    if (converted != 0) {
-        error = "libyuv failed to convert NVIDIA encoder input";
-        return MKVC_ERROR_INTERNAL;
-    }
-    return MKVC_OK;
 }
 
 void destroy_session(NvidiaWebmEncoder::Impl& state) {
@@ -301,7 +224,8 @@ mkvc_result NvidiaWebmEncoder::write(const mkvc_frame_view& frame, std::string& 
         error = "frame dimensions do not match NVIDIA encoder";
         return MKVC_ERROR_INVALID_ARGUMENT;
     }
-    mkvc_result result = convert_to_nv12(state, frame, error);
+    mkvc_result result = gpu::nvidia::convert_nvenc_input_to_nv12(frame, state.width, state.height,
+                                                                  state.i420, state.nv12, error);
     if (result != MKVC_OK) return result;
     NV_ENC_LOCK_INPUT_BUFFER lock{};
     lock.version = NV_ENC_LOCK_INPUT_BUFFER_VER;

@@ -1190,8 +1190,12 @@ contains the synchronous AV1 P4 constant-QP configuration, and one cleanup path 
 used by close, flush/recreate and CPU-to-GPU input switching. GPU input submission
 is isolated in `nvenc_gpu_submission`: CUDA pointer/array registration, mapping,
 picture submission, unmapping and unregistering form one balanced scope without a
-pixel copy. Public frame validation and same-context enforcement remain in the
-writer. Backend capability
+pixel copy. CPU input conversion is isolated in `nvenc_cpu_conversion`: it validates
+planes and padded strides, converts BGR/RGB/BGRA/I420 to reusable contiguous NV12
+staging storage, and makes the required host-to-NVENC-input copy boundary explicit.
+Known-value tests cover padded NV12, I420 chroma interleaving and invalid stride
+rejection without requiring NVIDIA hardware. Public frame validation and
+same-context enforcement remain in the writer. Backend capability
 rows are emitted
 only for runtime-supported directions; NVENC AV1 is advertised only when the
 runtime encode GUID query succeeds, while NVENC VP9 is never advertised.
