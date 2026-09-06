@@ -1,16 +1,11 @@
 #include "nvidia_webm_decoder.hpp"
 
 #include "nvidia_probe.hpp"
-#include "webm_packet_reader.hpp"
 
 #if defined(MKVC_HAS_NVIDIA)
-#include <ffnvcodec/dynlink_cuda.h>
-#include <ffnvcodec/dynlink_cuviddec.h>
-#include <ffnvcodec/dynlink_nvcuvid.h>
-
 #include "gpu/gpu_frame.hpp"
-#include "gpu/nvidia/cuda_context_guard.hpp"
 #include "gpu/nvidia/nvdec_callbacks.hpp"
+#include "gpu/nvidia/nvdec_packet_pump.hpp"
 #include "gpu/nvidia/nvdec_runtime_owner.hpp"
 #include "gpu/nvidia/nvdec_runtime_setup.hpp"
 #endif
@@ -22,10 +17,7 @@ namespace mkvc {
 struct NvidiaWebmDecoder::Impl {
 #if defined(MKVC_HAS_NVIDIA)
     std::unique_ptr<gpu::nvidia::NvdecCallbackState> callbacks;
-    uint32_t packets_submitted = 0;
-    std::unique_ptr<WebmPacketReader> packet_reader;
-    bool demux_eos = false;
-    bool parser_drained = false;
+    std::unique_ptr<gpu::nvidia::NvdecPacketPump> packet_pump;
 #endif
     bool closed = false;
 };
@@ -35,78 +27,6 @@ NvidiaWebmDecoder::~NvidiaWebmDecoder() {
     std::string ignored;
     close(ignored);
 }
-
-#if defined(MKVC_HAS_NVIDIA)
-namespace {
-
-/**
- * @brief Feed demuxed packets until the selected output queue receives a frame.
- *
- * The helper owns CUDA context activation for parser callbacks and submits one
- * explicit end-of-stream packet. CPU/GPU queue ownership remains with the caller.
- */
-mkvc_result pump_parser_until_output(NvidiaWebmDecoder::Impl& state, bool gpu_output,
-                                     std::string& error) {
-    const auto& runtime = state.callbacks->runtime();
-    gpu::nvidia::CudaContextGuard context_guard(runtime->context(), runtime->api().context_push,
-                                                runtime->api().context_pop);
-    if (!context_guard) {
-        error = "failed to activate CUDA context";
-        return MKVC_ERROR_CODEC;
-    }
-    mkvc_result result = MKVC_OK;
-    const auto output_ready = [&state, gpu_output] {
-        return state.callbacks->output_ready(gpu_output);
-    };
-    while (!output_ready()) {
-        CUVIDSOURCEDATAPACKET source{};
-        EncodedPacket packet;
-        if (!state.demux_eos) {
-            result = state.packet_reader->read(packet, error);
-            if (result != MKVC_OK && result != MKVC_END_OF_STREAM) break;
-            if (result == MKVC_END_OF_STREAM) {
-                state.demux_eos = true;
-                result = MKVC_OK;
-            }
-            if (!state.demux_eos) {
-                source.flags = CUVID_PKT_TIMESTAMP;
-                source.payload = packet.data.data();
-                source.payload_size = static_cast<tcu_ulong>(packet.data.size());
-                source.timestamp = packet.pts_ns;
-                ++state.packets_submitted;
-            }
-        }
-        if (state.demux_eos && !state.parser_drained) {
-            source.flags = CUVID_PKT_ENDOFSTREAM;
-            state.parser_drained = true;
-        } else if (state.demux_eos) {
-            if (!state.callbacks->displayed_any()) {
-                error = state.callbacks->no_display_diagnostic(state.packets_submitted);
-                result = MKVC_ERROR_CODEC;
-            } else {
-                result = MKVC_END_OF_STREAM;
-            }
-            break;
-        }
-        state.callbacks->clear_error();
-        if (runtime->api().parser_parse(runtime->parser(), &source) != CUDA_SUCCESS) {
-            error = state.callbacks->error().empty() ? "cuvidParseVideoData failed"
-                                                     : state.callbacks->error();
-            result = MKVC_ERROR_CODEC;
-            break;
-        }
-    }
-    if (!context_guard.release()) {
-        if (result == MKVC_OK) {
-            error = "failed to release CUDA context";
-            result = MKVC_ERROR_CODEC;
-        }
-    }
-    return result;
-}
-
-}  // namespace
-#endif
 
 std::unique_ptr<NvidiaWebmDecoder> NvidiaWebmDecoder::create(const mkvc_decoder_config& config,
                                                              std::string& error) {
@@ -135,8 +55,9 @@ std::unique_ptr<NvidiaWebmDecoder> NvidiaWebmDecoder::create(const mkvc_decoder_
     }
     state.callbacks->attach_runtime(
         std::make_shared<gpu::nvidia::NvdecRuntimeOwner>(std::move(runtime)));
-    state.packet_reader = WebmPacketReader::open(config.input_path_utf8, config.codec, error);
-    if (!state.packet_reader) return nullptr;
+    state.packet_pump = gpu::nvidia::NvdecPacketPump::create(config.input_path_utf8, config.codec,
+                                                             *state.callbacks, error);
+    if (!state.packet_pump) return nullptr;
     return result;
 #endif
 }
@@ -154,7 +75,7 @@ mkvc_result NvidiaWebmDecoder::read(std::unique_ptr<DecodedFrame>& frame, std::s
     }
     const mkvc_result selected = state.callbacks->select_cpu(error);
     if (selected != MKVC_OK) return selected;
-    const mkvc_result result = pump_parser_until_output(state, false, error);
+    const mkvc_result result = state.packet_pump->pump_until_output(false, error);
     if (result == MKVC_OK) frame = state.callbacks->pop_cpu();
     return result;
 #endif
@@ -178,7 +99,7 @@ mkvc_result NvidiaWebmDecoder::read_gpu(mkvc_gpu_frame** frame, std::string& err
     }
     const mkvc_result selected = state.callbacks->select_gpu(error);
     if (selected != MKVC_OK) return selected;
-    const mkvc_result result = pump_parser_until_output(state, true, error);
+    const mkvc_result result = state.packet_pump->pump_until_output(true, error);
     if (result == MKVC_OK) {
         auto core = state.callbacks->pop_gpu();
         if (!core) return MKVC_ERROR_INTERNAL;
@@ -196,13 +117,13 @@ mkvc_result NvidiaWebmDecoder::close(std::string& error) {
     (void)error;
 #else
     auto& state = *impl_;
+    state.packet_pump.reset();
     if (state.callbacks) state.callbacks->clear_outputs();
     state.closed = true;
     if (state.callbacks && state.callbacks->runtime() &&
         !state.callbacks->runtime()->close(error)) {
         cleanup_failed = true;
     }
-    state.packet_reader.reset();
 #endif
     impl_->closed = true;
     return cleanup_failed ? MKVC_ERROR_CODEC : MKVC_OK;

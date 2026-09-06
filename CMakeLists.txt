@@ -106,6 +106,7 @@ if(MKVC_ENABLE_NVIDIA)
         src/gpu/nvidia/nvdec_callbacks.cpp
         src/gpu/nvidia/nvdec_cpu_output.cpp
         src/gpu/nvidia/nvdec_gpu_output.cpp
+        src/gpu/nvidia/nvdec_packet_pump.cpp
         src/gpu/nvidia/nvdec_runtime_cleanup.cpp
         src/gpu/nvidia/nvdec_runtime_owner.cpp
         src/gpu/nvidia/nvdec_runtime_setup.cpp

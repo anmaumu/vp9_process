@@ -1177,9 +1177,11 @@ The three NVDEC driver callbacks and their mutable state are isolated in
 the exclusive CPU/GPU output-mode rule, bounded GPU pool and completed-frame
 queues. The public decoder no longer exposes callback-owned CUDA mapping or queue
 details; it selects an output mode, pumps packets and pops the completed frame.
-CPU and GPU reads share one parser pump for incremental demux, timestamped packet
-submission, the single EOS drain packet, callback diagnostics and CUDA context
-release. Their public output-mode and frame-pool checks remain separate.
+CPU and GPU reads share `NvdecPacketPump`, which owns the incremental packet reader,
+timestamped packet submission count, single EOS drain transition, no-display
+diagnostic and scoped CUDA context activation. The public decoder now orchestrates
+runtime creation, output-mode selection, frame popping and close only; its public
+output-mode and frame-pool checks remain separate.
 The CPU-output boundary is isolated in
 `nvdec_cpu_output`: it owns both pitched CUDA 2D readbacks, NV12-to-I420 plane
 separation and the mandatory mapped-frame unmap. The display callback therefore
