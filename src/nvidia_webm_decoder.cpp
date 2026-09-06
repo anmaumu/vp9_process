@@ -163,6 +163,77 @@ int CUDAAPI display_callback(void* opaque, CUVIDPARSERDISPINFO* display) {
     return 1;
 }
 
+/**
+ * @brief Feed demuxed packets until the selected output queue receives a frame.
+ *
+ * The helper owns CUDA context activation for parser callbacks and submits one
+ * explicit end-of-stream packet. CPU/GPU queue ownership remains with the caller.
+ */
+mkvc_result pump_parser_until_output(NvidiaWebmDecoder::Impl& state, bool gpu_output,
+                                     std::string& error) {
+    gpu::nvidia::CudaContextGuard context_guard(state.context, state.api->context_push,
+                                                state.api->context_pop);
+    if (!context_guard) {
+        error = "failed to activate CUDA context";
+        return MKVC_ERROR_CODEC;
+    }
+    state.context_is_current = true;
+    mkvc_result result = MKVC_OK;
+    const auto output_ready = [&state, gpu_output] {
+        return gpu_output ? !state.completed_gpu.empty() : !state.completed.empty();
+    };
+    while (!output_ready()) {
+        CUVIDSOURCEDATAPACKET source{};
+        EncodedPacket packet;
+        if (!state.demux_eos) {
+            result = state.packet_reader->read(packet, error);
+            if (result != MKVC_OK && result != MKVC_END_OF_STREAM) break;
+            if (result == MKVC_END_OF_STREAM) {
+                state.demux_eos = true;
+                result = MKVC_OK;
+            }
+            if (!state.demux_eos) {
+                source.flags = CUVID_PKT_TIMESTAMP;
+                source.payload = packet.data.data();
+                source.payload_size = static_cast<tcu_ulong>(packet.data.size());
+                source.timestamp = packet.pts_ns;
+                ++state.packets_submitted;
+            }
+        }
+        if (state.demux_eos && !state.parser_drained) {
+            source.flags = CUVID_PKT_ENDOFSTREAM;
+            state.parser_drained = true;
+        } else if (state.demux_eos) {
+            if (state.display_callbacks == 0) {
+                error = "NVDEC parser produced callbacks sequence=" +
+                        std::to_string(state.sequence_callbacks) +
+                        " decode=" + std::to_string(state.decode_callbacks) +
+                        " display=0 packets=" + std::to_string(state.packets_submitted);
+                result = MKVC_ERROR_CODEC;
+            } else {
+                result = MKVC_END_OF_STREAM;
+            }
+            break;
+        }
+        state.callback_error.clear();
+        if (state.api->parser_parse(state.parser, &source) != CUDA_SUCCESS) {
+            error =
+                state.callback_error.empty() ? "cuvidParseVideoData failed" : state.callback_error;
+            result = MKVC_ERROR_CODEC;
+            break;
+        }
+    }
+    if (!context_guard.release()) {
+        if (result == MKVC_OK) {
+            error = "failed to release CUDA context";
+            result = MKVC_ERROR_CODEC;
+        }
+    } else {
+        state.context_is_current = false;
+    }
+    return result;
+}
+
 }  // namespace
 #endif
 
@@ -235,64 +306,7 @@ mkvc_result NvidiaWebmDecoder::read(std::unique_ptr<DecodedFrame>& frame, std::s
         return MKVC_ERROR_INVALID_STATE;
     }
     state.output_mode = Impl::OutputMode::kCpu;
-    gpu::nvidia::CudaContextGuard context_guard(state.context, state.api->context_push,
-                                                state.api->context_pop);
-    if (!context_guard) {
-        error = "failed to activate CUDA context";
-        return MKVC_ERROR_CODEC;
-    }
-    state.context_is_current = true;
-    mkvc_result result = MKVC_OK;
-    while (state.completed.empty()) {
-        CUVIDSOURCEDATAPACKET source{};
-        EncodedPacket packet;
-        if (!state.demux_eos) {
-            result = state.packet_reader->read(packet, error);
-            if (result != MKVC_OK && result != MKVC_END_OF_STREAM) break;
-            if (result == MKVC_END_OF_STREAM) {
-                state.demux_eos = true;
-                result = MKVC_OK;
-            }
-            if (result == MKVC_OK) {
-                if (!state.demux_eos) {
-                    source.flags = CUVID_PKT_TIMESTAMP;
-                    source.payload = packet.data.data();
-                    source.payload_size = static_cast<tcu_ulong>(packet.data.size());
-                    source.timestamp = packet.pts_ns;
-                    ++state.packets_submitted;
-                }
-            }
-        }
-        if (state.demux_eos && !state.parser_drained) {
-            source.flags = CUVID_PKT_ENDOFSTREAM;
-            state.parser_drained = true;
-        } else if (state.demux_eos) {
-            if (state.display_callbacks == 0) {
-                error = "NVDEC parser produced callbacks sequence=" +
-                        std::to_string(state.sequence_callbacks) +
-                        " decode=" + std::to_string(state.decode_callbacks) +
-                        " display=0 packets=" + std::to_string(state.packets_submitted);
-                result = MKVC_ERROR_CODEC;
-                break;
-            }
-            result = MKVC_END_OF_STREAM;
-            break;
-        }
-        state.callback_error.clear();
-        if (state.api->parser_parse(state.parser, &source) != CUDA_SUCCESS) {
-            error =
-                state.callback_error.empty() ? "cuvidParseVideoData failed" : state.callback_error;
-            result = MKVC_ERROR_CODEC;
-            break;
-        }
-    }
-    if (!context_guard.release()) {
-        if (result == MKVC_OK) {
-            error = "failed to release CUDA context";
-            result = MKVC_ERROR_CODEC;
-        }
-    } else
-        state.context_is_current = false;
+    const mkvc_result result = pump_parser_until_output(state, false, error);
     if (result == MKVC_OK && !state.completed.empty()) {
         frame = std::move(state.completed.front());
         state.completed.pop_front();
@@ -326,56 +340,7 @@ mkvc_result NvidiaWebmDecoder::read_gpu(mkvc_gpu_frame** frame, std::string& err
         error = "NVIDIA GPU frame pool is full";
         return MKVC_WOULD_BLOCK;
     }
-    gpu::nvidia::CudaContextGuard context_guard(state.context, state.api->context_push,
-                                                state.api->context_pop);
-    if (!context_guard) {
-        error = "failed to activate CUDA context";
-        return MKVC_ERROR_CODEC;
-    }
-    state.context_is_current = true;
-    mkvc_result result = MKVC_OK;
-    while (state.completed_gpu.empty()) {
-        CUVIDSOURCEDATAPACKET source{};
-        EncodedPacket packet;
-        if (!state.demux_eos) {
-            result = state.packet_reader->read(packet, error);
-            if (result != MKVC_OK && result != MKVC_END_OF_STREAM) break;
-            if (result == MKVC_END_OF_STREAM) {
-                state.demux_eos = true;
-                result = MKVC_OK;
-            }
-            if (!state.demux_eos) {
-                source.flags = CUVID_PKT_TIMESTAMP;
-                source.payload = packet.data.data();
-                source.payload_size = static_cast<tcu_ulong>(packet.data.size());
-                source.timestamp = packet.pts_ns;
-                ++state.packets_submitted;
-            }
-        }
-        if (state.demux_eos && !state.parser_drained) {
-            source.flags = CUVID_PKT_ENDOFSTREAM;
-            state.parser_drained = true;
-        } else if (state.demux_eos) {
-            result = state.display_callbacks == 0 ? MKVC_ERROR_CODEC : MKVC_END_OF_STREAM;
-            if (result == MKVC_ERROR_CODEC) error = "NVDEC parser produced no display callbacks";
-            break;
-        }
-        state.callback_error.clear();
-        if (state.api->parser_parse(state.parser, &source) != CUDA_SUCCESS) {
-            error =
-                state.callback_error.empty() ? "cuvidParseVideoData failed" : state.callback_error;
-            result = MKVC_ERROR_CODEC;
-            break;
-        }
-    }
-    if (!context_guard.release()) {
-        if (result == MKVC_OK) {
-            error = "failed to release CUDA context";
-            result = MKVC_ERROR_CODEC;
-        }
-    } else {
-        state.context_is_current = false;
-    }
+    const mkvc_result result = pump_parser_until_output(state, true, error);
     if (result == MKVC_OK && !state.completed_gpu.empty()) {
         auto core = std::move(state.completed_gpu.front());
         state.completed_gpu.pop_front();

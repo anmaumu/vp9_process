@@ -1159,6 +1159,9 @@ maps NV12 only for completed display-order frames, and splits the host readback
 into the common owned I420 representation. Sequence validation, decoder capability
 checks, decoder creation and same-resolution reuse are isolated in
 `nvdec_sequence`; mid-stream resolution changes remain explicitly unsupported.
+CPU and GPU reads share one parser pump for incremental demux, timestamped packet
+submission, the single EOS drain packet, callback diagnostics and CUDA context
+release. Their public output-mode and frame-pool checks remain separate.
 The CPU-output boundary is isolated in
 `nvdec_cpu_output`: it owns both pitched CUDA 2D readbacks, NV12-to-I420 plane
 separation and the mandatory mapped-frame unmap. The display callback therefore
