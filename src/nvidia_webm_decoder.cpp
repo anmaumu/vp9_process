@@ -13,6 +13,7 @@
 #include "gpu/nvidia/nvdec_api.hpp"
 #include "gpu/nvidia/nvdec_cpu_output.hpp"
 #include "gpu/nvidia/nvdec_gpu_output.hpp"
+#include "gpu/nvidia/nvdec_runtime_cleanup.hpp"
 #include "gpu/nvidia/nvdec_runtime_setup.hpp"
 #include "gpu/nvidia/nvdec_sequence.hpp"
 #endif
@@ -44,7 +45,6 @@ struct NvidiaWebmDecoder::Impl : public std::enable_shared_from_this<Impl> {
     enum class OutputMode { kUnset, kCpu, kGpu } output_mode = OutputMode::kUnset;
     std::mutex runtime_mutex;
     uint32_t outstanding_gpu_frames = 0;
-    bool runtime_destroyed = false;
     std::unique_ptr<WebmPacketReader> packet_reader;
     bool demux_eos = false;
     bool parser_drained = false;
@@ -61,34 +61,22 @@ NvidiaWebmDecoder::~NvidiaWebmDecoder() {
 #if defined(MKVC_HAS_NVIDIA)
 namespace {
 
-bool destroy_deferred_runtime(NvidiaWebmDecoder::Impl& state) {
-    if (state.runtime_destroyed || state.context == nullptr || state.outstanding_gpu_frames != 0)
-        return true;
-    gpu::nvidia::CudaContextGuard context_guard(state.context, state.api->context_push,
-                                                state.api->context_pop);
-    if (!context_guard) return false;
-    if (state.decoder != nullptr) (void)state.api->decoder_destroy(state.decoder);
-    state.decoder = nullptr;
-    if (!context_guard.release()) return false;
-    (void)state.api->context_destroy(state.context);
-    state.context = nullptr;
-    state.runtime_destroyed = true;
-    return true;
+bool destroy_deferred_runtime(NvidiaWebmDecoder::Impl& state, std::string& error) {
+    if (state.context == nullptr || state.outstanding_gpu_frames != 0) return true;
+    return gpu::nvidia::destroy_nvdec_decoder_context(*state.api, state.context, state.decoder,
+                                                      error);
 }
 
 void release_mapped_frame(const std::shared_ptr<NvidiaWebmDecoder::Impl>& state,
                           unsigned long long device_pointer) noexcept {
     if (!state) return;
     std::lock_guard<std::mutex> lock(state->runtime_mutex);
-    gpu::nvidia::CudaContextGuard context_guard(state->context, state->api->context_push,
-                                                state->api->context_pop);
-    if (context_guard) {
-        (void)state->api->unmap_frame(state->decoder, device_pointer);
-        (void)context_guard.release();
-    }
+    std::string ignored;
+    (void)gpu::nvidia::release_nvdec_mapping(*state->api, state->context, state->decoder,
+                                             device_pointer, ignored);
     if (state->outstanding_gpu_frames != 0) --state->outstanding_gpu_frames;
     if (state->closed && state->outstanding_gpu_frames == 0) {
-        (void)destroy_deferred_runtime(*state);
+        (void)destroy_deferred_runtime(*state, ignored);
     }
 }
 
@@ -338,21 +326,12 @@ mkvc_result NvidiaWebmDecoder::close(std::string& error) {
     state.completed_gpu.clear();
     {
         std::lock_guard<std::mutex> lock(state.runtime_mutex);
-        if (state.context != nullptr && state.parser != nullptr) {
-            gpu::nvidia::CudaContextGuard context_guard(state.context, state.api->context_push,
-                                                        state.api->context_pop);
-            if (!context_guard) {
-                error = "failed to activate CUDA context during close";
-                cleanup_failed = true;
-            } else {
-                (void)state.api->parser_destroy(state.parser);
-                state.parser = nullptr;
-                if (!context_guard.release()) cleanup_failed = true;
-            }
+        if (state.context != nullptr && state.parser != nullptr &&
+            !gpu::nvidia::destroy_nvdec_parser(*state.api, state.context, state.parser, error)) {
+            cleanup_failed = true;
         }
         state.closed = true;
-        if (state.outstanding_gpu_frames == 0 && !destroy_deferred_runtime(state)) {
-            error = "failed to destroy deferred NVIDIA runtime";
+        if (state.outstanding_gpu_frames == 0 && !destroy_deferred_runtime(state, error)) {
             cleanup_failed = true;
         }
     }

@@ -166,5 +166,10 @@ int main(int argc, char** argv) {
         std::cerr << "NVDEC GPU lease validation failed: " << error << '\n';
         return 1;
     }
+    error.clear();
+    if (!decode_file(argv[1], false, error)) {
+        std::cerr << "NVDEC deferred runtime recreation failed: " << error << '\n';
+        return 1;
+    }
     return 0;
 }

@@ -1163,6 +1163,11 @@ Driver loading, CUDA context creation, parser callback wiring and successful
 context detachment are isolated in `nvdec_runtime_setup`. Initialization errors
 discard partial parser/context resources; the real-GPU test forces a post-runtime
 input-open failure and then recreates a decoder successfully.
+Parser destruction, mapped-frame release and decoder/context destruction are
+isolated in `nvdec_runtime_cleanup`, with a CUDA context guard around each driver
+operation. Decoder/context destruction remains deferred while an external GPU
+frame lease exists; the real-GPU test releases that final lease and then recreates
+and runs another decoder in the same process.
 CPU and GPU reads share one parser pump for incremental demux, timestamped packet
 submission, the single EOS drain packet, callback diagnostics and CUDA context
 release. Their public output-mode and frame-pool checks remain separate.
