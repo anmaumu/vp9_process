@@ -13,25 +13,19 @@
 #include "gpu/nvidia/nvdec_api.hpp"
 #include "gpu/nvidia/nvdec_cpu_output.hpp"
 #include "gpu/nvidia/nvdec_gpu_output.hpp"
-#include "gpu/nvidia/nvdec_runtime_cleanup.hpp"
+#include "gpu/nvidia/nvdec_runtime_owner.hpp"
 #include "gpu/nvidia/nvdec_runtime_setup.hpp"
 #include "gpu/nvidia/nvdec_sequence.hpp"
 #endif
 
 #include <deque>
-#include <mutex>
-#include <optional>
 #include <utility>
-#include <vector>
 
 namespace mkvc {
 
-struct NvidiaWebmDecoder::Impl : public std::enable_shared_from_this<Impl> {
+struct NvidiaWebmDecoder::Impl {
 #if defined(MKVC_HAS_NVIDIA)
-    std::unique_ptr<gpu::nvidia::NvdecApi> api;
-    CUcontext context = nullptr;
-    CUvideoparser parser = nullptr;
-    CUvideodecoder decoder = nullptr;
+    std::shared_ptr<gpu::nvidia::NvdecRuntimeOwner> runtime;
     uint32_t width = 0;
     uint32_t height = 0;
     std::string callback_error;
@@ -43,8 +37,6 @@ struct NvidiaWebmDecoder::Impl : public std::enable_shared_from_this<Impl> {
     std::deque<std::shared_ptr<gpu::GpuFrameCore>> completed_gpu;
     std::shared_ptr<gpu::GpuFramePool> gpu_pool;
     enum class OutputMode { kUnset, kCpu, kGpu } output_mode = OutputMode::kUnset;
-    std::mutex runtime_mutex;
-    uint32_t outstanding_gpu_frames = 0;
     std::unique_ptr<WebmPacketReader> packet_reader;
     bool demux_eos = false;
     bool parser_drained = false;
@@ -61,25 +53,6 @@ NvidiaWebmDecoder::~NvidiaWebmDecoder() {
 #if defined(MKVC_HAS_NVIDIA)
 namespace {
 
-bool destroy_deferred_runtime(NvidiaWebmDecoder::Impl& state, std::string& error) {
-    if (state.context == nullptr || state.outstanding_gpu_frames != 0) return true;
-    return gpu::nvidia::destroy_nvdec_decoder_context(*state.api, state.context, state.decoder,
-                                                      error);
-}
-
-void release_mapped_frame(const std::shared_ptr<NvidiaWebmDecoder::Impl>& state,
-                          unsigned long long device_pointer) noexcept {
-    if (!state) return;
-    std::lock_guard<std::mutex> lock(state->runtime_mutex);
-    std::string ignored;
-    (void)gpu::nvidia::release_nvdec_mapping(*state->api, state->context, state->decoder,
-                                             device_pointer, ignored);
-    if (state->outstanding_gpu_frames != 0) --state->outstanding_gpu_frames;
-    if (state->closed && state->outstanding_gpu_frames == 0) {
-        (void)destroy_deferred_runtime(*state, ignored);
-    }
-}
-
 int CUDAAPI sequence_callback(void* opaque, CUVIDEOFORMAT* format) {
     auto& state = *static_cast<NvidiaWebmDecoder::Impl*>(opaque);
     ++state.sequence_callbacks;
@@ -88,9 +61,9 @@ int CUDAAPI sequence_callback(void* opaque, CUVIDEOFORMAT* format) {
         return 0;
     }
     int decode_surfaces = 0;
-    if (gpu::nvidia::configure_nvdec_sequence(*state.api, *format, state.decoder, state.width,
-                                              state.height, decode_surfaces,
-                                              state.callback_error) != MKVC_OK) {
+    if (gpu::nvidia::configure_nvdec_sequence(state.runtime->api(), *format,
+                                              state.runtime->decoder(), state.width, state.height,
+                                              decode_surfaces, state.callback_error) != MKVC_OK) {
         return 0;
     }
     return decode_surfaces;
@@ -99,8 +72,8 @@ int CUDAAPI sequence_callback(void* opaque, CUVIDEOFORMAT* format) {
 int CUDAAPI decode_callback(void* opaque, CUVIDPICPARAMS* picture) {
     auto& state = *static_cast<NvidiaWebmDecoder::Impl*>(opaque);
     ++state.decode_callbacks;
-    if (state.decoder == nullptr || picture == nullptr ||
-        state.api->decode_picture(state.decoder, picture) != CUDA_SUCCESS) {
+    if (state.runtime->decoder() == nullptr || picture == nullptr ||
+        state.runtime->api().decode_picture(state.runtime->decoder(), picture) != CUDA_SUCCESS) {
         state.callback_error = "cuvidDecodePicture failed";
         return 0;
     }
@@ -110,7 +83,7 @@ int CUDAAPI decode_callback(void* opaque, CUVIDPICPARAMS* picture) {
 int CUDAAPI display_callback(void* opaque, CUVIDPARSERDISPINFO* display) {
     auto& state = *static_cast<NvidiaWebmDecoder::Impl*>(opaque);
     ++state.display_callbacks;
-    if (state.decoder == nullptr || display == nullptr) {
+    if (state.runtime->decoder() == nullptr || display == nullptr) {
         state.callback_error = "invalid NVDEC display callback";
         return 0;
     }
@@ -120,30 +93,30 @@ int CUDAAPI display_callback(void* opaque, CUVIDPARSERDISPINFO* display) {
     processing.unpaired_field = display->repeat_first_field < 0;
     unsigned long long device_pointer = 0;
     unsigned int pitch = 0;
-    if (state.api->map_frame(state.decoder, display->picture_index, &device_pointer, &pitch,
-                             &processing) != CUDA_SUCCESS) {
+    if (state.runtime->api().map_frame(state.runtime->decoder(), display->picture_index,
+                                       &device_pointer, &pitch, &processing) != CUDA_SUCCESS) {
         state.callback_error = "cuvidMapVideoFrame failed";
         return 0;
     }
     if (state.output_mode == NvidiaWebmDecoder::Impl::OutputMode::kGpu) {
-        auto shared_state = state.shared_from_this();
+        auto runtime = state.runtime;
         std::shared_ptr<gpu::GpuFrameCore> frame;
         const mkvc_result acquired = gpu::nvidia::acquire_nvdec_gpu_frame(
-            *state.api, state.decoder, state.context, device_pointer, pitch, state.width,
-            state.height, display->timestamp, state.gpu_pool,
-            [shared_state, device_pointer] { release_mapped_frame(shared_state, device_pointer); },
-            frame, state.callback_error);
+            runtime->api(), runtime->decoder(), runtime->context(), device_pointer, pitch,
+            state.width, state.height, display->timestamp, state.gpu_pool,
+            [runtime, device_pointer] { runtime->release_mapping(device_pointer); }, frame,
+            state.callback_error);
         if (acquired != MKVC_OK) {
             return 0;
         }
-        ++state.outstanding_gpu_frames;
+        runtime->acquire_mapping();
         state.completed_gpu.push_back(std::move(frame));
         return 1;
     }
     std::unique_ptr<DecodedFrame> frame;
-    if (gpu::nvidia::consume_nvdec_cpu_frame(*state.api, state.decoder, device_pointer, pitch,
-                                             state.width, state.height, display->timestamp, frame,
-                                             state.callback_error) != MKVC_OK) {
+    if (gpu::nvidia::consume_nvdec_cpu_frame(
+            state.runtime->api(), state.runtime->decoder(), device_pointer, pitch, state.width,
+            state.height, display->timestamp, frame, state.callback_error) != MKVC_OK) {
         return 0;
     }
     state.completed.push_back(std::move(frame));
@@ -158,8 +131,9 @@ int CUDAAPI display_callback(void* opaque, CUVIDPARSERDISPINFO* display) {
  */
 mkvc_result pump_parser_until_output(NvidiaWebmDecoder::Impl& state, bool gpu_output,
                                      std::string& error) {
-    gpu::nvidia::CudaContextGuard context_guard(state.context, state.api->context_push,
-                                                state.api->context_pop);
+    gpu::nvidia::CudaContextGuard context_guard(state.runtime->context(),
+                                                state.runtime->api().context_push,
+                                                state.runtime->api().context_pop);
     if (!context_guard) {
         error = "failed to activate CUDA context";
         return MKVC_ERROR_CODEC;
@@ -202,7 +176,7 @@ mkvc_result pump_parser_until_output(NvidiaWebmDecoder::Impl& state, bool gpu_ou
             break;
         }
         state.callback_error.clear();
-        if (state.api->parser_parse(state.parser, &source) != CUDA_SUCCESS) {
+        if (state.runtime->api().parser_parse(state.runtime->parser(), &source) != CUDA_SUCCESS) {
             error =
                 state.callback_error.empty() ? "cuvidParseVideoData failed" : state.callback_error;
             result = MKVC_ERROR_CODEC;
@@ -245,9 +219,7 @@ std::unique_ptr<NvidiaWebmDecoder> NvidiaWebmDecoder::create(const mkvc_decoder_
                                                  display_callback, runtime, error) != MKVC_OK) {
         return nullptr;
     }
-    state.api = std::move(runtime.api);
-    state.context = runtime.context;
-    state.parser = runtime.parser;
+    state.runtime = std::make_shared<gpu::nvidia::NvdecRuntimeOwner>(std::move(runtime));
     state.packet_reader = WebmPacketReader::open(config.input_path_utf8, config.codec, error);
     if (!state.packet_reader) return nullptr;
     return result;
@@ -324,17 +296,8 @@ mkvc_result NvidiaWebmDecoder::close(std::string& error) {
     auto& state = *impl_;
     state.completed.clear();
     state.completed_gpu.clear();
-    {
-        std::lock_guard<std::mutex> lock(state.runtime_mutex);
-        if (state.context != nullptr && state.parser != nullptr &&
-            !gpu::nvidia::destroy_nvdec_parser(*state.api, state.context, state.parser, error)) {
-            cleanup_failed = true;
-        }
-        state.closed = true;
-        if (state.outstanding_gpu_frames == 0 && !destroy_deferred_runtime(state, error)) {
-            cleanup_failed = true;
-        }
-    }
+    state.closed = true;
+    if (state.runtime && !state.runtime->close(error)) cleanup_failed = true;
     state.packet_reader.reset();
 #endif
     impl_->closed = true;

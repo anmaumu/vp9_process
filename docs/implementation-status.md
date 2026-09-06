@@ -1167,7 +1167,11 @@ Parser destruction, mapped-frame release and decoder/context destruction are
 isolated in `nvdec_runtime_cleanup`, with a CUDA context guard around each driver
 operation. Decoder/context destruction remains deferred while an external GPU
 frame lease exists; the real-GPU test releases that final lease and then recreates
-and runs another decoder in the same process.
+and runs another decoder in the same process. `NvdecRuntimeOwner` now owns the API
+table, parser, decoder and CUDA context across that deferred lifetime. Output
+release callbacks retain only this owner instead of the complete decoder state;
+it serializes mapping counts, destroys the parser at close, and destroys the
+decoder/context after the final mapping is released.
 CPU and GPU reads share one parser pump for incremental demux, timestamped packet
 submission, the single EOS drain packet, callback diagnostics and CUDA context
 release. Their public output-mode and frame-pool checks remain separate.

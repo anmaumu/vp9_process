@@ -60,6 +60,7 @@ function(mkvc_add_nvidia_vp9_fixture_tests vp9_sample)
         src/gpu/nvidia/nvdec_cpu_output.cpp
         src/gpu/nvidia/nvdec_gpu_output.cpp
         src/gpu/nvidia/nvdec_runtime_cleanup.cpp
+        src/gpu/nvidia/nvdec_runtime_owner.cpp
         src/gpu/nvidia/nvdec_runtime_setup.cpp
         src/gpu/nvidia/nvdec_sequence.cpp
         src/gpu/nvidia/nvidia_native_handle.cpp)
