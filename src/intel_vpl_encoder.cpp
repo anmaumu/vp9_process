@@ -2,16 +2,15 @@
 
 #include "gpu/gpu_frame.hpp"
 #if defined(MKVC_HAS_INTEL_ONEVPL)
-#include <vpl/mfxmemory.h>
 #include <vpl/mfxvideo.h>
 
+#include "gpu/intel/vpl_cpu_input.hpp"
 #include "gpu/intel/vpl_encoder_queue.hpp"
 #include "gpu/intel/vpl_encoder_runtime.hpp"
 #include "gpu/intel/vpl_imported_surface_tracker.hpp"
 #endif
 
 #include <algorithm>
-#include <cstring>
 #include <utility>
 
 namespace mkvc {
@@ -173,52 +172,9 @@ mkvc_result IntelVplEncoder::write_nv12(const uint8_t* y, int32_t y_stride, cons
         error = "oneVPL encoder is closed or drained";
         return MKVC_ERROR_INVALID_STATE;
     }
-    if (y == nullptr || uv == nullptr || y_stride < static_cast<int32_t>(impl.width) ||
-        uv_stride < static_cast<int32_t>(impl.width)) {
-        error = "invalid NV12 input";
-        return MKVC_ERROR_INVALID_ARGUMENT;
-    }
-    mfxFrameSurface1* surface = nullptr;
-    if (MFXMemory_GetSurfaceForEncode(impl.session, &surface) != MFX_ERR_NONE ||
-        surface == nullptr) {
-        error = "oneVPL failed to acquire an encode surface";
-        return MKVC_ERROR_CODEC;
-    }
-    mfxStatus status = surface->FrameInterface->Map(surface, MFX_MAP_WRITE);
-    if (status != MFX_ERR_NONE) {
-        surface->FrameInterface->Release(surface);
-        error = "oneVPL failed to map an encode surface";
-        return MKVC_ERROR_CODEC;
-    }
-    const uint32_t pitch =
-        (static_cast<uint32_t>(surface->Data.PitchHigh) << 16) | surface->Data.PitchLow;
-    for (uint32_t row = 0; row < impl.height; ++row) {
-        std::memcpy(surface->Data.Y + static_cast<size_t>(row) * pitch,
-                    y + static_cast<size_t>(row) * y_stride, impl.width);
-    }
-    for (uint32_t row = 0; row < impl.height / 2; ++row) {
-        std::memcpy(surface->Data.UV + static_cast<size_t>(row) * pitch,
-                    uv + static_cast<size_t>(row) * uv_stride, impl.width);
-    }
-    const int64_t frame_pts = pts >= 0 ? pts : impl.next_pts;
-    surface->Data.TimeStamp =
-        static_cast<mfxU64>(frame_pts) * 90000ULL * impl.fps_den / impl.fps_num;
-    status = surface->FrameInterface->Unmap(surface);
-    if (status != MFX_ERR_NONE) {
-        surface->FrameInterface->Release(surface);
-        error = "oneVPL failed to unmap an encode surface";
-        return MKVC_ERROR_CODEC;
-    }
-    mkvc_result result = impl.queue->submit(surface, error);
-    surface->FrameInterface->Release(surface);
-    if (result == MKVC_OK && impl.queue->pending_count() >= impl.queue->async_depth()) {
-        result = impl.queue->collect_oldest(packets, error);
-    }
-    if (result == MKVC_OK || result == MKVC_END_OF_STREAM) {
-        impl.next_pts = std::max(impl.next_pts, frame_pts + 1);
-        return MKVC_OK;
-    }
-    return result;
+    return gpu::intel::submit_cpu_nv12(impl.session, *impl.queue, impl.width, impl.height,
+                                       impl.fps_num, impl.fps_den, impl.next_pts, y, y_stride, uv,
+                                       uv_stride, pts, packets, error);
 #endif
 }
 

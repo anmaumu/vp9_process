@@ -20,6 +20,15 @@
 - GitHub Actions builds strict MkDocs HTML and stores `mkvcodec-documentation` for 30 days.
 - GitHub Pages publication remains disabled until an explicit public-release decision.
 
+## 2026-09-06: oneVPL CPU input responsibility split
+
+The intentional CPU-copy encode path now lives in the Doxygen-documented
+`vpl_cpu_input` module. It validates NV12 planes, acquires and maps an internally
+managed oneVPL surface, copies visible Y/UV rows, converts frame PTS to the 90 kHz
+timebase, unmaps/submits/releases the surface and applies async-depth collection.
+`IntelVplEncoder` now coordinates state and delegates this complete host-input
+transaction; the GPU-resident path and its copy classification are unchanged.
+
 ## 2026-09-06: oneVPL imported-surface lifetime split
 
 Intel GPU encode input now delegates same-D3D11-device/VA-display validation,
