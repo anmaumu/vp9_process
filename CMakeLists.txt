@@ -101,7 +101,8 @@ if(MKVC_ENABLE_NVIDIA)
         src/gpu/nvidia/cuda_completion.cpp
         src/gpu/nvidia/dynamic_library.cpp
         src/gpu/nvidia/nvdec_api.cpp
-        src/gpu/nvidia/nvdec_cpu_output.cpp)
+        src/gpu/nvidia/nvdec_cpu_output.cpp
+        src/gpu/nvidia/nvdec_gpu_output.cpp)
     target_compile_definitions(mkvcodec PRIVATE MKVC_HAS_NVIDIA=1)
     target_include_directories(mkvcodec PRIVATE
         ${nv_codec_headers_SOURCE_DIR}/include)

@@ -1159,8 +1159,10 @@ maps NV12 only for completed display-order frames, and splits the host readback
 into the common owned I420 representation. The CPU-output boundary is isolated in
 `nvdec_cpu_output`: it owns both pitched CUDA 2D readbacks, NV12-to-I420 plane
 separation and the mandatory mapped-frame unmap. The display callback therefore
-only selects CPU/GPU output and enqueues the completed lease. This remains an
-intentional device-to-host copy path; the GPU-surface branch does not use it and
+only selects CPU/GPU output and enqueues the completed lease. Its GPU counterpart,
+`nvdec_gpu_output`, constructs the common descriptor and CUDA native handle and
+transfers the mapping into the bounded frame-pool lease without copying pixels.
+The CPU path remains an intentional device-to-host copy path; the GPU-surface path
 retains the mapped CUDA resource until its lease is released. The NVIDIA writer
 converts supported 8-bit CPU inputs to NV12, submits one synchronous NVENC AV1
 operation at a time, and immediately muxes the returned packet. Backend capability

@@ -1,7 +1,6 @@
 #include "nvidia_webm_decoder.hpp"
 
 #include "gpu/gpu_frame_pool.hpp"
-#include "gpu/nvidia/nvidia_native_handle.hpp"
 #include "nvidia_probe.hpp"
 #include "webm_packet_reader.hpp"
 
@@ -13,6 +12,7 @@
 #include "gpu/nvidia/cuda_context_guard.hpp"
 #include "gpu/nvidia/nvdec_api.hpp"
 #include "gpu/nvidia/nvdec_cpu_output.hpp"
+#include "gpu/nvidia/nvdec_gpu_output.hpp"
 #endif
 
 #include <algorithm>
@@ -186,45 +186,18 @@ int CUDAAPI display_callback(void* opaque, CUVIDPARSERDISPINFO* display) {
         return 0;
     }
     if (state.output_mode == NvidiaWebmDecoder::Impl::OutputMode::kGpu) {
-        mkvc_gpu_frame_desc desc{};
-        desc.struct_size = sizeof(desc);
-        desc.struct_version = 1;
-        desc.backend = MKVC_BACKEND_NVIDIA;
-        desc.memory_type = MKVC_GPU_MEMORY_CUDA_POINTER;
-        desc.device_id = 0;
-        desc.pixel_format = MKVC_PIXEL_FORMAT_NV12;
-        desc.width = state.width;
-        desc.height = state.height;
-        desc.plane_count = 2;
-        desc.plane_offsets[1] = static_cast<uint64_t>(pitch) * state.height;
-        desc.pitches[0] = pitch;
-        desc.pitches[1] = pitch;
-        desc.pts = display->timestamp;
-        mkvc_gpu_native_handle_desc native{};
-        std::string native_error;
-        if (gpu::nvidia::make_cuda_handle(0, 0, MKVC_GPU_NATIVE_CUDA_POINTER, device_pointer,
-                                          reinterpret_cast<uintptr_t>(state.context), 0, 0, native,
-                                          native_error) != MKVC_OK) {
-            (void)state.api->unmap_frame(state.decoder, device_pointer);
-            state.callback_error = std::move(native_error);
-            return 0;
-        }
-        auto ready = std::make_shared<gpu::ManualCompletion>();
-        ready->complete();
-        gpu::GpuFramePool::Acquisition acquisition;
         auto shared_state = state.shared_from_this();
-        const mkvc_result acquired = state.gpu_pool->acquire(
-            desc, ready, native,
+        std::shared_ptr<gpu::GpuFrameCore> frame;
+        const mkvc_result acquired = gpu::nvidia::acquire_nvdec_gpu_frame(
+            *state.api, state.decoder, state.context, device_pointer, pitch, state.width,
+            state.height, display->timestamp, state.gpu_pool,
             [shared_state, device_pointer] { release_mapped_frame(shared_state, device_pointer); },
-            acquisition, state.callback_error,
-            {gpu::BackendResourceKind::kNvidiaCudaFrame,
-             reinterpret_cast<void*>(static_cast<uintptr_t>(device_pointer))});
+            frame, state.callback_error);
         if (acquired != MKVC_OK) {
-            (void)state.api->unmap_frame(state.decoder, device_pointer);
             return 0;
         }
         ++state.outstanding_gpu_frames;
-        state.completed_gpu.push_back(std::move(acquisition.core));
+        state.completed_gpu.push_back(std::move(frame));
         return 1;
     }
     std::unique_ptr<DecodedFrame> frame;
