@@ -48,9 +48,11 @@ function(mkvc_add_intel_codec_integration_test)
         src/gpu/intel/vpl_decoder_pump.cpp
         src/gpu/intel/vpl_decoder_queue.cpp
         src/gpu/intel/vpl_decoder_runtime.cpp
+        src/gpu/intel/vpl_encoder_sequence.cpp
         src/gpu/intel/vpl_encoder_runtime.cpp
         src/gpu/intel/vpl_encoder_queue.cpp
         src/gpu/intel/vpl_imported_surface_tracker.cpp
+        src/gpu/intel/vpl_packet_muxer.cpp
         src/gpu/intel/vpl_surface_import.cpp)
     target_compile_features(mkvc_intel_vpl_encode_test PRIVATE cxx_std_17)
     target_include_directories(mkvc_intel_vpl_encode_test PRIVATE src include)

@@ -20,6 +20,16 @@
 - GitHub Actions builds strict MkDocs HTML and stores `mkvcodec-documentation` for 30 days.
 - GitHub Pages publication remains disabled until an explicit public-release decision.
 
+## 2026-09-07: Intel encode sequence and packet-mux split
+
+`IntelWebmEncoder` now delegates hardware component creation, CPU/external-GPU
+sequence switching, fallback PTS progression, drain/restart ordering and pending
+high-water aggregation to the Doxygen-documented `VplEncoderSequence`. oneVPL
+frame-index timestamps are converted to nanoseconds and written through the
+backend-neutral container muxer by `VplPacketMuxer`. Drained packets are muxed
+before a CPU encoder is restarted, preserving existing failure and flush
+semantics; Intel GPU input remains resident throughout encode submission.
+
 ## 2026-09-07: oneVPL decoder output responsibility split
 
 The oneVPL decode queue now owns only ordered asynchronous submissions,

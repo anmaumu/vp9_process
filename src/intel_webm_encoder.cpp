@@ -1,11 +1,13 @@
 #include "intel_webm_encoder.hpp"
 
 #include "gpu/gpu_frame.hpp"
-#include "webm_muxer.hpp"
 
 #if defined(MKVC_HAS_INTEL_ONEVPL)
 #include <libyuv/convert.h>
 #include <libyuv/planar_functions.h>
+
+#include "gpu/intel/vpl_encoder_sequence.hpp"
+#include "gpu/intel/vpl_packet_muxer.hpp"
 #endif
 
 #include <algorithm>
@@ -18,21 +20,12 @@ namespace mkvc {
 
 struct IntelWebmEncoder::Impl {
 #if defined(MKVC_HAS_INTEL_ONEVPL)
-    std::unique_ptr<WebmMuxer> muxer;
+    std::unique_ptr<gpu::intel::VplPacketMuxer> muxer;
+    std::unique_ptr<gpu::intel::VplEncoderSequence> sequence;
 #endif
-    std::unique_ptr<IntelVplEncoder> encoder;
-    uint32_t codec = 0;
     uint32_t width = 0;
     uint32_t height = 0;
-    uint32_t fps_num = 0;
-    uint32_t fps_den = 0;
-    uint32_t quality = 0;
-    uint32_t keyframe_interval_frames = 0;
-    int64_t next_pts = 0;
-    uint64_t frames_in_sequence = 0;
-    uint32_t hardware_pending_peak = 0;
     bool closed = false;
-    bool external_gpu_mode = false;
     std::vector<uint8_t> i420;
     std::vector<uint8_t> nv12;
 };
@@ -136,24 +129,6 @@ mkvc_result convert_to_nv12(IntelWebmEncoder::Impl& impl, const mkvc_frame_view&
     return MKVC_OK;
 }
 
-mkvc_result mux_packets(IntelWebmEncoder::Impl& impl,
-                        const std::vector<IntelEncodedPacket>& packets, std::string& error) {
-    for (const auto& packet : packets) {
-        const mkvc_result result = impl.muxer->add_frame(
-            packet.data.data(), packet.data.size(),
-            static_cast<uint64_t>(packet.pts) * impl.fps_den * 1000000000ULL / impl.fps_num,
-            static_cast<uint64_t>(impl.fps_den) * 1000000000ULL / impl.fps_num, packet.key, error);
-        if (result != MKVC_OK) return result;
-    }
-    return MKVC_OK;
-}
-
-std::unique_ptr<IntelVplEncoder> create_adapter(const IntelWebmEncoder::Impl& impl,
-                                                std::string& error) {
-    return IntelVplEncoder::create(impl.codec, impl.width, impl.height, impl.fps_num, impl.fps_den,
-                                   impl.quality, impl.keyframe_interval_frames, error);
-}
-
 }  // namespace
 #endif
 
@@ -166,17 +141,18 @@ std::unique_ptr<IntelWebmEncoder> IntelWebmEncoder::create(const mkvc_encoder_co
 #else
     auto encoder = std::unique_ptr<IntelWebmEncoder>(new IntelWebmEncoder());
     auto& impl = *encoder->impl_;
-    impl.codec = config.codec;
     impl.width = config.width;
     impl.height = config.height;
-    impl.fps_num = config.fps_num;
-    impl.fps_den = config.fps_den;
-    impl.quality = config.quality;
-    impl.keyframe_interval_frames = config.keyframe_interval_frames;
-    impl.encoder = create_adapter(impl, error);
-    if (!impl.encoder) return nullptr;
-    impl.muxer = WebmMuxer::create(config.output_path_utf8, config.codec, config.width,
-                                   config.height, config.fps_num, config.fps_den, error);
+    const gpu::intel::VplEncoderSequenceConfig sequence_config{config.codec,
+                                                               config.width,
+                                                               config.height,
+                                                               config.fps_num,
+                                                               config.fps_den,
+                                                               config.quality,
+                                                               config.keyframe_interval_frames};
+    impl.sequence = gpu::intel::VplEncoderSequence::create(sequence_config, error);
+    if (!impl.sequence) return nullptr;
+    impl.muxer = gpu::intel::VplPacketMuxer::create(config, error);
     if (!impl.muxer) return nullptr;
     const uint64_t y_size = static_cast<uint64_t>(config.width) * config.height;
     if (y_size * 3 / 2 > std::numeric_limits<size_t>::max()) {
@@ -208,14 +184,11 @@ mkvc_result IntelWebmEncoder::write(const mkvc_frame_view& frame, std::string& e
     if (result != MKVC_OK) return result;
     const size_t y_size = static_cast<size_t>(impl.width) * impl.height;
     std::vector<IntelEncodedPacket> packets;
-    const int64_t frame_pts = frame.pts >= 0 ? frame.pts : impl.next_pts;
-    result = impl.encoder->write_nv12(impl.nv12.data(), static_cast<int32_t>(impl.width),
-                                      impl.nv12.data() + y_size, static_cast<int32_t>(impl.width),
-                                      frame_pts, packets, error);
+    result = impl.sequence->write_nv12(impl.nv12.data(), static_cast<int32_t>(impl.width),
+                                       impl.nv12.data() + y_size, static_cast<int32_t>(impl.width),
+                                       frame.pts, packets, error);
     if (result != MKVC_OK) return result;
-    impl.next_pts = std::max(impl.next_pts, frame_pts + 1);
-    ++impl.frames_in_sequence;
-    return mux_packets(impl, packets, error);
+    return impl.muxer->write(packets, error);
 #endif
 }
 
@@ -235,26 +208,10 @@ mkvc_result IntelWebmEncoder::write_gpu(const std::shared_ptr<gpu::GpuFrameCore>
         error = "GPU frame dimensions do not match Intel encoder";
         return MKVC_ERROR_INVALID_ARGUMENT;
     }
-    if (frame->backend_resource().kind == gpu::BackendResourceKind::kNone &&
-        !impl.external_gpu_mode) {
-        if (impl.frames_in_sequence != 0) {
-            error = "flush Intel writer before switching to external GPU input";
-            return MKVC_ERROR_INVALID_STATE;
-        }
-        auto adapter =
-            IntelVplEncoder::create(impl.codec, impl.width, impl.height, impl.fps_num, impl.fps_den,
-                                    impl.quality, impl.keyframe_interval_frames, error, 4, frame);
-        if (!adapter) return MKVC_ERROR_NOT_SUPPORTED;
-        impl.encoder = std::move(adapter);
-        impl.external_gpu_mode = true;
-    }
     std::vector<IntelEncodedPacket> packets;
-    const int64_t frame_pts = impl.next_pts;
-    const mkvc_result result = impl.encoder->write_gpu_surface(frame, frame_pts, packets, error);
+    const mkvc_result result = impl.sequence->write_gpu(frame, packets, error);
     if (result != MKVC_OK) return result;
-    impl.next_pts = frame_pts + 1;
-    ++impl.frames_in_sequence;
-    return mux_packets(impl, packets, error);
+    return impl.muxer->write(packets, error);
 #endif
 }
 
@@ -264,20 +221,12 @@ mkvc_result IntelWebmEncoder::flush(std::string& error) {
     return MKVC_ERROR_NOT_SUPPORTED;
 #else
     auto& impl = *impl_;
-    if (impl.closed || (impl.frames_in_sequence == 0 && !impl.external_gpu_mode)) return MKVC_OK;
+    if (impl.closed) return MKVC_OK;
     std::vector<IntelEncodedPacket> packets;
-    mkvc_result result = impl.encoder->drain(packets, error);
-    if (result == MKVC_OK) result = mux_packets(impl, packets, error);
-    std::string close_error;
-    impl.hardware_pending_peak =
-        std::max(impl.hardware_pending_peak, impl.encoder->max_pending_observed());
-    impl.encoder->close(close_error);
-    impl.encoder.reset();
-    impl.frames_in_sequence = 0;
-    impl.external_gpu_mode = false;
-    if (result != MKVC_OK) return result;
-    impl.encoder = create_adapter(impl, error);
-    return impl.encoder ? MKVC_OK : MKVC_ERROR_CODEC;
+    mkvc_result result = impl.sequence->flush(packets, error);
+    if (result == MKVC_OK) result = impl.muxer->write(packets, error);
+    if (result == MKVC_OK) result = impl.sequence->restart_cpu(error);
+    return result;
 #endif
 }
 
@@ -288,17 +237,10 @@ mkvc_result IntelWebmEncoder::close(std::string& error) {
     (void)error;
 #else
     auto& impl = *impl_;
-    if (impl.encoder && impl.frames_in_sequence > 0) {
+    if (impl.sequence) {
         std::vector<IntelEncodedPacket> packets;
-        result = impl.encoder->drain(packets, error);
-        if (result == MKVC_OK) result = mux_packets(impl, packets, error);
-    }
-    if (impl.encoder) {
-        impl.hardware_pending_peak =
-            std::max(impl.hardware_pending_peak, impl.encoder->max_pending_observed());
-        std::string close_error;
-        impl.encoder->close(close_error);
-        impl.encoder.reset();
+        result = impl.sequence->close(packets, error);
+        if (result == MKVC_OK && impl.muxer) result = impl.muxer->write(packets, error);
     }
     if (result == MKVC_OK && impl.muxer) result = impl.muxer->finalize(error);
 #endif
@@ -307,8 +249,11 @@ mkvc_result IntelWebmEncoder::close(std::string& error) {
 }
 
 uint32_t IntelWebmEncoder::max_pending_observed() const {
-    return std::max(impl_->hardware_pending_peak,
-                    impl_->encoder ? impl_->encoder->max_pending_observed() : 0);
+#if defined(MKVC_HAS_INTEL_ONEVPL)
+    return impl_->sequence ? impl_->sequence->max_pending_observed() : 0;
+#else
+    return 0;
+#endif
 }
 
 }  // namespace mkvc
