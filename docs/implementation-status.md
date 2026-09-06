@@ -20,6 +20,16 @@
 - GitHub Actions builds strict MkDocs HTML and stores `mkvcodec-documentation` for 30 days.
 - GitHub Pages publication remains disabled until an explicit public-release decision.
 
+## 2026-09-07: oneVPL decoder runtime and packet-pump split
+
+Intel hardware implementation filtering and session ownership now live in the
+Doxygen-documented `VplDecoderRuntime`. Lazy header parsing, decoder initialization,
+owned compressed-packet storage and async queue-pressure handling now live in the
+shared `VplDecoderPump`; CPU and GPU output differ only at collection. Exported
+GPU surfaces continue to retain the shared oneVPL session after decoder close,
+and the intentional compressed-input copy and pixel copy classifications are
+unchanged.
+
 ## 2026-09-06: oneVPL CPU input responsibility split
 
 The intentional CPU-copy encode path now lives in the Doxygen-documented

@@ -153,7 +153,9 @@ if(MKVC_ENABLE_INTEL_ONEVPL)
         src/gpu/intel/intel_surface_factory.cpp
         src/gpu/intel/vpl_bitstream.cpp
         src/gpu/intel/vpl_cpu_input.cpp
+        src/gpu/intel/vpl_decoder_pump.cpp
         src/gpu/intel/vpl_decoder_queue.cpp
+        src/gpu/intel/vpl_decoder_runtime.cpp
         src/gpu/intel/vpl_encoder_runtime.cpp
         src/gpu/intel/vpl_encoder_queue.cpp
         src/gpu/intel/vpl_imported_surface_tracker.cpp
