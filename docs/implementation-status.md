@@ -20,6 +20,16 @@
 - GitHub Actions builds strict MkDocs HTML and stores `mkvcodec-documentation` for 30 days.
 - GitHub Pages publication remains disabled until an explicit public-release decision.
 
+## 2026-09-06: oneVPL imported-surface lifetime split
+
+Intel GPU encode input now delegates same-D3D11-device/VA-display validation,
+producer-completion waiting, internal-surface reuse, external surface import,
+the 64-wrapper retention bound and runtime-reference retirement to the
+Doxygen-documented `VplImportedSurfaceTracker`. Close explicitly releases import
+wrappers while the encode component exists, destroys the oneVPL runtime, and only
+then releases original external frame leases. No host pixel copy was introduced;
+Linux VA and device-USM/OpenCL roundtrip and backpressure tests pass unchanged.
+
 ## 2026-09-06: Encoder backend selection and execution split
 
 Concrete CPU VP9/AV1, Intel and NVIDIA encoder construction now lives in the
