@@ -9,12 +9,8 @@
 #include <ffnvcodec/nvEncodeAPI.h>
 #include <libyuv/convert.h>
 #include <libyuv/planar_functions.h>
-#ifdef _WIN32
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-#else
-#include <dlfcn.h>
-#endif
+
+#include "gpu/nvidia/nvenc_api.hpp"
 #endif
 
 #include <algorithm>
@@ -26,53 +22,10 @@ namespace mkvc {
 
 struct NvidiaWebmEncoder::Impl {
 #if defined(MKVC_HAS_NVIDIA)
-    class Library {
-       public:
-        explicit Library(const char* name) {
-#ifdef _WIN32
-            handle_ = LoadLibraryA(name);
-#else
-            handle_ = dlopen(name, RTLD_LAZY | RTLD_LOCAL);
-#endif
-        }
-        ~Library() {
-#ifdef _WIN32
-            if (handle_ != nullptr) FreeLibrary(handle_);
-#else
-            if (handle_ != nullptr) dlclose(handle_);
-#endif
-        }
-        template <typename T>
-        T symbol(const char* name) const {
-#ifdef _WIN32
-            const FARPROC address = GetProcAddress(handle_, name);
-            static_assert(sizeof(T) == sizeof(address));
-            T result = nullptr;
-            std::memcpy(&result, &address, sizeof(result));
-            return result;
-#else
-            return reinterpret_cast<T>(dlsym(handle_, name));
-#endif
-        }
-        explicit operator bool() const { return handle_ != nullptr; }
-
-       private:
-#ifdef _WIN32
-        HMODULE handle_ = nullptr;
-#else
-        void* handle_ = nullptr;
-#endif
-    };
-    std::unique_ptr<Library> cuda;
-    std::unique_ptr<Library> nvenc;
-    tcuInit* cu_init = nullptr;
-    tcuDeviceGet* device_get = nullptr;
-    tcuCtxCreate_v2* context_create = nullptr;
-    tcuCtxDestroy_v2* context_destroy = nullptr;
+    std::unique_ptr<gpu::nvidia::NvencApi> api;
     CUcontext context = nullptr;
     CUcontext external_context = nullptr;
     bool owns_context = false;
-    NV_ENCODE_API_FUNCTION_LIST functions{};
     void* encoder = nullptr;
     NV_ENC_INPUT_PTR input = nullptr;
     NV_ENC_OUTPUT_PTR output = nullptr;
@@ -100,8 +53,6 @@ NvidiaWebmEncoder::~NvidiaWebmEncoder() {
 
 #if defined(MKVC_HAS_NVIDIA)
 namespace {
-
-using CreateInstance = NVENCSTATUS(NVENCAPI*)(NV_ENCODE_API_FUNCTION_LIST*);
 
 void copy_plane(uint8_t* destination, int destination_stride, const uint8_t* source,
                 int source_stride, uint32_t width, uint32_t height) {
@@ -189,15 +140,16 @@ mkvc_result convert_to_nv12(NvidiaWebmEncoder::Impl& state, const mkvc_frame_vie
 void destroy_session(NvidiaWebmEncoder::Impl& state) {
     if (state.encoder != nullptr) {
         if (state.input != nullptr)
-            (void)state.functions.nvEncDestroyInputBuffer(state.encoder, state.input);
+            (void)state.api->functions.nvEncDestroyInputBuffer(state.encoder, state.input);
         if (state.output != nullptr)
-            (void)state.functions.nvEncDestroyBitstreamBuffer(state.encoder, state.output);
-        (void)state.functions.nvEncDestroyEncoder(state.encoder);
+            (void)state.api->functions.nvEncDestroyBitstreamBuffer(state.encoder, state.output);
+        (void)state.api->functions.nvEncDestroyEncoder(state.encoder);
     }
     state.input = nullptr;
     state.output = nullptr;
     state.encoder = nullptr;
-    if (state.context != nullptr && state.owns_context) (void)state.context_destroy(state.context);
+    if (state.context != nullptr && state.owns_context)
+        (void)state.api->context_destroy(state.context);
     state.context = nullptr;
     state.owns_context = false;
 }
@@ -208,8 +160,9 @@ bool initialize_session(NvidiaWebmEncoder::Impl& state, std::string& error) {
         state.owns_context = false;
     } else {
         CUdevice device = 0;
-        if (state.cu_init(0) != CUDA_SUCCESS || state.device_get(&device, 0) != CUDA_SUCCESS ||
-            state.context_create(&state.context, 0, device) != CUDA_SUCCESS) {
+        if (state.api->cu_init(0) != CUDA_SUCCESS ||
+            state.api->device_get(&device, 0) != CUDA_SUCCESS ||
+            state.api->context_create(&state.context, 0, device) != CUDA_SUCCESS) {
             error = "failed to create NVIDIA encode CUDA context";
             return false;
         }
@@ -220,14 +173,14 @@ bool initialize_session(NvidiaWebmEncoder::Impl& state, std::string& error) {
     open.deviceType = NV_ENC_DEVICE_TYPE_CUDA;
     open.device = state.context;
     open.apiVersion = NVENCAPI_VERSION;
-    if (state.functions.nvEncOpenEncodeSessionEx(&open, &state.encoder) != NV_ENC_SUCCESS) {
+    if (state.api->functions.nvEncOpenEncodeSessionEx(&open, &state.encoder) != NV_ENC_SUCCESS) {
         error = "nvEncOpenEncodeSessionEx failed";
         return false;
     }
     NV_ENC_PRESET_CONFIG preset{};
     preset.version = NV_ENC_PRESET_CONFIG_VER;
     preset.presetCfg.version = NV_ENC_CONFIG_VER;
-    if (state.functions.nvEncGetEncodePresetConfigEx(
+    if (state.api->functions.nvEncGetEncodePresetConfigEx(
             state.encoder, NV_ENC_CODEC_AV1_GUID, NV_ENC_PRESET_P4_GUID,
             NV_ENC_TUNING_INFO_HIGH_QUALITY, &preset) != NV_ENC_SUCCESS) {
         error = "NVENC AV1 P4 preset query failed";
@@ -258,7 +211,7 @@ bool initialize_session(NvidiaWebmEncoder::Impl& state, std::string& error) {
     init.maxEncodeHeight = state.height;
     init.tuningInfo = NV_ENC_TUNING_INFO_HIGH_QUALITY;
     init.encodeConfig = &config;
-    if (state.functions.nvEncInitializeEncoder(state.encoder, &init) != NV_ENC_SUCCESS) {
+    if (state.api->functions.nvEncInitializeEncoder(state.encoder, &init) != NV_ENC_SUCCESS) {
         error = "nvEncInitializeEncoder AV1 failed";
         return false;
     }
@@ -267,14 +220,14 @@ bool initialize_session(NvidiaWebmEncoder::Impl& state, std::string& error) {
     input.width = state.width;
     input.height = state.height;
     input.bufferFmt = NV_ENC_BUFFER_FORMAT_NV12;
-    if (state.functions.nvEncCreateInputBuffer(state.encoder, &input) != NV_ENC_SUCCESS) {
+    if (state.api->functions.nvEncCreateInputBuffer(state.encoder, &input) != NV_ENC_SUCCESS) {
         error = "nvEncCreateInputBuffer failed";
         return false;
     }
     state.input = input.inputBuffer;
     NV_ENC_CREATE_BITSTREAM_BUFFER output{};
     output.version = NV_ENC_CREATE_BITSTREAM_BUFFER_VER;
-    if (state.functions.nvEncCreateBitstreamBuffer(state.encoder, &output) != NV_ENC_SUCCESS) {
+    if (state.api->functions.nvEncCreateBitstreamBuffer(state.encoder, &output) != NV_ENC_SUCCESS) {
         error = "nvEncCreateBitstreamBuffer failed";
         return false;
     }
@@ -286,7 +239,7 @@ mkvc_result emit_packet(NvidiaWebmEncoder::Impl& state, std::string& error) {
     NV_ENC_LOCK_BITSTREAM lock{};
     lock.version = NV_ENC_LOCK_BITSTREAM_VER;
     lock.outputBitstream = state.output;
-    if (state.functions.nvEncLockBitstream(state.encoder, &lock) != NV_ENC_SUCCESS) {
+    if (state.api->functions.nvEncLockBitstream(state.encoder, &lock) != NV_ENC_SUCCESS) {
         error = "nvEncLockBitstream failed";
         return MKVC_ERROR_CODEC;
     }
@@ -296,7 +249,7 @@ mkvc_result emit_packet(NvidiaWebmEncoder::Impl& state, std::string& error) {
         static_cast<const uint8_t*>(lock.bitstreamBufferPtr), lock.bitstreamSizeInBytes,
         lock.outputTimeStamp, lock.outputDuration != 0 ? lock.outputDuration : default_duration,
         lock.pictureType == NV_ENC_PIC_TYPE_IDR || lock.pictureType == NV_ENC_PIC_TYPE_I, error);
-    (void)state.functions.nvEncUnlockBitstream(state.encoder, state.output);
+    (void)state.api->functions.nvEncUnlockBitstream(state.encoder, state.output);
     return mux_result;
 }
 
@@ -324,34 +277,8 @@ std::unique_ptr<NvidiaWebmEncoder> NvidiaWebmEncoder::create(const mkvc_encoder_
     state.keyframe_interval = config.keyframe_interval_frames == 0
                                   ? std::max(1u, 4u * config.fps_num / config.fps_den)
                                   : config.keyframe_interval_frames;
-#ifdef _WIN32
-    state.cuda = std::make_unique<Impl::Library>("nvcuda.dll");
-    state.nvenc = std::make_unique<Impl::Library>("nvEncodeAPI64.dll");
-#else
-    state.cuda = std::make_unique<Impl::Library>("libcuda.so.1");
-    state.nvenc = std::make_unique<Impl::Library>("libnvidia-encode.so.1");
-#endif
-    if (!*state.cuda || !*state.nvenc) {
-        error = "NVIDIA encode driver libraries not found";
-        return nullptr;
-    }
-    state.cu_init = state.cuda->symbol<tcuInit*>("cuInit");
-    state.device_get = state.cuda->symbol<tcuDeviceGet*>("cuDeviceGet");
-    state.context_create = state.cuda->symbol<tcuCtxCreate_v2*>("cuCtxCreate_v2");
-    state.context_destroy = state.cuda->symbol<tcuCtxDestroy_v2*>("cuCtxDestroy_v2");
-    const auto create_instance = state.nvenc->symbol<CreateInstance>("NvEncodeAPICreateInstance");
-    if (state.cu_init == nullptr || state.device_get == nullptr ||
-        state.context_create == nullptr || state.context_destroy == nullptr ||
-        create_instance == nullptr) {
-        error = "NVIDIA encode driver is missing required symbols";
-        return nullptr;
-    }
-    state.functions.version = NV_ENCODE_API_FUNCTION_LIST_VER;
-    if (create_instance(&state.functions) != NV_ENC_SUCCESS ||
-        state.functions.nvEncGetEncodePresetConfigEx == nullptr) {
-        error = "NvEncodeAPICreateInstance failed";
-        return nullptr;
-    }
+    state.api = gpu::nvidia::NvencApi::load(error);
+    if (!state.api) return nullptr;
     if (!initialize_session(state, error)) return nullptr;
     state.muxer = WebmMuxer::create(config.output_path_utf8, MKVC_CODEC_AV1, config.width,
                                     config.height, config.fps_num, config.fps_den, error);
@@ -442,16 +369,17 @@ mkvc_result NvidiaWebmEncoder::write_gpu(const std::shared_ptr<gpu::GpuFrameCore
     registration.pitch = static_cast<uint32_t>(desc.pitches[0]);
     registration.bufferFormat = NV_ENC_BUFFER_FORMAT_NV12;
     registration.bufferUsage = NV_ENC_INPUT_IMAGE;
-    if (state.functions.nvEncRegisterResource(state.encoder, &registration) != NV_ENC_SUCCESS) {
+    if (state.api->functions.nvEncRegisterResource(state.encoder, &registration) !=
+        NV_ENC_SUCCESS) {
         error = "nvEncRegisterResource rejected the CUDA input resource";
         return MKVC_ERROR_CODEC;
     }
     NV_ENC_MAP_INPUT_RESOURCE mapping{};
     mapping.version = NV_ENC_MAP_INPUT_RESOURCE_VER;
     mapping.registeredResource = registration.registeredResource;
-    if (state.functions.nvEncMapInputResource(state.encoder, &mapping) != NV_ENC_SUCCESS) {
-        (void)state.functions.nvEncUnregisterResource(state.encoder,
-                                                      registration.registeredResource);
+    if (state.api->functions.nvEncMapInputResource(state.encoder, &mapping) != NV_ENC_SUCCESS) {
+        (void)state.api->functions.nvEncUnregisterResource(state.encoder,
+                                                           registration.registeredResource);
         error = "nvEncMapInputResource failed";
         return MKVC_ERROR_CODEC;
     }
@@ -472,15 +400,16 @@ mkvc_result NvidiaWebmEncoder::write_gpu(const std::shared_ptr<gpu::GpuFrameCore
     picture.inputDuration = static_cast<uint64_t>(duration);
     if (state.frame_index % state.keyframe_interval == 0)
         picture.encodePicFlags = NV_ENC_PIC_FLAG_FORCEIDR;
-    const NVENCSTATUS encoded = state.functions.nvEncEncodePicture(state.encoder, &picture);
+    const NVENCSTATUS encoded = state.api->functions.nvEncEncodePicture(state.encoder, &picture);
     if (encoded == NV_ENC_SUCCESS)
         result = emit_packet(state, error);
     else {
         error = "nvEncEncodePicture failed for GPU input";
         result = MKVC_ERROR_CODEC;
     }
-    (void)state.functions.nvEncUnmapInputResource(state.encoder, mapping.mappedResource);
-    (void)state.functions.nvEncUnregisterResource(state.encoder, registration.registeredResource);
+    (void)state.api->functions.nvEncUnmapInputResource(state.encoder, mapping.mappedResource);
+    (void)state.api->functions.nvEncUnregisterResource(state.encoder,
+                                                       registration.registeredResource);
     if (result == MKVC_OK) {
         ++state.frame_index;
         state.next_pts = std::max(state.next_pts, pts + duration);
@@ -509,7 +438,7 @@ mkvc_result NvidiaWebmEncoder::write(const mkvc_frame_view& frame, std::string& 
     NV_ENC_LOCK_INPUT_BUFFER lock{};
     lock.version = NV_ENC_LOCK_INPUT_BUFFER_VER;
     lock.inputBuffer = state.input;
-    if (state.functions.nvEncLockInputBuffer(state.encoder, &lock) != NV_ENC_SUCCESS) {
+    if (state.api->functions.nvEncLockInputBuffer(state.encoder, &lock) != NV_ENC_SUCCESS) {
         error = "nvEncLockInputBuffer failed";
         return MKVC_ERROR_CODEC;
     }
@@ -519,7 +448,7 @@ mkvc_result NvidiaWebmEncoder::write(const mkvc_frame_view& frame, std::string& 
     copy_plane(destination, lock.pitch, source_y, state.width, state.width, state.height);
     copy_plane(destination + static_cast<size_t>(lock.pitch) * state.height, lock.pitch, source_uv,
                state.width, state.width, state.height / 2);
-    (void)state.functions.nvEncUnlockInputBuffer(state.encoder, state.input);
+    (void)state.api->functions.nvEncUnlockInputBuffer(state.encoder, state.input);
     const int64_t duration =
         static_cast<int64_t>(static_cast<uint64_t>(state.fps_den) * 1000000000ULL / state.fps_num);
     const int64_t pts = frame.pts >= 0 ? frame.pts : state.next_pts;
@@ -537,7 +466,7 @@ mkvc_result NvidiaWebmEncoder::write(const mkvc_frame_view& frame, std::string& 
     picture.inputDuration = static_cast<uint64_t>(duration);
     if (state.frame_index % state.keyframe_interval == 0)
         picture.encodePicFlags = NV_ENC_PIC_FLAG_FORCEIDR;
-    const NVENCSTATUS encoded = state.functions.nvEncEncodePicture(state.encoder, &picture);
+    const NVENCSTATUS encoded = state.api->functions.nvEncEncodePicture(state.encoder, &picture);
     if (encoded != NV_ENC_SUCCESS) {
         error = encoded == NV_ENC_ERR_NEED_MORE_INPUT
                     ? "NVENC unexpectedly buffered input with the synchronous "
@@ -564,7 +493,7 @@ mkvc_result NvidiaWebmEncoder::flush(std::string& error) {
     NV_ENC_PIC_PARAMS eos{};
     eos.version = NV_ENC_PIC_PARAMS_VER;
     eos.encodePicFlags = NV_ENC_PIC_FLAG_EOS;
-    if (state.functions.nvEncEncodePicture(state.encoder, &eos) != NV_ENC_SUCCESS) {
+    if (state.api->functions.nvEncEncodePicture(state.encoder, &eos) != NV_ENC_SUCCESS) {
         error = "NVENC flush failed";
         return MKVC_ERROR_CODEC;
     }
@@ -587,7 +516,7 @@ mkvc_result NvidiaWebmEncoder::close(std::string& error) {
         NV_ENC_PIC_PARAMS eos{};
         eos.version = NV_ENC_PIC_PARAMS_VER;
         eos.encodePicFlags = NV_ENC_PIC_FLAG_EOS;
-        if (state.functions.nvEncEncodePicture(state.encoder, &eos) != NV_ENC_SUCCESS) {
+        if (state.api->functions.nvEncEncodePicture(state.encoder, &eos) != NV_ENC_SUCCESS) {
             error = "NVENC close drain failed";
             result = MKVC_ERROR_CODEC;
         }

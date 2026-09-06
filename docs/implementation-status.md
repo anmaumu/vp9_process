@@ -1181,6 +1181,9 @@ The CPU path remains an intentional device-to-host copy path; the GPU-surface pa
 retains the mapped CUDA resource until its lease is released. The NVIDIA writer
 converts supported 8-bit CPU inputs to NV12, submits one synchronous NVENC AV1
 operation at a time, and immediately muxes the returned packet. Backend capability
+and CUDA driver loading use the shared `DynamicLibrary` abstraction. `NvencApi`
+owns both driver modules, resolves the required CUDA context functions and validates
+the NVENC function table before an encode session can be created. Backend capability
 rows are emitted
 only for runtime-supported directions; NVENC AV1 is advertised only when the
 runtime encode GUID query succeeds, while NVENC VP9 is never advertised.
