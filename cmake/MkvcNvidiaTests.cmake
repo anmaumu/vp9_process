@@ -57,6 +57,7 @@ function(mkvc_add_nvidia_vp9_fixture_tests vp9_sample)
         src/gpu/nvidia/cuda_completion.cpp
         src/gpu/nvidia/dynamic_library.cpp
         src/gpu/nvidia/nvdec_api.cpp
+        src/gpu/nvidia/nvdec_callbacks.cpp
         src/gpu/nvidia/nvdec_cpu_output.cpp
         src/gpu/nvidia/nvdec_gpu_output.cpp
         src/gpu/nvidia/nvdec_runtime_cleanup.cpp

@@ -1172,6 +1172,11 @@ table, parser, decoder and CUDA context across that deferred lifetime. Output
 release callbacks retain only this owner instead of the complete decoder state;
 it serializes mapping counts, destroys the parser at close, and destroys the
 decoder/context after the final mapping is released.
+The three NVDEC driver callbacks and their mutable state are isolated in
+`NvdecCallbackState`. It owns resolution negotiation diagnostics, callback counts,
+the exclusive CPU/GPU output-mode rule, bounded GPU pool and completed-frame
+queues. The public decoder no longer exposes callback-owned CUDA mapping or queue
+details; it selects an output mode, pumps packets and pops the completed frame.
 CPU and GPU reads share one parser pump for incremental demux, timestamped packet
 submission, the single EOS drain packet, callback diagnostics and CUDA context
 release. Their public output-mode and frame-pool checks remain separate.
