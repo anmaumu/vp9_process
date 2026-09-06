@@ -4,11 +4,16 @@
 #include <ffnvcodec/nvEncodeAPI.h>
 
 #include <cstdint>
+#include <memory>
 #include <string>
 
 #include "mkvcodec/mkvc.h"
 
-namespace mkvc::gpu::nvidia {
+namespace mkvc::gpu {
+
+class GpuFrameCore;
+
+namespace nvidia {
 
 class NvencApi;
 
@@ -52,4 +57,51 @@ mkvc_result initialize_nvenc_session(NvencApi& api, const NvencSessionConfig& co
  */
 void destroy_nvenc_session(NvencApi& api, NvencSession& session) noexcept;
 
-}  // namespace mkvc::gpu::nvidia
+/**
+ * @brief Own NVENC session context binding and its first external-frame lease.
+ *
+ * The manager starts with an internally owned CUDA context for CPU input. Before
+ * the first picture it may replace that session with one borrowing a CUDA frame
+ * context. It rejects later context changes, destroys the session before releasing
+ * the context owner, and cleans partial initialization failures.
+ */
+class NvencSessionManager final {
+   public:
+    /** Construct an empty manager with immutable encoder settings. */
+    explicit NvencSessionManager(NvencSessionConfig config) : config_(config) {}
+
+    /** Create the initial internally owned CUDA/NVENC session. */
+    mkvc_result initialize_cpu(NvencApi& api, std::string& error);
+
+    /**
+     * @brief Bind the session to the CUDA context of the first GPU frame.
+     * @param api Loaded CUDA/NVENC function table.
+     * @param context Borrowed CUDA context from the validated frame.
+     * @param context_owner Frame lease retaining the borrowed context owner.
+     * @param submitted_frames Pictures already accepted by the current session.
+     * @param error Receives transition or initialization diagnostics.
+     */
+    mkvc_result bind_cuda_context(NvencApi& api, CUcontext context,
+                                  const std::shared_ptr<GpuFrameCore>& context_owner,
+                                  uint64_t submitted_frames, std::string& error);
+
+    /** Destroy the current binding and recreate an owned CPU-input session. */
+    mkvc_result restart_cpu(NvencApi& api, std::string& error);
+
+    /** Destroy native resources before releasing any borrowed context owner. */
+    void destroy(NvencApi& api) noexcept;
+
+    /** Borrow the current initialized session for submission or packet access. */
+    const NvencSession& session() const noexcept { return session_; }
+
+   private:
+    mkvc_result initialize(NvencApi& api, CUcontext external_context, std::string& error);
+
+    NvencSessionConfig config_{};
+    CUcontext external_context_ = nullptr;
+    NvencSession session_{};
+    std::shared_ptr<GpuFrameCore> context_owner_;
+};
+
+}  // namespace nvidia
+}  // namespace mkvc::gpu

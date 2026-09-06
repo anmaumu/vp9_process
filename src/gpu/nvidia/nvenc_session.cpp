@@ -1,5 +1,6 @@
 #include "nvenc_session.hpp"
 
+#include "gpu/gpu_frame.hpp"
 #include "nvenc_api.hpp"
 
 namespace mkvc::gpu::nvidia {
@@ -111,6 +112,63 @@ void destroy_nvenc_session(NvencApi& api, NvencSession& session) noexcept {
         (void)api.context_destroy(session.context);
     session.context = nullptr;
     session.owns_context = false;
+}
+
+mkvc_result NvencSessionManager::initialize(NvencApi& api, CUcontext external_context,
+                                            std::string& error) {
+    const mkvc_result result =
+        initialize_nvenc_session(api, config_, external_context, session_, error);
+    if (result != MKVC_OK) destroy_nvenc_session(api, session_);
+    return result;
+}
+
+mkvc_result NvencSessionManager::initialize_cpu(NvencApi& api, std::string& error) {
+    if (session_.context != nullptr || session_.encoder != nullptr) {
+        error = "NVENC session manager is already initialized";
+        return MKVC_ERROR_INVALID_STATE;
+    }
+    return initialize(api, nullptr, error);
+}
+
+mkvc_result NvencSessionManager::bind_cuda_context(
+    NvencApi& api, CUcontext context, const std::shared_ptr<GpuFrameCore>& context_owner,
+    uint64_t submitted_frames, std::string& error) {
+    if (context == nullptr || !context_owner) {
+        error = "NVENC external CUDA context or owner is null";
+        return MKVC_ERROR_INVALID_ARGUMENT;
+    }
+    if (external_context_ != nullptr) {
+        if (external_context_ == context) return MKVC_OK;
+        error = "all GPU frames must belong to the NVENC session CUDA context";
+        return MKVC_ERROR_NOT_SUPPORTED;
+    }
+    if (submitted_frames != 0) {
+        error = "cannot switch a running CPU-input NVENC session to GPU input";
+        return MKVC_ERROR_INVALID_STATE;
+    }
+
+    destroy_nvenc_session(api, session_);
+    external_context_ = context;
+    context_owner_ = context_owner;
+    const mkvc_result result = initialize(api, external_context_, error);
+    if (result != MKVC_OK) {
+        context_owner_.reset();
+        external_context_ = nullptr;
+    }
+    return result;
+}
+
+mkvc_result NvencSessionManager::restart_cpu(NvencApi& api, std::string& error) {
+    destroy_nvenc_session(api, session_);
+    context_owner_.reset();
+    external_context_ = nullptr;
+    return initialize(api, nullptr, error);
+}
+
+void NvencSessionManager::destroy(NvencApi& api) noexcept {
+    destroy_nvenc_session(api, session_);
+    context_owner_.reset();
+    external_context_ = nullptr;
 }
 
 }  // namespace mkvc::gpu::nvidia

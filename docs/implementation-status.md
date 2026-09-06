@@ -1205,7 +1205,11 @@ driver-returned buffers are rejected as codec failures.
 backend, NV12 plane layout, pitch, dimensions, producer completion and native
 handle consistency. GPU-independent tests cover the accepted pointer descriptor,
 mismatched plane pitch and missing-completion rejection. Same-context enforcement
-remains in the writer.
+and CPU-owned/external-CUDA session transitions are centralized in
+`NvencSessionManager`. It destroys native session resources before releasing the
+first external-frame context owner, rejects CPU-to-GPU switching after submission,
+and clears partial initialization resources. Encoder construction cleanup now also
+handles driver-loading failure without dereferencing an absent API table.
 Backend capability
 rows are emitted
 only for runtime-supported directions; NVENC AV1 is advertised only when the
