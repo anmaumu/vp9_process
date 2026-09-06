@@ -13,9 +13,9 @@
 #include "gpu/nvidia/nvdec_api.hpp"
 #include "gpu/nvidia/nvdec_cpu_output.hpp"
 #include "gpu/nvidia/nvdec_gpu_output.hpp"
+#include "gpu/nvidia/nvdec_sequence.hpp"
 #endif
 
-#include <algorithm>
 #include <deque>
 #include <mutex>
 #include <optional>
@@ -96,64 +96,17 @@ void release_mapped_frame(const std::shared_ptr<NvidiaWebmDecoder::Impl>& state,
 int CUDAAPI sequence_callback(void* opaque, CUVIDEOFORMAT* format) {
     auto& state = *static_cast<NvidiaWebmDecoder::Impl*>(opaque);
     ++state.sequence_callbacks;
-    if (format == nullptr || format->chroma_format != cudaVideoChromaFormat_420 ||
-        format->bit_depth_luma_minus8 != 0 || format->bit_depth_chroma_minus8 != 0 ||
-        format->display_area.left != 0 || format->display_area.top != 0) {
-        state.callback_error = "NVDEC supports only uncropped 8-bit 4:2:0 input";
+    if (format == nullptr) {
+        state.callback_error = "NVDEC sequence callback received no format";
         return 0;
     }
-    const int width = format->display_area.right;
-    const int height = format->display_area.bottom;
-    if (width <= 0 || height <= 0 || (width & 1) != 0 || (height & 1) != 0) {
-        state.callback_error = "NVDEC returned invalid display dimensions";
+    int decode_surfaces = 0;
+    if (gpu::nvidia::configure_nvdec_sequence(*state.api, *format, state.decoder, state.width,
+                                              state.height, decode_surfaces,
+                                              state.callback_error) != MKVC_OK) {
         return 0;
     }
-    CUVIDDECODECAPS caps{};
-    caps.eCodecType = format->codec;
-    caps.eChromaFormat = format->chroma_format;
-    caps.nBitDepthMinus8 = format->bit_depth_luma_minus8;
-    const uint64_t macroblocks =
-        (static_cast<uint64_t>(format->coded_width) * format->coded_height + 255) / 256;
-    if (state.api->decoder_caps(&caps) != CUDA_SUCCESS || caps.bIsSupported == 0 ||
-        format->coded_width < caps.nMinWidth || format->coded_width > caps.nMaxWidth ||
-        format->coded_height < caps.nMinHeight || format->coded_height > caps.nMaxHeight ||
-        macroblocks > caps.nMaxMBCount) {
-        state.callback_error = "NVDEC codec, bit depth, or dimensions are unsupported";
-        return 0;
-    }
-    if (state.decoder != nullptr) {
-        if (state.width == static_cast<uint32_t>(width) &&
-            state.height == static_cast<uint32_t>(height))
-            return std::max(1, static_cast<int>(format->min_num_decode_surfaces));
-        state.callback_error = "NVDEC mid-stream resolution change is not supported";
-        return 0;
-    }
-    CUVIDDECODECREATEINFO info{};
-    info.ulWidth = format->coded_width;
-    info.ulHeight = format->coded_height;
-    info.ulNumDecodeSurfaces = format->min_num_decode_surfaces;
-    info.CodecType = format->codec;
-    info.ChromaFormat = format->chroma_format;
-    info.ulCreationFlags = cudaVideoCreate_PreferCUVID;
-    info.bitDepthMinus8 = format->bit_depth_luma_minus8;
-    info.ulMaxWidth = format->coded_width;
-    info.ulMaxHeight = format->coded_height;
-    info.display_area.left = static_cast<short>(format->display_area.left);
-    info.display_area.top = static_cast<short>(format->display_area.top);
-    info.display_area.right = static_cast<short>(format->display_area.right);
-    info.display_area.bottom = static_cast<short>(format->display_area.bottom);
-    info.OutputFormat = cudaVideoSurfaceFormat_NV12;
-    info.DeinterlaceMode = cudaVideoDeinterlaceMode_Weave;
-    info.ulTargetWidth = static_cast<tcu_ulong>(width);
-    info.ulTargetHeight = static_cast<tcu_ulong>(height);
-    info.ulNumOutputSurfaces = 8;
-    if (state.api->decoder_create(&state.decoder, &info) != CUDA_SUCCESS) {
-        state.callback_error = "cuvidCreateDecoder failed";
-        return 0;
-    }
-    state.width = static_cast<uint32_t>(width);
-    state.height = static_cast<uint32_t>(height);
-    return std::max(1, static_cast<int>(format->min_num_decode_surfaces));
+    return decode_surfaces;
 }
 
 int CUDAAPI decode_callback(void* opaque, CUVIDPICPARAMS* picture) {

@@ -1156,7 +1156,10 @@ native prefetch queue as CPU decode.
 The NVIDIA decoder follows the same bounded prefetch contract. It pushes its
 CUDA context on the actual read thread, lets NVCUVID synchronously parse/decode,
 maps NV12 only for completed display-order frames, and splits the host readback
-into the common owned I420 representation. The CPU-output boundary is isolated in
+into the common owned I420 representation. Sequence validation, decoder capability
+checks, decoder creation and same-resolution reuse are isolated in
+`nvdec_sequence`; mid-stream resolution changes remain explicitly unsupported.
+The CPU-output boundary is isolated in
 `nvdec_cpu_output`: it owns both pitched CUDA 2D readbacks, NV12-to-I420 plane
 separation and the mandatory mapped-frame unmap. The display callback therefore
 only selects CPU/GPU output and enqueues the completed lease. Its GPU counterpart,
