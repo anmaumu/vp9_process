@@ -20,6 +20,16 @@
 - GitHub Actions builds strict MkDocs HTML and stores `mkvcodec-documentation` for 30 days.
 - GitHub Pages publication remains disabled until an explicit public-release decision.
 
+## 2026-09-06: Encoder backend selection and execution split
+
+Concrete CPU VP9/AV1, Intel and NVIDIA encoder construction now lives in the
+Doxygen-documented `encoder_backend_factory` module. Synchronous CPU/GPU writes,
+flush/close calls, elapsed backend time, hardware-pending high-water and cumulative
+copy-path accounting now share `encoder_backend_execution`; the asynchronous
+worker consumes the same lower-level operations. This removes concrete codec
+dependencies and metric bookkeeping from `EncoderSession` without changing
+backend selection, locking, failure propagation or public metrics.
+
 ## 2026-09-06: Encoder producer-side queue responsibility split
 
 Owned CPU-frame buffer acquisition/recycling, blocking and nonblocking

@@ -1,7 +1,5 @@
 #include "encoder_session.hpp"
 
-#include <algorithm>
-#include <chrono>
 #include <cstdint>
 #include <cstdlib>
 #include <limits>
@@ -9,29 +7,26 @@
 #include <thread>
 #include <utility>
 
-#include "cpu_av1_encoder.hpp"
 #include "encoder/cpu_frame_copy.hpp"
-#include "encoder/encoder_backend.hpp"
+#include "encoder/encoder_backend_execution.hpp"
+#include "encoder/encoder_backend_factory.hpp"
 #include "encoder/encoder_queue_control.hpp"
 #include "encoder/encoder_session_state.hpp"
 #include "encoder/encoder_worker.hpp"
-#include "intel_webm_encoder.hpp"
-#include "nvidia_webm_encoder.hpp"
 
 namespace mkvc {
 namespace {
 
-using encoder::backend_close;
-using encoder::backend_flush;
-using encoder::backend_hardware_pending;
-using encoder::backend_write;
-using encoder::elapsed_ns;
+using encoder::close_sync;
+using encoder::create_backend;
 using encoder::enqueue_borrowed;
 using encoder::enqueue_owned;
 using encoder::flush_and_wait;
-using encoder::observe_copy_path;
+using encoder::flush_sync;
 using encoder::OwnedFrame;
 using encoder::run_encoder_worker;
+using encoder::write_cpu_sync;
+using encoder::write_gpu_sync_locked;
 
 }  // namespace
 
@@ -40,30 +35,8 @@ EncoderSession::EncoderSession(std::unique_ptr<Impl> impl) : impl_(std::move(imp
 std::unique_ptr<EncoderSession> EncoderSession::create(const mkvc_encoder_config& config,
                                                        std::string& error) {
     auto impl = std::make_unique<Impl>();
-    if (config.backend == MKVC_BACKEND_INTEL) {
-        auto encoder = IntelWebmEncoder::create(config, error);
-        if (!encoder) return nullptr;
-        impl->backend =
-            std::make_unique<EncoderBackendAdapter<IntelWebmEncoder, true>>(std::move(encoder));
-    } else if (config.backend == MKVC_BACKEND_NVIDIA) {
-        auto encoder = NvidiaWebmEncoder::create(config, error);
-        if (!encoder) return nullptr;
-        impl->backend =
-            std::make_unique<EncoderBackendAdapter<NvidiaWebmEncoder, true>>(std::move(encoder));
-    } else if (config.codec == MKVC_CODEC_VP9) {
-        auto encoder = CpuVp9Encoder::create(config, error);
-        if (!encoder) return nullptr;
-        impl->backend =
-            std::make_unique<EncoderBackendAdapter<CpuVp9Encoder, false>>(std::move(encoder));
-    } else if (config.codec == MKVC_CODEC_AV1) {
-        auto encoder = CpuAv1Encoder::create(config, error);
-        if (!encoder) return nullptr;
-        impl->backend =
-            std::make_unique<EncoderBackendAdapter<CpuAv1Encoder, false>>(std::move(encoder));
-    } else {
-        error = "unsupported encoder backend or codec";
-        return nullptr;
-    }
+    impl->backend = create_backend(config, error);
+    if (!impl->backend) return nullptr;
     impl->width = config.width;
     impl->height = config.height;
     impl->capacity = config.queue_size;
@@ -117,18 +90,7 @@ mkvc_result EncoderSession::write(const mkvc_frame_view& frame, bool block, std:
         }
     }
     if (impl_->capacity == 0) {
-        const auto started = std::chrono::steady_clock::now();
-        const mkvc_result result = backend_write(*impl_, frame, error);
-        std::lock_guard<std::mutex> lock(impl_->mutex);
-        impl_->backend_time_ns += elapsed_ns(started);
-        impl_->hardware_pending_peak =
-            std::max(impl_->hardware_pending_peak, backend_hardware_pending(*impl_));
-        if (result == MKVC_OK) {
-            ++impl_->accepted_frames;
-            ++impl_->completed_frames;
-            observe_copy_path(*impl_, MKVC_COPY_PATH_CPU);
-        }
-        return result;
+        return write_cpu_sync(*impl_, frame, error);
     }
     return enqueue_owned(*impl_, frame, block, error);
 }
@@ -201,17 +163,7 @@ mkvc_result EncoderSession::write_gpu(const std::shared_ptr<gpu::GpuFrameCore>& 
         error = "GPU frame is not compatible with this encoder backend";
         return MKVC_ERROR_NOT_SUPPORTED;
     }
-    const auto started = std::chrono::steady_clock::now();
-    const mkvc_result result = impl_->backend->write_gpu(frame, error);
-    impl_->backend_time_ns += elapsed_ns(started);
-    impl_->hardware_pending_peak =
-        std::max(impl_->hardware_pending_peak, backend_hardware_pending(*impl_));
-    if (result == MKVC_OK) {
-        ++impl_->accepted_frames;
-        ++impl_->completed_frames;
-        observe_copy_path(*impl_, MKVC_COPY_PATH_ZERO_COPY);
-    }
-    return result;
+    return write_gpu_sync_locked(*impl_, frame, error);
 }
 
 void EncoderSession::get_metrics(mkvc_pipeline_metrics& metrics) const {
@@ -240,13 +192,7 @@ mkvc_result EncoderSession::flush(std::string& error) {
                 return impl_->terminal_result;
             }
         }
-        const auto started = std::chrono::steady_clock::now();
-        const mkvc_result result = backend_flush(*impl_, error);
-        std::lock_guard<std::mutex> lock(impl_->mutex);
-        impl_->backend_time_ns += elapsed_ns(started);
-        impl_->hardware_pending_peak =
-            std::max(impl_->hardware_pending_peak, backend_hardware_pending(*impl_));
-        return result;
+        return flush_sync(*impl_, error);
     }
     return flush_and_wait(*impl_, error);
 }
@@ -255,13 +201,7 @@ mkvc_result EncoderSession::cancel(std::string& error) { return encoder::cancel(
 
 mkvc_result EncoderSession::close(std::string& error) {
     if (impl_->capacity == 0) {
-        const auto started = std::chrono::steady_clock::now();
-        const mkvc_result result = backend_close(*impl_, error);
-        std::lock_guard<std::mutex> lock(impl_->mutex);
-        impl_->backend_time_ns += elapsed_ns(started);
-        impl_->hardware_pending_peak =
-            std::max(impl_->hardware_pending_peak, backend_hardware_pending(*impl_));
-        return result;
+        return close_sync(*impl_, error);
     }
     return encoder::close_and_join(*impl_, error);
 }

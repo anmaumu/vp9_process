@@ -4,7 +4,7 @@
 #include <chrono>
 #include <utility>
 
-#include "encoder/encoder_worker.hpp"
+#include "encoder/encoder_backend_execution.hpp"
 
 namespace mkvc::encoder {
 namespace {

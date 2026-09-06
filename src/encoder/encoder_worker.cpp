@@ -5,6 +5,8 @@
 #include <thread>
 #include <utility>
 
+#include "encoder/encoder_backend_execution.hpp"
+
 namespace mkvc::encoder {
 namespace {
 
@@ -16,36 +18,6 @@ void fail_queued_submissions(EncoderSession::Impl& impl, mkvc_result result,
 }
 
 }  // namespace
-
-mkvc_result backend_write(EncoderSession::Impl& impl, const mkvc_frame_view& frame,
-                          std::string& error) {
-    return impl.backend->write(frame, error);
-}
-
-mkvc_result backend_flush(EncoderSession::Impl& impl, std::string& error) {
-    return impl.backend->flush(error);
-}
-
-mkvc_result backend_close(EncoderSession::Impl& impl, std::string& error) {
-    return impl.backend->close(error);
-}
-
-uint32_t backend_hardware_pending(const EncoderSession::Impl& impl) {
-    return impl.backend->hardware_pending();
-}
-
-uint64_t elapsed_ns(std::chrono::steady_clock::time_point started) {
-    return static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(
-                                     std::chrono::steady_clock::now() - started)
-                                     .count());
-}
-
-void observe_copy_path(EncoderSession::Impl& impl, uint32_t path) {
-    if (impl.copy_path == MKVC_COPY_PATH_UNKNOWN)
-        impl.copy_path = path;
-    else if (impl.copy_path != path)
-        impl.copy_path = MKVC_COPY_PATH_MIXED;
-}
 
 void run_encoder_worker(EncoderSession::Impl* impl) noexcept {
     std::shared_ptr<CpuSubmission> active_submission;

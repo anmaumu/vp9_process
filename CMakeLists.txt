@@ -70,6 +70,8 @@ add_library(mkvcodec SHARED
     src/gpu/nvidia/nvidia_native_handle.cpp
     src/encoder/cpu_frame_copy.cpp
     src/encoder/cpu_submission.cpp
+    src/encoder/encoder_backend_execution.cpp
+    src/encoder/encoder_backend_factory.cpp
     src/encoder/encoder_queue_control.cpp
     src/encoder/encoder_worker.cpp
     src/encoder_session.cpp
