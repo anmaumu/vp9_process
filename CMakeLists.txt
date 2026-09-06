@@ -92,6 +92,8 @@ target_include_directories(mkvcodec
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:include>
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 target_compile_definitions(mkvcodec PRIVATE MKVC_BUILDING_LIBRARY)
 target_link_libraries(mkvcodec PRIVATE ${CMAKE_DL_LIBS})
@@ -110,6 +112,7 @@ if(MKVC_ENABLE_NVIDIA)
         src/gpu/nvidia/nvenc_cpu_conversion.cpp
         src/gpu/nvidia/nvenc_cpu_submission.cpp
         src/gpu/nvidia/nvenc_gpu_submission.cpp
+        src/gpu/nvidia/nvenc_packet_io.cpp
         src/gpu/nvidia/nvenc_session.cpp)
     target_compile_definitions(mkvcodec PRIVATE MKVC_HAS_NVIDIA=1)
     target_include_directories(mkvcodec PRIVATE

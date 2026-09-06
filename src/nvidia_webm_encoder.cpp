@@ -6,12 +6,12 @@
 
 #if defined(MKVC_HAS_NVIDIA)
 #include <ffnvcodec/dynlink_cuda.h>
-#include <ffnvcodec/nvEncodeAPI.h>
 
 #include "gpu/nvidia/nvenc_api.hpp"
 #include "gpu/nvidia/nvenc_cpu_conversion.hpp"
 #include "gpu/nvidia/nvenc_cpu_submission.hpp"
 #include "gpu/nvidia/nvenc_gpu_submission.hpp"
+#include "gpu/nvidia/nvenc_packet_io.hpp"
 #include "gpu/nvidia/nvenc_session.hpp"
 #endif
 
@@ -63,22 +63,11 @@ bool initialize_session(NvidiaWebmEncoder::Impl& state, std::string& error) {
                                                  state.session, error) == MKVC_OK;
 }
 
-mkvc_result emit_packet(NvidiaWebmEncoder::Impl& state, std::string& error) {
-    NV_ENC_LOCK_BITSTREAM lock{};
-    lock.version = NV_ENC_LOCK_BITSTREAM_VER;
-    lock.outputBitstream = state.session.output;
-    if (state.api->functions.nvEncLockBitstream(state.session.encoder, &lock) != NV_ENC_SUCCESS) {
-        error = "nvEncLockBitstream failed";
-        return MKVC_ERROR_CODEC;
-    }
+mkvc_result mux_packet(NvidiaWebmEncoder::Impl& state, std::string& error) {
     const uint64_t default_duration =
         static_cast<uint64_t>(state.fps_den) * 1000000000ULL / state.fps_num;
-    const mkvc_result mux_result = state.muxer->add_frame(
-        static_cast<const uint8_t*>(lock.bitstreamBufferPtr), lock.bitstreamSizeInBytes,
-        lock.outputTimeStamp, lock.outputDuration != 0 ? lock.outputDuration : default_duration,
-        lock.pictureType == NV_ENC_PIC_TYPE_IDR || lock.pictureType == NV_ENC_PIC_TYPE_I, error);
-    (void)state.api->functions.nvEncUnlockBitstream(state.session.encoder, state.session.output);
-    return mux_result;
+    return gpu::nvidia::mux_nvenc_packet(*state.api, state.session, *state.muxer, default_duration,
+                                         error);
 }
 
 }  // namespace
@@ -193,7 +182,7 @@ mkvc_result NvidiaWebmEncoder::write_gpu(const std::shared_ptr<gpu::GpuFrameCore
         *state.api, state.session, cuda_array, native.handles[0], state.width, state.height,
         static_cast<uint32_t>(desc.pitches[0]), state.frame_index, pts, duration,
         state.frame_index % state.keyframe_interval == 0, error);
-    if (result == MKVC_OK) result = emit_packet(state, error);
+    if (result == MKVC_OK) result = mux_packet(state, error);
     if (result == MKVC_OK) {
         ++state.frame_index;
         state.next_pts = std::max(state.next_pts, pts + duration);
@@ -227,7 +216,7 @@ mkvc_result NvidiaWebmEncoder::write(const mkvc_frame_view& frame, std::string& 
         *state.api, state.session, state.nv12.data(), state.width, state.height, state.frame_index,
         pts, duration, state.frame_index % state.keyframe_interval == 0, error);
     if (result != MKVC_OK) return result;
-    result = emit_packet(state, error);
+    result = mux_packet(state, error);
     if (result == MKVC_OK) {
         ++state.frame_index;
         state.next_pts = std::max(state.next_pts, pts + duration);
@@ -243,13 +232,9 @@ mkvc_result NvidiaWebmEncoder::flush(std::string& error) {
 #else
     auto& state = *impl_;
     if (state.closed || state.frame_index == 0) return MKVC_OK;
-    NV_ENC_PIC_PARAMS eos{};
-    eos.version = NV_ENC_PIC_PARAMS_VER;
-    eos.encodePicFlags = NV_ENC_PIC_FLAG_EOS;
-    if (state.api->functions.nvEncEncodePicture(state.session.encoder, &eos) != NV_ENC_SUCCESS) {
-        error = "NVENC flush failed";
-        return MKVC_ERROR_CODEC;
-    }
+    const mkvc_result drain_result =
+        gpu::nvidia::drain_nvenc_session(*state.api, state.session, error);
+    if (drain_result != MKVC_OK) return drain_result;
     destroy_session(state);
     state.context_anchor.reset();
     state.external_context = nullptr;
@@ -266,14 +251,7 @@ mkvc_result NvidiaWebmEncoder::close(std::string& error) {
 #else
     auto& state = *impl_;
     if (state.session.encoder != nullptr && state.frame_index > 0) {
-        NV_ENC_PIC_PARAMS eos{};
-        eos.version = NV_ENC_PIC_PARAMS_VER;
-        eos.encodePicFlags = NV_ENC_PIC_FLAG_EOS;
-        if (state.api->functions.nvEncEncodePicture(state.session.encoder, &eos) !=
-            NV_ENC_SUCCESS) {
-            error = "NVENC close drain failed";
-            result = MKVC_ERROR_CODEC;
-        }
+        result = gpu::nvidia::drain_nvenc_session(*state.api, state.session, error);
     }
     destroy_session(state);
     state.context_anchor.reset();

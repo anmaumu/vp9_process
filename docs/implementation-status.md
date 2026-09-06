@@ -1197,6 +1197,10 @@ Known-value tests cover padded NV12, I420 chroma interleaving and invalid stride
 rejection without requiring NVIDIA hardware. `nvenc_cpu_submission` then owns the
 pitched NVENC input-buffer lock, host upload, unlock and synchronous picture
 submission, including balanced unlock on an invalid driver-returned layout.
+`nvenc_packet_io` owns completed-bitstream lock/mux/unlock without an additional
+packet copy and centralizes the EOS drain used by flush and close. A successful
+bitstream lock is unlocked after both mux success and mux failure; empty
+driver-returned buffers are rejected as codec failures.
 Public frame validation and same-context enforcement remain in the writer.
 Backend capability
 rows are emitted
