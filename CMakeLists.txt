@@ -56,6 +56,7 @@ add_library(mkvcodec SHARED
     src/cpu_frame_pool.cpp
     src/frame_conversion.cpp
     src/frame_processor.cpp
+    src/gpu/gpu_external_import.cpp
     src/gpu/gpu_frame.cpp
     src/gpu/gpu_frame_pool.cpp
     src/gpu/gpu_resource_pool.cpp
@@ -235,7 +236,8 @@ if(MKVC_BUILD_TESTS)
     add_test(NAME mkvc_dynamic_library COMMAND mkvc_dynamic_library_test)
 
     add_executable(mkvc_gpu_frame_test
-        tests/gpu_frame_test.cpp src/gpu/gpu_frame.cpp
+        tests/gpu_frame_test.cpp src/gpu/gpu_external_import.cpp
+        src/gpu/gpu_frame.cpp
         src/gpu/gpu_frame_pool.cpp
         src/gpu/dlpack_adapter.cpp
         src/gpu/intel/intel_native_handle.cpp

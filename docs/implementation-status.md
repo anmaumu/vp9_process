@@ -20,6 +20,16 @@
 - GitHub Actions builds strict MkDocs HTML and stores `mkvcodec-documentation` for 30 days.
 - GitHub Pages publication remains disabled until an explicit public-release decision.
 
+## 2026-09-06: External GPU import responsibility split
+
+External CUDA pointer/array, D3D11 texture, VA surface and Intel device-USM
+validation now lives in `gpu_external_import.cpp`, together with CUDA-event,
+D3D11-fence, VA-sync and Level-Zero-event completion construction. The module
+also owns the external release-callback handoff and exactly-once recycle guard.
+`gpu_frame.cpp` is reduced to the common completion primitives, lease core and
+opaque-frame retain/release/query ABI. Public C/C++/Python/.NET contracts and
+backend copy-path behavior are unchanged.
+
 ## 2026-09-06: Python docstring quality gate
 
 `docgen check` now rejects every source-defined public Python class, function,
