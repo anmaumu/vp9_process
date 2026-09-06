@@ -222,6 +222,21 @@ conversion, completion success/failure, recycle polling, and injected device-los
 state. The complete Intel Linux suite passes with real GPU surface round trips;
 the Windows CPU/NVIDIA configuration continues to build and pass independently.
 
+## 2026-09-06: Isolated oneVPL decoder queue
+
+Intel decoder asynchronous submission and pending surfaces are now owned by a
+dedicated, Doxygen-documented queue. It retries device-busy submissions, preserves
+FIFO SyncPoint collection, tracks pending depth, and releases every surface on
+success, failure, injected device loss, or close. Drain behavior shares the same
+queue logic instead of duplicating the submission loop in CPU and GPU paths.
+
+CPU collection maps NV12 only after SyncOperation, converts it into owned I420,
+then releases the oneVPL surface. GPU collection checks pool backpressure before
+transferring the referenced surface and session lifetime into `GpuFrameCore`, so
+no CPU mapping is introduced. Decoder session code now retains header parsing,
+initialization, and compressed-packet feeding. Intel Linux real-surface tests and
+the independent Windows CPU/NVIDIA build pass after the split.
+
 ## 2026-09-05: Scoped CUDA context activation
 
 CUDA driver context push/pop is now represented by one Doxygen-documented,

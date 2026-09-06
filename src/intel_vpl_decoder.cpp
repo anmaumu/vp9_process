@@ -1,51 +1,34 @@
 #include "intel_vpl_decoder.hpp"
 
-#include "gpu/gpu_frame_pool.hpp"
 #include "gpu/intel/test_render_node_filter.hpp"
 #if defined(MKVC_HAS_INTEL_ONEVPL)
-#include "gpu/intel/intel_surface_factory.hpp"
+#include "gpu/gpu_frame_pool.hpp"
+#include "gpu/intel/vpl_decoder_queue.hpp"
 #include "gpu/intel/vpl_session.hpp"
 #endif
 
 #if defined(MKVC_HAS_INTEL_ONEVPL)
-#include <libyuv/convert.h>
 #include <vpl/mfxdispatcher.h>
 #include <vpl/mfxvideo.h>
 #endif
 
-#include <algorithm>
-#include <atomic>
-#include <cstring>
-#include <deque>
 #include <limits>
-#include <thread>
 #include <utility>
 
 namespace mkvc {
 
 struct IntelVplDecoder::Impl {
 #if defined(MKVC_HAS_INTEL_ONEVPL)
-    struct Pending {
-        mfxFrameSurface1* surface = nullptr;
-        mfxSyncPoint sync = nullptr;
-    };
     mfxLoader loader = nullptr;
     mfxSession session = nullptr;
     mfxVideoParam parameters{};
     mfxBitstream bitstream{};
     std::vector<uint8_t> packet;
-    std::deque<Pending> pending;
     std::shared_ptr<gpu::intel::VplSession> lifetime;
-    std::shared_ptr<gpu::GpuFramePool> gpu_pool;
+    std::unique_ptr<gpu::intel::VplDecoderQueue> queue;
 #endif
     uint32_t codec = 0;
-    uint32_t async_depth = 4;
     bool gpu_output = false;
-    std::atomic<uint32_t> max_pending{0};
-#if defined(MKVC_ENABLE_TEST_HOOKS)
-    uint32_t test_device_loss_after = std::numeric_limits<uint32_t>::max();
-    uint32_t collected_syncpoints = 0;
-#endif
     bool decoder_initialized = false;
     bool drained = false;
     bool closed = false;
@@ -60,163 +43,7 @@ IntelVplDecoder::~IntelVplDecoder() {
 #if defined(MKVC_HAS_INTEL_ONEVPL)
 namespace {
 
-constexpr mfxU32 kSyncWaitMs = 100;
-
 mfxU32 vpl_codec(uint32_t codec) { return codec == MKVC_CODEC_VP9 ? MFX_CODEC_VP9 : MFX_CODEC_AV1; }
-
-mkvc_result copy_surface(mfxFrameSurface1* surface, std::unique_ptr<DecodedFrame>& frame,
-                         std::string& error) {
-    if (surface == nullptr || surface->FrameInterface == nullptr) {
-        error = "oneVPL returned an invalid decoded surface";
-        return MKVC_ERROR_CODEC;
-    }
-    mfxStatus status = surface->FrameInterface->Map(surface, MFX_MAP_READ);
-    if (status != MFX_ERR_NONE) {
-        error = "oneVPL failed to map a decoded surface";
-        return MKVC_ERROR_CODEC;
-    }
-    const auto& info = surface->Info;
-    const uint32_t width = info.CropW;
-    const uint32_t height = info.CropH;
-    const uint32_t pitch =
-        (static_cast<uint32_t>(surface->Data.PitchHigh) << 16) | surface->Data.PitchLow;
-    if (info.FourCC != MFX_FOURCC_NV12 || width == 0 || height == 0 || (width & 1u) != 0 ||
-        (height & 1u) != 0 || width > static_cast<uint32_t>(std::numeric_limits<int32_t>::max()) ||
-        height > static_cast<uint32_t>(std::numeric_limits<int32_t>::max())) {
-        surface->FrameInterface->Unmap(surface);
-        error = "oneVPL decoder produced an unsupported surface format";
-        return MKVC_ERROR_NOT_SUPPORTED;
-    }
-    auto output = std::make_unique<DecodedFrame>();
-    output->width = width;
-    output->height = height;
-    output->pts_ns = static_cast<int64_t>(surface->Data.TimeStamp);
-    const size_t y_size = static_cast<size_t>(width) * height;
-    const size_t uv_size = static_cast<size_t>(width / 2) * (height / 2);
-    output->pixels.resize(y_size + 2 * uv_size);
-    output->offsets = {0, y_size, y_size + uv_size};
-    output->strides = {static_cast<int32_t>(width), static_cast<int32_t>(width / 2),
-                       static_cast<int32_t>(width / 2)};
-    const uint8_t* source_y =
-        surface->Data.Y + static_cast<size_t>(info.CropY) * pitch + info.CropX;
-    const uint8_t* source_uv =
-        surface->Data.UV + static_cast<size_t>(info.CropY / 2) * pitch + info.CropX;
-    const int conversion =
-        libyuv::NV12ToI420(source_y, static_cast<int>(pitch), source_uv, static_cast<int>(pitch),
-                           output->pixels.data() + output->offsets[0], output->strides[0],
-                           output->pixels.data() + output->offsets[1], output->strides[1],
-                           output->pixels.data() + output->offsets[2], output->strides[2],
-                           static_cast<int>(width), static_cast<int>(height));
-    status = surface->FrameInterface->Unmap(surface);
-    if (conversion != 0 || status != MFX_ERR_NONE) {
-        error = conversion != 0 ? "libyuv failed to convert decoded NV12"
-                                : "oneVPL failed to unmap a decoded surface";
-        return conversion != 0 ? MKVC_ERROR_INTERNAL : MKVC_ERROR_CODEC;
-    }
-    frame = std::move(output);
-    return MKVC_OK;
-}
-
-mkvc_result submit_decode(IntelVplDecoder::Impl& impl, mfxBitstream* bitstream,
-                          std::string& error) {
-    mfxFrameSurface1* surface = nullptr;
-    mfxSyncPoint sync = nullptr;
-    mfxStatus status;
-    do {
-        status = MFXVideoDECODE_DecodeFrameAsync(impl.session, bitstream, nullptr, &surface, &sync);
-        if (status == MFX_WRN_DEVICE_BUSY) std::this_thread::yield();
-    } while (status == MFX_WRN_DEVICE_BUSY);
-    if (status == MFX_ERR_MORE_DATA) return MKVC_END_OF_STREAM;
-    if (status == MFX_ERR_MORE_SURFACE) return MKVC_WOULD_BLOCK;
-    if (status < MFX_ERR_NONE) {
-        error = "oneVPL DecodeFrameAsync failed with status " + std::to_string(status);
-        return status == MFX_ERR_DEVICE_LOST ? MKVC_ERROR_IO : MKVC_ERROR_CODEC;
-    }
-    if (sync != nullptr && surface != nullptr) {
-        impl.pending.push_back({surface, sync});
-        const uint32_t observed = static_cast<uint32_t>(impl.pending.size());
-        uint32_t current = impl.max_pending.load(std::memory_order_relaxed);
-        while (current < observed && !impl.max_pending.compare_exchange_weak(
-                                         current, observed, std::memory_order_relaxed)) {
-        }
-    } else if (surface != nullptr) {
-        surface->FrameInterface->Release(surface);
-    }
-    return MKVC_OK;
-}
-
-mkvc_result collect_oldest(IntelVplDecoder::Impl& impl,
-                           std::vector<std::unique_ptr<DecodedFrame>>& frames, std::string& error) {
-    if (impl.pending.empty()) return MKVC_OK;
-    const auto pending = impl.pending.front();
-    impl.pending.pop_front();
-#if defined(MKVC_ENABLE_TEST_HOOKS)
-    if (impl.collected_syncpoints >= impl.test_device_loss_after) {
-        mfxStatus status;
-        do {
-            status = MFXVideoCORE_SyncOperation(impl.session, pending.sync, kSyncWaitMs);
-        } while (status == MFX_WRN_IN_EXECUTION);
-        pending.surface->FrameInterface->Release(pending.surface);
-        error = "injected Intel decoder device loss";
-        return MKVC_ERROR_IO;
-    }
-#endif
-    mfxStatus status;
-    do {
-        status = MFXVideoCORE_SyncOperation(impl.session, pending.sync, kSyncWaitMs);
-    } while (status == MFX_WRN_IN_EXECUTION);
-    if (status != MFX_ERR_NONE) {
-        pending.surface->FrameInterface->Release(pending.surface);
-        error = "oneVPL decoder SyncOperation failed with status " + std::to_string(status);
-        return status == MFX_ERR_DEVICE_LOST ? MKVC_ERROR_IO : MKVC_ERROR_CODEC;
-    }
-    std::unique_ptr<DecodedFrame> frame;
-    const mkvc_result result = copy_surface(pending.surface, frame, error);
-    pending.surface->FrameInterface->Release(pending.surface);
-    if (result == MKVC_OK) frames.push_back(std::move(frame));
-#if defined(MKVC_ENABLE_TEST_HOOKS)
-    if (result == MKVC_OK) ++impl.collected_syncpoints;
-#endif
-    return result;
-}
-
-mkvc_result collect_oldest_gpu(IntelVplDecoder::Impl& impl,
-                               std::vector<std::shared_ptr<gpu::GpuFrameCore>>& frames,
-                               std::string& error) {
-    if (impl.pending.empty()) return MKVC_OK;
-    if (!impl.gpu_pool || impl.gpu_pool->in_use() >= impl.gpu_pool->capacity()) {
-        error = "Intel GPU frame pool is full";
-        return MKVC_WOULD_BLOCK;
-    }
-    const auto pending = impl.pending.front();
-#if defined(MKVC_ENABLE_TEST_HOOKS)
-    if (impl.collected_syncpoints >= impl.test_device_loss_after) {
-        mfxStatus status;
-        do {
-            status = MFXVideoCORE_SyncOperation(impl.session, pending.sync, kSyncWaitMs);
-        } while (status == MFX_WRN_IN_EXECUTION);
-        impl.pending.pop_front();
-        pending.surface->FrameInterface->Release(pending.surface);
-        error = "injected Intel decoder device loss";
-        return MKVC_ERROR_IO;
-    }
-#endif
-    gpu::GpuFramePool::Acquisition acquisition;
-    const mkvc_result result =
-        gpu::intel::wrap_vpl_surface(impl.session, pending.surface, pending.sync, 0, impl.lifetime,
-                                     impl.gpu_pool, acquisition, error);
-    if (result == MKVC_WOULD_BLOCK) return result;
-    impl.pending.pop_front();
-    if (result != MKVC_OK) {
-        pending.surface->FrameInterface->Release(pending.surface);
-        return result;
-    }
-    frames.push_back(std::move(acquisition.core));
-#if defined(MKVC_ENABLE_TEST_HOOKS)
-    ++impl.collected_syncpoints;
-#endif
-    return MKVC_OK;
-}
 
 }  // namespace
 #endif
@@ -238,11 +65,9 @@ std::unique_ptr<IntelVplDecoder> IntelVplDecoder::create(uint32_t codec, std::st
     auto decoder = std::unique_ptr<IntelVplDecoder>(new IntelVplDecoder());
     auto& impl = *decoder->impl_;
     impl.codec = codec;
-    impl.async_depth = async_depth;
     impl.gpu_output = gpu_output;
-    if (gpu_output) {
-        impl.gpu_pool = std::make_shared<gpu::GpuFramePool>(async_depth + 2);
-    }
+    std::shared_ptr<gpu::GpuFramePool> gpu_pool;
+    if (gpu_output) gpu_pool = std::make_shared<gpu::GpuFramePool>(async_depth + 2);
     impl.lifetime = std::make_shared<gpu::intel::VplSession>();
     if (!impl.lifetime->load()) {
         error = "MFXLoad failed";
@@ -280,6 +105,8 @@ std::unique_ptr<IntelVplDecoder> IntelVplDecoder::create(uint32_t codec, std::st
         return nullptr;
     }
     impl.session = impl.lifetime->session();
+    impl.queue = std::make_unique<gpu::intel::VplDecoderQueue>(impl.session, async_depth,
+                                                               impl.lifetime, std::move(gpu_pool));
     return decoder;
 #endif
 }
@@ -321,7 +148,7 @@ mkvc_result IntelVplDecoder::decode(const uint8_t* data, size_t size, int64_t pt
             error = "oneVPL DecodeHeader failed with status " + std::to_string(header);
             return header == MFX_ERR_MORE_DATA ? MKVC_ERROR_CODEC : MKVC_ERROR_NOT_SUPPORTED;
         }
-        impl.parameters.AsyncDepth = static_cast<mfxU16>(impl.async_depth);
+        impl.parameters.AsyncDepth = static_cast<mfxU16>(impl.queue->async_depth());
         const mfxStatus initialized = MFXVideoDECODE_Init(impl.session, &impl.parameters);
         if (initialized < MFX_ERR_NONE) {
             error = "oneVPL decoder Init failed with status " + std::to_string(initialized);
@@ -332,14 +159,14 @@ mkvc_result IntelVplDecoder::decode(const uint8_t* data, size_t size, int64_t pt
     }
     while (impl.bitstream.DataLength > 0) {
         const mfxU32 before = impl.bitstream.DataLength;
-        mkvc_result result = submit_decode(impl, &impl.bitstream, error);
-        if (result == MKVC_WOULD_BLOCK && !impl.pending.empty()) {
-            result = collect_oldest(impl, frames, error);
+        mkvc_result result = impl.queue->submit(&impl.bitstream, error);
+        if (result == MKVC_WOULD_BLOCK && impl.queue->pending_count() != 0) {
+            result = impl.queue->collect_cpu(frames, error);
             if (result == MKVC_OK) continue;
         }
         if (result != MKVC_OK && result != MKVC_END_OF_STREAM) return result;
-        if (result == MKVC_OK && impl.pending.size() >= impl.async_depth) {
-            result = collect_oldest(impl, frames, error);
+        if (result == MKVC_OK && impl.queue->pending_count() >= impl.queue->async_depth()) {
+            result = impl.queue->collect_cpu(frames, error);
             if (result != MKVC_OK) return result;
         }
         if (impl.bitstream.DataLength >= before) break;
@@ -357,23 +184,8 @@ mkvc_result IntelVplDecoder::drain(std::vector<std::unique_ptr<DecodedFrame>>& f
 #else
     auto& impl = *impl_;
     if (impl.closed || impl.drained || !impl.decoder_initialized) return MKVC_OK;
-    while (true) {
-        mkvc_result result = submit_decode(impl, nullptr, error);
-        if (result == MKVC_END_OF_STREAM) break;
-        if (result == MKVC_WOULD_BLOCK && !impl.pending.empty()) {
-            result = collect_oldest(impl, frames, error);
-            if (result == MKVC_OK) continue;
-        }
-        if (result != MKVC_OK) return result;
-        if (impl.pending.size() >= impl.async_depth) {
-            result = collect_oldest(impl, frames, error);
-            if (result != MKVC_OK) return result;
-        }
-    }
-    while (!impl.pending.empty()) {
-        const mkvc_result result = collect_oldest(impl, frames, error);
-        if (result != MKVC_OK) return result;
-    }
+    const mkvc_result result = impl.queue->drain_cpu(frames, error);
+    if (result != MKVC_OK) return result;
     impl.drained = true;
     return MKVC_OK;
 #endif
@@ -419,7 +231,7 @@ mkvc_result IntelVplDecoder::decode_gpu(const uint8_t* data, size_t size, int64_
             error = "oneVPL DecodeHeader failed with status " + std::to_string(header);
             return header == MFX_ERR_MORE_DATA ? MKVC_ERROR_CODEC : MKVC_ERROR_NOT_SUPPORTED;
         }
-        impl.parameters.AsyncDepth = static_cast<mfxU16>(impl.async_depth);
+        impl.parameters.AsyncDepth = static_cast<mfxU16>(impl.queue->async_depth());
         const mfxStatus initialized = MFXVideoDECODE_Init(impl.session, &impl.parameters);
         if (initialized < MFX_ERR_NONE) {
             error = "oneVPL video-memory decoder Init failed with status " +
@@ -431,14 +243,14 @@ mkvc_result IntelVplDecoder::decode_gpu(const uint8_t* data, size_t size, int64_
     }
     while (impl.bitstream.DataLength > 0) {
         const mfxU32 before = impl.bitstream.DataLength;
-        mkvc_result result = submit_decode(impl, &impl.bitstream, error);
-        if (result == MKVC_WOULD_BLOCK && !impl.pending.empty()) {
-            result = collect_oldest_gpu(impl, frames, error);
+        mkvc_result result = impl.queue->submit(&impl.bitstream, error);
+        if (result == MKVC_WOULD_BLOCK && impl.queue->pending_count() != 0) {
+            result = impl.queue->collect_gpu(frames, error);
             if (result == MKVC_OK) continue;
         }
         if (result != MKVC_OK && result != MKVC_END_OF_STREAM) return result;
-        if (result == MKVC_OK && impl.pending.size() >= impl.async_depth) {
-            result = collect_oldest_gpu(impl, frames, error);
+        if (result == MKVC_OK && impl.queue->pending_count() >= impl.queue->async_depth()) {
+            result = impl.queue->collect_gpu(frames, error);
             if (result != MKVC_OK) return result;
         }
         if (impl.bitstream.DataLength >= before) break;
@@ -460,23 +272,8 @@ mkvc_result IntelVplDecoder::drain_gpu(std::vector<std::shared_ptr<gpu::GpuFrame
         return MKVC_ERROR_INVALID_STATE;
     }
     if (impl.closed || impl.drained || !impl.decoder_initialized) return MKVC_OK;
-    while (true) {
-        mkvc_result result = submit_decode(impl, nullptr, error);
-        if (result == MKVC_END_OF_STREAM) break;
-        if (result == MKVC_WOULD_BLOCK && !impl.pending.empty()) {
-            result = collect_oldest_gpu(impl, frames, error);
-            if (result == MKVC_OK) continue;
-        }
-        if (result != MKVC_OK) return result;
-        if (impl.pending.size() >= impl.async_depth) {
-            result = collect_oldest_gpu(impl, frames, error);
-            if (result != MKVC_OK) return result;
-        }
-    }
-    while (!impl.pending.empty()) {
-        const mkvc_result result = collect_oldest_gpu(impl, frames, error);
-        if (result != MKVC_OK) return result;
-    }
+    const mkvc_result result = impl.queue->drain_gpu(frames, error);
+    if (result != MKVC_OK) return result;
     impl.drained = true;
     return MKVC_OK;
 #endif
@@ -486,16 +283,7 @@ mkvc_result IntelVplDecoder::close(std::string& error) {
     (void)error;
     if (impl_->closed) return MKVC_OK;
 #if defined(MKVC_HAS_INTEL_ONEVPL)
-    for (const auto& pending : impl_->pending) {
-        if (pending.sync != nullptr) {
-            mfxStatus status;
-            do {
-                status = MFXVideoCORE_SyncOperation(impl_->session, pending.sync, kSyncWaitMs);
-            } while (status == MFX_WRN_IN_EXECUTION);
-        }
-        if (pending.surface != nullptr) pending.surface->FrameInterface->Release(pending.surface);
-    }
-    impl_->pending.clear();
+    if (impl_->queue) impl_->queue->close();
     impl_->decoder_initialized = false;
     impl_->lifetime.reset();
     impl_->session = nullptr;
@@ -506,12 +294,20 @@ mkvc_result IntelVplDecoder::close(std::string& error) {
 }
 
 uint32_t IntelVplDecoder::max_pending_observed() const {
-    return impl_->max_pending.load(std::memory_order_relaxed);
+#if defined(MKVC_HAS_INTEL_ONEVPL)
+    return impl_->queue ? impl_->queue->max_pending_observed() : 0;
+#else
+    return 0;
+#endif
 }
 
 #if defined(MKVC_ENABLE_TEST_HOOKS)
 void IntelVplDecoder::set_test_device_loss_after(uint32_t completed_syncpoints) {
-    impl_->test_device_loss_after = completed_syncpoints;
+#if defined(MKVC_HAS_INTEL_ONEVPL)
+    if (impl_->queue) impl_->queue->set_test_device_loss_after(completed_syncpoints);
+#else
+    (void)completed_syncpoints;
+#endif
 }
 #endif
 
