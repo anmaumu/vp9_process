@@ -20,6 +20,15 @@
 - GitHub Actions builds strict MkDocs HTML and stores `mkvcodec-documentation` for 30 days.
 - GitHub Pages publication remains disabled until an explicit public-release decision.
 
+## 2026-09-07: Shared hardware CPU-to-NV12 conversion
+
+Intel oneVPL and NVIDIA NVENC CPU input now use the same Doxygen-documented
+`convert_cpu_frame_to_nv12` implementation for NV12 row copies and I420, BGR24,
+RGB24 and BGRA32 conversion. Plane/stride and reusable staging-capacity checks
+are centralized, while backend-labelled diagnostics and the existing NVIDIA
+compatibility wrapper remain available. This is still an intentional CPU-copy
+path and does not affect either backend's GPU-resident submission path.
+
 ## 2026-09-07: Intel encode sequence and packet-mux split
 
 `IntelWebmEncoder` now delegates hardware component creation, CPU/external-GPU

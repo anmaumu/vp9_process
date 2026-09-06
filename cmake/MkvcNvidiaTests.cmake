@@ -4,6 +4,7 @@
 function(mkvc_add_nvidia_foundation_tests)
     add_executable(mkvc_nvenc_cpu_conversion_test
         tests/nvenc_cpu_conversion_test.cpp
+        src/encoder/cpu_frame_to_nv12.cpp
         src/gpu/nvidia/nvenc_cpu_conversion.cpp)
     target_compile_features(mkvc_nvenc_cpu_conversion_test PRIVATE cxx_std_17)
     target_include_directories(mkvc_nvenc_cpu_conversion_test PRIVATE src include)
