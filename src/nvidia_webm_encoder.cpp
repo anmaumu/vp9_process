@@ -10,12 +10,12 @@
 
 #include "gpu/nvidia/nvenc_api.hpp"
 #include "gpu/nvidia/nvenc_cpu_conversion.hpp"
+#include "gpu/nvidia/nvenc_cpu_submission.hpp"
 #include "gpu/nvidia/nvenc_gpu_submission.hpp"
 #include "gpu/nvidia/nvenc_session.hpp"
 #endif
 
 #include <algorithm>
-#include <cstring>
 #include <limits>
 #include <vector>
 
@@ -50,13 +50,6 @@ NvidiaWebmEncoder::~NvidiaWebmEncoder() {
 
 #if defined(MKVC_HAS_NVIDIA)
 namespace {
-
-void copy_plane(uint8_t* destination, int destination_stride, const uint8_t* source,
-                int source_stride, uint32_t width, uint32_t height) {
-    for (uint32_t row = 0; row < height; ++row)
-        std::memcpy(destination + static_cast<size_t>(row) * destination_stride,
-                    source + static_cast<size_t>(row) * source_stride, width);
-}
 
 void destroy_session(NvidiaWebmEncoder::Impl& state) {
     gpu::nvidia::destroy_nvenc_session(*state.api, state.session);
@@ -227,46 +220,13 @@ mkvc_result NvidiaWebmEncoder::write(const mkvc_frame_view& frame, std::string& 
     mkvc_result result = gpu::nvidia::convert_nvenc_input_to_nv12(frame, state.width, state.height,
                                                                   state.i420, state.nv12, error);
     if (result != MKVC_OK) return result;
-    NV_ENC_LOCK_INPUT_BUFFER lock{};
-    lock.version = NV_ENC_LOCK_INPUT_BUFFER_VER;
-    lock.inputBuffer = state.session.input;
-    if (state.api->functions.nvEncLockInputBuffer(state.session.encoder, &lock) != NV_ENC_SUCCESS) {
-        error = "nvEncLockInputBuffer failed";
-        return MKVC_ERROR_CODEC;
-    }
-    const uint8_t* source_y = state.nv12.data();
-    const uint8_t* source_uv = source_y + static_cast<size_t>(state.width) * state.height;
-    auto* destination = static_cast<uint8_t*>(lock.bufferDataPtr);
-    copy_plane(destination, lock.pitch, source_y, state.width, state.width, state.height);
-    copy_plane(destination + static_cast<size_t>(lock.pitch) * state.height, lock.pitch, source_uv,
-               state.width, state.width, state.height / 2);
-    (void)state.api->functions.nvEncUnlockInputBuffer(state.session.encoder, state.session.input);
     const int64_t duration =
         static_cast<int64_t>(static_cast<uint64_t>(state.fps_den) * 1000000000ULL / state.fps_num);
     const int64_t pts = frame.pts >= 0 ? frame.pts : state.next_pts;
-    NV_ENC_PIC_PARAMS picture{};
-    picture.version = NV_ENC_PIC_PARAMS_VER;
-    picture.inputWidth = state.width;
-    picture.inputHeight = state.height;
-    picture.inputPitch = lock.pitch;
-    picture.inputBuffer = state.session.input;
-    picture.outputBitstream = state.session.output;
-    picture.bufferFmt = NV_ENC_BUFFER_FORMAT_NV12;
-    picture.pictureStruct = NV_ENC_PIC_STRUCT_FRAME;
-    picture.frameIdx = static_cast<uint32_t>(state.frame_index);
-    picture.inputTimeStamp = static_cast<uint64_t>(pts);
-    picture.inputDuration = static_cast<uint64_t>(duration);
-    if (state.frame_index % state.keyframe_interval == 0)
-        picture.encodePicFlags = NV_ENC_PIC_FLAG_FORCEIDR;
-    const NVENCSTATUS encoded =
-        state.api->functions.nvEncEncodePicture(state.session.encoder, &picture);
-    if (encoded != NV_ENC_SUCCESS) {
-        error = encoded == NV_ENC_ERR_NEED_MORE_INPUT
-                    ? "NVENC unexpectedly buffered input with the synchronous "
-                      "no-B-frame profile"
-                    : "nvEncEncodePicture failed";
-        return MKVC_ERROR_CODEC;
-    }
+    result = gpu::nvidia::submit_nvenc_cpu_frame(
+        *state.api, state.session, state.nv12.data(), state.width, state.height, state.frame_index,
+        pts, duration, state.frame_index % state.keyframe_interval == 0, error);
+    if (result != MKVC_OK) return result;
     result = emit_packet(state, error);
     if (result == MKVC_OK) {
         ++state.frame_index;

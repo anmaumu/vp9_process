@@ -1194,8 +1194,11 @@ pixel copy. CPU input conversion is isolated in `nvenc_cpu_conversion`: it valid
 planes and padded strides, converts BGR/RGB/BGRA/I420 to reusable contiguous NV12
 staging storage, and makes the required host-to-NVENC-input copy boundary explicit.
 Known-value tests cover padded NV12, I420 chroma interleaving and invalid stride
-rejection without requiring NVIDIA hardware. Public frame validation and
-same-context enforcement remain in the writer. Backend capability
+rejection without requiring NVIDIA hardware. `nvenc_cpu_submission` then owns the
+pitched NVENC input-buffer lock, host upload, unlock and synchronous picture
+submission, including balanced unlock on an invalid driver-returned layout.
+Public frame validation and same-context enforcement remain in the writer.
+Backend capability
 rows are emitted
 only for runtime-supported directions; NVENC AV1 is advertised only when the
 runtime encode GUID query succeeds, while NVENC VP9 is never advertised.
