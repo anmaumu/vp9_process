@@ -237,6 +237,19 @@ no CPU mapping is introduced. Decoder session code now retains header parsing,
 initialization, and compressed-packet feeding. Intel Linux real-surface tests and
 the independent Windows CPU/NVIDIA build pass after the split.
 
+## 2026-09-06: Shared optional-driver library loader
+
+OS-specific `LoadLibrary`/`GetProcAddress` and `dlopen`/`dlsym` handling has been
+removed from the NVDEC decoder state and placed in a small Doxygen-documented
+RAII module. It owns only the module handle, is non-copyable, returns null for
+missing libraries or symbols, and does not bundle or load a fallback GPU driver.
+The NVDEC function table and CUDA context remain owned by the decoder.
+
+A GPU-independent native test resolves a known operating-system symbol and
+rejects an intentionally missing symbol on Windows and Linux. This makes dynamic
+loader behavior testable on the Intel machine while the Windows NVIDIA tests
+continue to validate actual CUDA/NVCUVID driver loading.
+
 ## 2026-09-05: Scoped CUDA context activation
 
 CUDA driver context push/pop is now represented by one Doxygen-documented,

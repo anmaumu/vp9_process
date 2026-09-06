@@ -1,6 +1,7 @@
 #include "nvidia_webm_decoder.hpp"
 
 #include "gpu/gpu_frame_pool.hpp"
+#include "gpu/nvidia/dynamic_library.hpp"
 #include "gpu/nvidia/nvidia_native_handle.hpp"
 #include "nvidia_probe.hpp"
 #include "webm_packet_reader.hpp"
@@ -11,16 +12,9 @@
 #include <ffnvcodec/dynlink_nvcuvid.h>
 
 #include "gpu/nvidia/cuda_context_guard.hpp"
-#ifdef _WIN32
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-#else
-#include <dlfcn.h>
-#endif
 #endif
 
 #include <algorithm>
-#include <cstring>
 #include <deque>
 #include <mutex>
 #include <optional>
@@ -31,45 +25,8 @@ namespace mkvc {
 
 struct NvidiaWebmDecoder::Impl : public std::enable_shared_from_this<Impl> {
 #if defined(MKVC_HAS_NVIDIA)
-    class Library {
-       public:
-        explicit Library(const char* name) {
-#ifdef _WIN32
-            handle_ = LoadLibraryA(name);
-#else
-            handle_ = dlopen(name, RTLD_LAZY | RTLD_LOCAL);
-#endif
-        }
-        ~Library() {
-#ifdef _WIN32
-            if (handle_ != nullptr) FreeLibrary(handle_);
-#else
-            if (handle_ != nullptr) dlclose(handle_);
-#endif
-        }
-        template <typename T>
-        T symbol(const char* name) const {
-#ifdef _WIN32
-            const FARPROC address = GetProcAddress(handle_, name);
-            static_assert(sizeof(T) == sizeof(address));
-            T result = nullptr;
-            std::memcpy(&result, &address, sizeof(result));
-            return result;
-#else
-            return reinterpret_cast<T>(dlsym(handle_, name));
-#endif
-        }
-        explicit operator bool() const { return handle_ != nullptr; }
-
-       private:
-#ifdef _WIN32
-        HMODULE handle_ = nullptr;
-#else
-        void* handle_ = nullptr;
-#endif
-    };
-    std::unique_ptr<Library> cuda;
-    std::unique_ptr<Library> cuvid;
+    std::unique_ptr<gpu::nvidia::DynamicLibrary> cuda;
+    std::unique_ptr<gpu::nvidia::DynamicLibrary> cuvid;
     tcuInit* cu_init = nullptr;
     tcuDeviceGet* device_get = nullptr;
     tcuCtxCreate_v2* context_create = nullptr;
@@ -352,11 +309,11 @@ std::unique_ptr<NvidiaWebmDecoder> NvidiaWebmDecoder::create(const mkvc_decoder_
     auto& state = *result->impl_;
     state.gpu_pool = std::make_shared<gpu::GpuFramePool>(8);
 #ifdef _WIN32
-    state.cuda = std::make_unique<Impl::Library>("nvcuda.dll");
-    state.cuvid = std::make_unique<Impl::Library>("nvcuvid.dll");
+    state.cuda = std::make_unique<gpu::nvidia::DynamicLibrary>("nvcuda.dll");
+    state.cuvid = std::make_unique<gpu::nvidia::DynamicLibrary>("nvcuvid.dll");
 #else
-    state.cuda = std::make_unique<Impl::Library>("libcuda.so.1");
-    state.cuvid = std::make_unique<Impl::Library>("libnvcuvid.so.1");
+    state.cuda = std::make_unique<gpu::nvidia::DynamicLibrary>("libcuda.so.1");
+    state.cuvid = std::make_unique<gpu::nvidia::DynamicLibrary>("libnvcuvid.so.1");
 #endif
     if (!*state.cuda || !*state.cuvid) {
         error = "NVIDIA CUDA/NVCUVID driver libraries not found";

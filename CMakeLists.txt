@@ -97,7 +97,9 @@ target_compile_definitions(mkvcodec PRIVATE MKVC_BUILDING_LIBRARY)
 target_link_libraries(mkvcodec PRIVATE ${CMAKE_DL_LIBS})
 
 if(MKVC_ENABLE_NVIDIA)
-    target_sources(mkvcodec PRIVATE src/gpu/nvidia/cuda_completion.cpp)
+    target_sources(mkvcodec PRIVATE
+        src/gpu/nvidia/cuda_completion.cpp
+        src/gpu/nvidia/dynamic_library.cpp)
     target_compile_definitions(mkvcodec PRIVATE MKVC_HAS_NVIDIA=1)
     target_include_directories(mkvcodec PRIVATE
         ${nv_codec_headers_SOURCE_DIR}/include)
@@ -201,6 +203,18 @@ if(MKVC_BUILD_TESTS)
     target_compile_features(mkvc_c_api_tests PRIVATE cxx_std_17)
     target_link_libraries(mkvc_c_api_tests PRIVATE mkvcodec)
     add_test(NAME mkvc_c_api_tests COMMAND mkvc_c_api_tests)
+
+    add_executable(mkvc_dynamic_library_test
+        tests/dynamic_library_test.cpp src/gpu/nvidia/dynamic_library.cpp)
+    target_compile_features(mkvc_dynamic_library_test PRIVATE cxx_std_17)
+    target_include_directories(mkvc_dynamic_library_test PRIVATE src)
+    target_link_libraries(mkvc_dynamic_library_test PRIVATE ${CMAKE_DL_LIBS})
+    if(MSVC)
+        target_compile_options(mkvc_dynamic_library_test PRIVATE /UNDEBUG)
+    else()
+        target_compile_options(mkvc_dynamic_library_test PRIVATE -UNDEBUG)
+    endif()
+    add_test(NAME mkvc_dynamic_library COMMAND mkvc_dynamic_library_test)
 
     add_executable(mkvc_gpu_frame_test
         tests/gpu_frame_test.cpp src/gpu/gpu_frame.cpp
