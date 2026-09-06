@@ -1,11 +1,12 @@
 #include "nvidia_webm_decoder.hpp"
-#include "nvidia_probe.hpp"
 
 #include <cstdlib>
 #include <future>
 #include <iostream>
 #include <memory>
 #include <string>
+
+#include "nvidia_probe.hpp"
 
 namespace {
 
@@ -23,31 +24,29 @@ bool decode_file(const char* path, bool transfer_to_worker, std::string& error) 
         int64_t previous_pts = -1;
         uint64_t luma_sum = 0;
         while (true) {
-        std::unique_ptr<mkvc::DecodedFrame> frame;
-        const mkvc_result result = decoder->read(frame, error);
-        if (result == MKVC_END_OF_STREAM) break;
-        if (result != MKVC_OK || !frame || frame->width != 160 ||
-            frame->height != 128 || frame->pts_ns <= previous_pts) {
-            std::cerr << "NVDEC read failure: " << error << '\n';
-            return false;
-        }
-        previous_pts = frame->pts_ns;
-        const size_t y_size = static_cast<size_t>(frame->width) * frame->height;
-        for (size_t index = 0; index < y_size; ++index)
-            luma_sum += frame->pixels[index];
-        ++frames;
+            std::unique_ptr<mkvc::DecodedFrame> frame;
+            const mkvc_result result = decoder->read(frame, error);
+            if (result == MKVC_END_OF_STREAM) break;
+            if (result != MKVC_OK || !frame || frame->width != 160 || frame->height != 128 ||
+                frame->pts_ns <= previous_pts) {
+                std::cerr << "NVDEC read failure: " << error << '\n';
+                return false;
+            }
+            previous_pts = frame->pts_ns;
+            const size_t y_size = static_cast<size_t>(frame->width) * frame->height;
+            for (size_t index = 0; index < y_size; ++index) luma_sum += frame->pixels[index];
+            ++frames;
         }
         if (frames != 30 || luma_sum == 0) {
-        std::cerr << "NVDEC validation failure: frames=" << frames
-                  << " sum=" << luma_sum << " error=" << error << '\n';
+            std::cerr << "NVDEC validation failure: frames=" << frames << " sum=" << luma_sum
+                      << " error=" << error << '\n';
             return false;
         }
-        std::cout << "NVDEC decoded " << frames << " frames, luma sum "
-                  << luma_sum << '\n';
+        std::cout << "NVDEC decoded " << frames << " frames, luma sum " << luma_sum << '\n';
         return true;
     };
-    const bool valid = transfer_to_worker
-        ? std::async(std::launch::async, consume).get() : consume();
+    const bool valid =
+        transfer_to_worker ? std::async(std::launch::async, consume).get() : consume();
     return valid && decoder->close(error) == MKVC_OK;
 }
 
@@ -68,8 +67,8 @@ bool decode_gpu_file(const char* path, std::string& error) {
         const mkvc_result result = decoder->read_gpu(&frame, error);
         if (result == MKVC_END_OF_STREAM) break;
         if (result != MKVC_OK || frame == nullptr) {
-            error = "NVIDIA GPU read failed result=" +
-                    std::to_string(static_cast<int>(result)) + " detail=" + error;
+            error = "NVIDIA GPU read failed result=" + std::to_string(static_cast<int>(result)) +
+                    " detail=" + error;
             return false;
         }
         mkvc_gpu_frame_desc desc{};
@@ -80,30 +79,28 @@ bool decode_gpu_file(const char* path, std::string& error) {
         native.struct_version = 1;
         if (mkvc_gpu_frame_get_desc(frame, &desc) != MKVC_OK ||
             mkvc_gpu_frame_get_native_handle(frame, &native) != MKVC_OK ||
-            mkvc_gpu_frame_wait(frame, 5000) != MKVC_OK ||
-            desc.backend != MKVC_BACKEND_NVIDIA ||
+            mkvc_gpu_frame_wait(frame, 5000) != MKVC_OK || desc.backend != MKVC_BACKEND_NVIDIA ||
             desc.memory_type != MKVC_GPU_MEMORY_CUDA_POINTER ||
-            desc.pixel_format != MKVC_PIXEL_FORMAT_NV12 ||
-            desc.width != 160 || desc.height != 128 ||
-            desc.plane_count != 2 || desc.pitches[0] < desc.width ||
-            desc.plane_offsets[1] != desc.pitches[0] * desc.height ||
-            desc.pts <= previous_pts ||
-            native.type != MKVC_GPU_NATIVE_CUDA_POINTER ||
-            native.handles[0] == 0 || native.handles[1] == 0) {
+            desc.pixel_format != MKVC_PIXEL_FORMAT_NV12 || desc.width != 160 ||
+            desc.height != 128 || desc.plane_count != 2 || desc.pitches[0] < desc.width ||
+            desc.plane_offsets[1] != desc.pitches[0] * desc.height || desc.pts <= previous_pts ||
+            native.type != MKVC_GPU_NATIVE_CUDA_POINTER || native.handles[0] == 0 ||
+            native.handles[1] == 0) {
             mkvc_gpu_frame_release(frame);
             error = "invalid NVIDIA GPU frame descriptor";
             return false;
         }
         previous_pts = desc.pts;
-        if (frames == 0) retained = frame;
-        else mkvc_gpu_frame_release(frame);
+        if (frames == 0)
+            retained = frame;
+        else
+            mkvc_gpu_frame_release(frame);
         ++frames;
     }
     const mkvc_result close_result = decoder->close(error);
     if (frames != 30 || close_result != MKVC_OK || retained == nullptr) {
         error = "NVIDIA GPU close/count failure frames=" + std::to_string(frames) +
-                " close=" + std::to_string(static_cast<int>(close_result)) +
-                " detail=" + error;
+                " close=" + std::to_string(static_cast<int>(close_result)) + " detail=" + error;
         if (retained) mkvc_gpu_frame_release(retained);
         return false;
     }
@@ -111,10 +108,24 @@ bool decode_gpu_file(const char* path, std::string& error) {
     after_close.struct_size = sizeof(after_close);
     after_close.struct_version = 1;
     const bool survived =
-        mkvc_gpu_frame_get_desc(retained, &after_close) == MKVC_OK &&
-        after_close.generation != 0;
+        mkvc_gpu_frame_get_desc(retained, &after_close) == MKVC_OK && after_close.generation != 0;
     mkvc_gpu_frame_release(retained);
     return survived;
+}
+
+bool reject_missing_file(std::string& error) {
+    mkvc_decoder_config config{};
+    config.struct_size = sizeof(config);
+    config.struct_version = 1;
+    config.input_path_utf8 = "";
+    config.codec = MKVC_CODEC_VP9;
+    config.backend = MKVC_BACKEND_NVIDIA;
+    auto decoder = mkvc::NvidiaWebmDecoder::create(config, error);
+    if (decoder != nullptr || error.empty()) {
+        error = "NVIDIA decoder accepted a missing input file";
+        return false;
+    }
+    return true;
 }
 
 }  // namespace
@@ -125,6 +136,11 @@ int main(int argc, char** argv) {
     if (!decode_file(argv[1], false, error)) {
         std::cout << "NVDEC unavailable or failed: " << error << '\n';
         return std::getenv("MKVC_REQUIRE_NVIDIA_GPU") != nullptr ? 1 : 77;
+    }
+    error.clear();
+    if (!reject_missing_file(error)) {
+        std::cerr << "NVDEC partial initialization cleanup failed: " << error << '\n';
+        return 1;
     }
     if (!mkvc::probe_nvidia().av1_decode) {
         mkvc_decoder_config unsupported{};

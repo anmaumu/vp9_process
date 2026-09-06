@@ -13,6 +13,7 @@
 #include "gpu/nvidia/nvdec_api.hpp"
 #include "gpu/nvidia/nvdec_cpu_output.hpp"
 #include "gpu/nvidia/nvdec_gpu_output.hpp"
+#include "gpu/nvidia/nvdec_runtime_setup.hpp"
 #include "gpu/nvidia/nvdec_sequence.hpp"
 #endif
 
@@ -30,7 +31,6 @@ struct NvidiaWebmDecoder::Impl : public std::enable_shared_from_this<Impl> {
     CUcontext context = nullptr;
     CUvideoparser parser = nullptr;
     CUvideodecoder decoder = nullptr;
-    bool context_is_current = false;
     uint32_t width = 0;
     uint32_t height = 0;
     std::string callback_error;
@@ -44,7 +44,6 @@ struct NvidiaWebmDecoder::Impl : public std::enable_shared_from_this<Impl> {
     enum class OutputMode { kUnset, kCpu, kGpu } output_mode = OutputMode::kUnset;
     std::mutex runtime_mutex;
     uint32_t outstanding_gpu_frames = 0;
-    bool parser_destroyed = false;
     bool runtime_destroyed = false;
     std::unique_ptr<WebmPacketReader> packet_reader;
     bool demux_eos = false;
@@ -177,7 +176,6 @@ mkvc_result pump_parser_until_output(NvidiaWebmDecoder::Impl& state, bool gpu_ou
         error = "failed to activate CUDA context";
         return MKVC_ERROR_CODEC;
     }
-    state.context_is_current = true;
     mkvc_result result = MKVC_OK;
     const auto output_ready = [&state, gpu_output] {
         return gpu_output ? !state.completed_gpu.empty() : !state.completed.empty();
@@ -228,8 +226,6 @@ mkvc_result pump_parser_until_output(NvidiaWebmDecoder::Impl& state, bool gpu_ou
             error = "failed to release CUDA context";
             result = MKVC_ERROR_CODEC;
         }
-    } else {
-        state.context_is_current = false;
     }
     return result;
 }
@@ -255,35 +251,15 @@ std::unique_ptr<NvidiaWebmDecoder> NvidiaWebmDecoder::create(const mkvc_decoder_
     auto result = std::unique_ptr<NvidiaWebmDecoder>(new NvidiaWebmDecoder());
     auto& state = *result->impl_;
     state.gpu_pool = std::make_shared<gpu::GpuFramePool>(8);
-    state.api = gpu::nvidia::NvdecApi::load(error);
-    if (!state.api) return nullptr;
-    CUdevice device = 0;
-    if (state.api->cu_init(0) != CUDA_SUCCESS ||
-        state.api->device_get(&device, 0) != CUDA_SUCCESS ||
-        state.api->context_create(&state.context, 0, device) != CUDA_SUCCESS) {
-        error = "failed to create NVIDIA CUDA context";
+    gpu::nvidia::NvdecParserRuntime runtime;
+    if (gpu::nvidia::create_nvdec_parser_runtime(static_cast<mkvc_codec>(config.codec), &state,
+                                                 sequence_callback, decode_callback,
+                                                 display_callback, runtime, error) != MKVC_OK) {
         return nullptr;
     }
-    state.context_is_current = true;
-    CUVIDPARSERPARAMS params{};
-    params.CodecType = config.codec == MKVC_CODEC_VP9 ? cudaVideoCodec_VP9 : cudaVideoCodec_AV1;
-    params.ulMaxNumDecodeSurfaces = 20;
-    params.ulClockRate = 1000000000U;
-    params.ulMaxDisplayDelay = 2;
-    params.pUserData = &state;
-    params.pfnSequenceCallback = sequence_callback;
-    params.pfnDecodePicture = decode_callback;
-    params.pfnDisplayPicture = display_callback;
-    if (state.api->parser_create(&state.parser, &params) != CUDA_SUCCESS) {
-        error = "cuvidCreateVideoParser failed";
-        return nullptr;
-    }
-    CUcontext popped = nullptr;
-    if (state.api->context_pop(&popped) != CUDA_SUCCESS || popped != state.context) {
-        error = "failed to detach NVIDIA CUDA context";
-        return nullptr;
-    }
-    state.context_is_current = false;
+    state.api = std::move(runtime.api);
+    state.context = runtime.context;
+    state.parser = runtime.parser;
     state.packet_reader = WebmPacketReader::open(config.input_path_utf8, config.codec, error);
     if (!state.packet_reader) return nullptr;
     return result;
@@ -371,7 +347,6 @@ mkvc_result NvidiaWebmDecoder::close(std::string& error) {
             } else {
                 (void)state.api->parser_destroy(state.parser);
                 state.parser = nullptr;
-                state.parser_destroyed = true;
                 if (!context_guard.release()) cleanup_failed = true;
             }
         }

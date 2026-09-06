@@ -103,6 +103,7 @@ if(MKVC_ENABLE_NVIDIA)
         src/gpu/nvidia/nvdec_api.cpp
         src/gpu/nvidia/nvdec_cpu_output.cpp
         src/gpu/nvidia/nvdec_gpu_output.cpp
+        src/gpu/nvidia/nvdec_runtime_setup.cpp
         src/gpu/nvidia/nvdec_sequence.cpp)
     target_compile_definitions(mkvcodec PRIVATE MKVC_HAS_NVIDIA=1)
     target_include_directories(mkvcodec PRIVATE

@@ -1159,6 +1159,10 @@ maps NV12 only for completed display-order frames, and splits the host readback
 into the common owned I420 representation. Sequence validation, decoder capability
 checks, decoder creation and same-resolution reuse are isolated in
 `nvdec_sequence`; mid-stream resolution changes remain explicitly unsupported.
+Driver loading, CUDA context creation, parser callback wiring and successful
+context detachment are isolated in `nvdec_runtime_setup`. Initialization errors
+discard partial parser/context resources; the real-GPU test forces a post-runtime
+input-open failure and then recreates a decoder successfully.
 CPU and GPU reads share one parser pump for incremental demux, timestamped packet
 submission, the single EOS drain packet, callback diagnostics and CUDA context
 release. Their public output-mode and frame-pool checks remain separate.
