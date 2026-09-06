@@ -20,6 +20,17 @@
 - GitHub Actions builds strict MkDocs HTML and stores `mkvcodec-documentation` for 30 days.
 - GitHub Pages publication remains disabled until an explicit public-release decision.
 
+## 2026-09-06: Encoder producer-side queue responsibility split
+
+Owned CPU-frame buffer acquisition/recycling, blocking and nonblocking
+backpressure, borrowed submission enqueue, ordered flush barriers, cancellation
+publication and worker join now live in the Doxygen-documented
+`encoder_queue_control` module. The existing `encoder_worker` remains the sole
+asynchronous backend consumer. `EncoderSession` now selects synchronous versus
+queued execution and enforces copy/backend policy without embedding the queue
+protocol. Queue metrics, terminal errors and public C/Python/.NET behavior are
+unchanged.
+
 ## 2026-09-06: Decoder C ABI responsibility split
 
 Decoded CPU-frame retain/release, borrowed I420 view, explicit copy and processing

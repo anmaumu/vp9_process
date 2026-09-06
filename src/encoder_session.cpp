@@ -12,6 +12,7 @@
 #include "cpu_av1_encoder.hpp"
 #include "encoder/cpu_frame_copy.hpp"
 #include "encoder/encoder_backend.hpp"
+#include "encoder/encoder_queue_control.hpp"
 #include "encoder/encoder_session_state.hpp"
 #include "encoder/encoder_worker.hpp"
 #include "intel_webm_encoder.hpp"
@@ -25,11 +26,12 @@ using encoder::backend_flush;
 using encoder::backend_hardware_pending;
 using encoder::backend_write;
 using encoder::elapsed_ns;
+using encoder::enqueue_borrowed;
+using encoder::enqueue_owned;
+using encoder::flush_and_wait;
 using encoder::observe_copy_path;
-using encoder::own_frame;
 using encoder::OwnedFrame;
 using encoder::run_encoder_worker;
-using encoder::validate_borrowed_frame;
 
 }  // namespace
 
@@ -128,90 +130,7 @@ mkvc_result EncoderSession::write(const mkvc_frame_view& frame, bool block, std:
         }
         return result;
     }
-    {
-        std::lock_guard<std::mutex> lock(impl_->mutex);
-        if (impl_->failed) {
-            error = impl_->terminal_error;
-            return impl_->terminal_result;
-        }
-        if (!impl_->accepting) {
-            error = impl_->canceled ? "encoder was cancelled" : "encoder is closing or closed";
-            return impl_->canceled ? MKVC_ERROR_CANCELLED : MKVC_ERROR_INVALID_STATE;
-        }
-    }
-    if (frame.width != impl_->width || frame.height != impl_->height) {
-        error = "frame dimensions do not match encoder configuration";
-        return MKVC_ERROR_INVALID_ARGUMENT;
-    }
-    std::unique_ptr<OwnedFrame> owned;
-    {
-        std::unique_lock<std::mutex> lock(impl_->mutex);
-        if (!block && (impl_->queue.size() >= impl_->capacity || impl_->free_frames.empty())) {
-            ++impl_->rejected_frames;
-            return MKVC_WOULD_BLOCK;
-        }
-        if (block) {
-            const auto wait_started = std::chrono::steady_clock::now();
-            impl_->has_space.wait(lock, [this] {
-                return (impl_->queue.size() < impl_->capacity && !impl_->free_frames.empty()) ||
-                       !impl_->accepting || impl_->failed;
-            });
-            impl_->queue_wait_ns += elapsed_ns(wait_started);
-        }
-        if (impl_->failed) {
-            error = impl_->terminal_error;
-            return impl_->terminal_result;
-        }
-        if (!impl_->accepting) {
-            error = impl_->canceled ? "encoder was cancelled" : "encoder is closing or closed";
-            return impl_->canceled ? MKVC_ERROR_CANCELLED : MKVC_ERROR_INVALID_STATE;
-        }
-        if (impl_->queue.size() >= impl_->capacity || impl_->free_frames.empty()) {
-            ++impl_->rejected_frames;
-            return MKVC_WOULD_BLOCK;
-        }
-        owned = std::move(impl_->free_frames.front());
-        impl_->free_frames.pop_front();
-    }
-    mkvc_result result = own_frame(frame, *owned, error);
-    if (result != MKVC_OK) {
-        std::lock_guard<std::mutex> lock(impl_->mutex);
-        impl_->free_frames.push_back(std::move(owned));
-        impl_->has_space.notify_all();
-        return result;
-    }
-    std::unique_lock<std::mutex> lock(impl_->mutex);
-    if (block) {
-        const auto wait_started = std::chrono::steady_clock::now();
-        impl_->has_space.wait(lock, [this] {
-            return impl_->queue.size() < impl_->capacity || !impl_->accepting || impl_->failed;
-        });
-        impl_->queue_wait_ns += elapsed_ns(wait_started);
-    }
-    if (impl_->failed) {
-        impl_->free_frames.push_back(std::move(owned));
-        error = impl_->terminal_error;
-        return impl_->terminal_result;
-    }
-    if (!impl_->accepting) {
-        impl_->free_frames.push_back(std::move(owned));
-        error = impl_->canceled ? "encoder was cancelled" : "encoder is closing or closed";
-        return impl_->canceled ? MKVC_ERROR_CANCELLED : MKVC_ERROR_INVALID_STATE;
-    }
-    if (impl_->queue.size() >= impl_->capacity) {
-        impl_->free_frames.push_back(std::move(owned));
-        impl_->has_space.notify_all();
-        ++impl_->rejected_frames;
-        return MKVC_WOULD_BLOCK;
-    }
-    Impl::Item item;
-    item.frame = std::move(owned);
-    impl_->queue.push_back(std::move(item));
-    ++impl_->accepted_frames;
-    impl_->peak_queue_depth =
-        std::max<uint32_t>(impl_->peak_queue_depth, static_cast<uint32_t>(impl_->queue.size()));
-    impl_->has_items.notify_one();
-    return MKVC_OK;
+    return enqueue_owned(*impl_, frame, block, error);
 }
 
 mkvc_result EncoderSession::write_borrowed(const mkvc_frame_view& frame, std::string& error) {
@@ -236,45 +155,7 @@ mkvc_result EncoderSession::write_borrowed(const mkvc_frame_view& frame, std::st
 mkvc_result EncoderSession::submit_borrowed(const mkvc_frame_view& frame,
                                             std::shared_ptr<CpuSubmission>& submission,
                                             std::string& error) {
-    if (frame.width != impl_->width || frame.height != impl_->height) {
-        error = "frame dimensions do not match encoder configuration";
-        return MKVC_ERROR_INVALID_ARGUMENT;
-    }
-    const mkvc_result validation = validate_borrowed_frame(frame, error);
-    if (validation != MKVC_OK) return validation;
-    auto state = std::make_shared<CpuSubmission>();
-    std::unique_lock<std::mutex> lock(impl_->mutex);
-    if (impl_->capacity == 0) {
-        error = "async borrowed submission requires queue_size greater than zero";
-        return MKVC_ERROR_NOT_SUPPORTED;
-    }
-    if (impl_->require_gpu_resident || !impl_->allow_cpu_copy) {
-        error = "CPU frame submission is prohibited by copy policy";
-        return MKVC_ERROR_NOT_SUPPORTED;
-    }
-    const auto wait_started = std::chrono::steady_clock::now();
-    impl_->has_space.wait(lock, [this] {
-        return impl_->queue.size() < impl_->capacity || !impl_->accepting || impl_->failed;
-    });
-    impl_->queue_wait_ns += elapsed_ns(wait_started);
-    if (impl_->failed) {
-        error = impl_->terminal_error;
-        return impl_->terminal_result;
-    }
-    if (!impl_->accepting) {
-        error = impl_->canceled ? "encoder was cancelled" : "encoder is closing or closed";
-        return impl_->canceled ? MKVC_ERROR_CANCELLED : MKVC_ERROR_INVALID_STATE;
-    }
-    Impl::Item item;
-    item.borrowed = frame;
-    item.submission = state;
-    impl_->queue.push_back(std::move(item));
-    ++impl_->accepted_frames;
-    impl_->peak_queue_depth =
-        std::max<uint32_t>(impl_->peak_queue_depth, static_cast<uint32_t>(impl_->queue.size()));
-    submission = std::move(state);
-    impl_->has_items.notify_one();
-    return MKVC_OK;
+    return enqueue_borrowed(*impl_, frame, submission, error);
 }
 
 mkvc_result EncoderSession::set_copy_policy(const mkvc_copy_policy& policy, std::string& error) {
@@ -367,60 +248,10 @@ mkvc_result EncoderSession::flush(std::string& error) {
             std::max(impl_->hardware_pending_peak, backend_hardware_pending(*impl_));
         return result;
     }
-    std::unique_lock<std::mutex> lock(impl_->mutex);
-    impl_->has_space.wait(lock, [this] {
-        return impl_->queue.size() < impl_->capacity || !impl_->accepting || impl_->failed;
-    });
-    if (impl_->failed) {
-        error = impl_->terminal_error;
-        return impl_->terminal_result;
-    }
-    if (!impl_->accepting) {
-        error = impl_->canceled ? "encoder was cancelled" : "encoder is closing or closed";
-        return impl_->canceled ? MKVC_ERROR_CANCELLED : MKVC_ERROR_INVALID_STATE;
-    }
-    const uint64_t token = ++impl_->next_flush_token;
-    Impl::Item item;
-    item.type = Impl::ItemType::kFlush;
-    item.flush_token = token;
-    impl_->queue.push_back(std::move(item));
-    impl_->has_items.notify_one();
-    impl_->state_changed.wait(lock, [this, token] {
-        return impl_->completed_flush_token >= token || impl_->failed || impl_->canceled;
-    });
-    if (impl_->failed) {
-        error = impl_->terminal_error;
-        return impl_->terminal_result;
-    }
-    if (impl_->canceled) {
-        error = "encoder was cancelled";
-        return MKVC_ERROR_CANCELLED;
-    }
-    return MKVC_OK;
+    return flush_and_wait(*impl_, error);
 }
 
-mkvc_result EncoderSession::cancel(std::string& error) {
-    std::lock_guard<std::mutex> lock(impl_->mutex);
-    if (impl_->closed || impl_->canceled) return MKVC_OK;
-    if (impl_->failed) {
-        error = impl_->terminal_error;
-        return impl_->terminal_result;
-    }
-    impl_->canceled = true;
-    impl_->accepting = false;
-    if (impl_->capacity != 0) impl_->close_requested = true;
-    for (auto& item : impl_->queue) {
-        if (item.submission) {
-            item.submission->complete(MKVC_ERROR_CANCELLED, "encoder submission was cancelled");
-        }
-        if (item.frame) impl_->free_frames.push_back(std::move(item.frame));
-    }
-    impl_->queue.clear();
-    impl_->has_items.notify_all();
-    impl_->has_space.notify_all();
-    impl_->state_changed.notify_all();
-    return MKVC_OK;
-}
+mkvc_result EncoderSession::cancel(std::string& error) { return encoder::cancel(*impl_, error); }
 
 mkvc_result EncoderSession::close(std::string& error) {
     if (impl_->capacity == 0) {
@@ -432,24 +263,7 @@ mkvc_result EncoderSession::close(std::string& error) {
             std::max(impl_->hardware_pending_peak, backend_hardware_pending(*impl_));
         return result;
     }
-    {
-        std::lock_guard<std::mutex> lock(impl_->mutex);
-        if (!impl_->close_requested) {
-            impl_->accepting = false;
-            impl_->close_requested = true;
-            impl_->has_items.notify_all();
-            impl_->has_space.notify_all();
-        }
-    }
-    if (impl_->worker.joinable()) {
-        impl_->worker.join();
-    }
-    std::lock_guard<std::mutex> lock(impl_->mutex);
-    if (impl_->failed) {
-        error = impl_->terminal_error;
-        return impl_->terminal_result;
-    }
-    return MKVC_OK;
+    return encoder::close_and_join(*impl_, error);
 }
 
 }  // namespace mkvc
