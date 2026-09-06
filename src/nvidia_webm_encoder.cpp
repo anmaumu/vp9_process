@@ -11,6 +11,7 @@
 #include <libyuv/planar_functions.h>
 
 #include "gpu/nvidia/nvenc_api.hpp"
+#include "gpu/nvidia/nvenc_gpu_submission.hpp"
 #include "gpu/nvidia/nvenc_session.hpp"
 #endif
 
@@ -269,61 +270,14 @@ mkvc_result NvidiaWebmEncoder::write_gpu(const std::shared_ptr<gpu::GpuFrameCore
         return MKVC_ERROR_NOT_SUPPORTED;
     }
 
-    NV_ENC_REGISTER_RESOURCE registration{};
-    registration.version = NV_ENC_REGISTER_RESOURCE_VER;
-    registration.resourceType = cuda_pointer ? NV_ENC_INPUT_RESOURCE_TYPE_CUDADEVICEPTR
-                                             : NV_ENC_INPUT_RESOURCE_TYPE_CUDAARRAY;
-    registration.resourceToRegister =
-        reinterpret_cast<void*>(static_cast<uintptr_t>(native.handles[0]));
-    registration.width = state.width;
-    registration.height = state.height;
-    registration.pitch = static_cast<uint32_t>(desc.pitches[0]);
-    registration.bufferFormat = NV_ENC_BUFFER_FORMAT_NV12;
-    registration.bufferUsage = NV_ENC_INPUT_IMAGE;
-    if (state.api->functions.nvEncRegisterResource(state.session.encoder, &registration) !=
-        NV_ENC_SUCCESS) {
-        error = "nvEncRegisterResource rejected the CUDA input resource";
-        return MKVC_ERROR_CODEC;
-    }
-    NV_ENC_MAP_INPUT_RESOURCE mapping{};
-    mapping.version = NV_ENC_MAP_INPUT_RESOURCE_VER;
-    mapping.registeredResource = registration.registeredResource;
-    if (state.api->functions.nvEncMapInputResource(state.session.encoder, &mapping) !=
-        NV_ENC_SUCCESS) {
-        (void)state.api->functions.nvEncUnregisterResource(state.session.encoder,
-                                                           registration.registeredResource);
-        error = "nvEncMapInputResource failed";
-        return MKVC_ERROR_CODEC;
-    }
     const int64_t duration =
         static_cast<int64_t>(static_cast<uint64_t>(state.fps_den) * 1000000000ULL / state.fps_num);
     const int64_t pts = desc.pts >= 0 ? desc.pts : state.next_pts;
-    NV_ENC_PIC_PARAMS picture{};
-    picture.version = NV_ENC_PIC_PARAMS_VER;
-    picture.inputWidth = state.width;
-    picture.inputHeight = state.height;
-    picture.inputPitch = registration.pitch;
-    picture.inputBuffer = mapping.mappedResource;
-    picture.outputBitstream = state.session.output;
-    picture.bufferFmt = mapping.mappedBufferFmt;
-    picture.pictureStruct = NV_ENC_PIC_STRUCT_FRAME;
-    picture.frameIdx = static_cast<uint32_t>(state.frame_index);
-    picture.inputTimeStamp = static_cast<uint64_t>(pts);
-    picture.inputDuration = static_cast<uint64_t>(duration);
-    if (state.frame_index % state.keyframe_interval == 0)
-        picture.encodePicFlags = NV_ENC_PIC_FLAG_FORCEIDR;
-    const NVENCSTATUS encoded =
-        state.api->functions.nvEncEncodePicture(state.session.encoder, &picture);
-    if (encoded == NV_ENC_SUCCESS)
-        result = emit_packet(state, error);
-    else {
-        error = "nvEncEncodePicture failed for GPU input";
-        result = MKVC_ERROR_CODEC;
-    }
-    (void)state.api->functions.nvEncUnmapInputResource(state.session.encoder,
-                                                       mapping.mappedResource);
-    (void)state.api->functions.nvEncUnregisterResource(state.session.encoder,
-                                                       registration.registeredResource);
+    result = gpu::nvidia::submit_nvenc_cuda_frame(
+        *state.api, state.session, cuda_array, native.handles[0], state.width, state.height,
+        static_cast<uint32_t>(desc.pitches[0]), state.frame_index, pts, duration,
+        state.frame_index % state.keyframe_interval == 0, error);
+    if (result == MKVC_OK) result = emit_packet(state, error);
     if (result == MKVC_OK) {
         ++state.frame_index;
         state.next_pts = std::max(state.next_pts, pts + duration);

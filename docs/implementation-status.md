@@ -1187,7 +1187,11 @@ the NVENC function table before an encode session can be created. `NvencSession`
 then owns the encoder, input buffer, bitstream buffer and any internally created
 CUDA context; externally supplied decode contexts remain borrowed. Session setup
 contains the synchronous AV1 P4 constant-QP configuration, and one cleanup path is
-used by close, flush/recreate and CPU-to-GPU input switching. Backend capability
+used by close, flush/recreate and CPU-to-GPU input switching. GPU input submission
+is isolated in `nvenc_gpu_submission`: CUDA pointer/array registration, mapping,
+picture submission, unmapping and unregistering form one balanced scope without a
+pixel copy. Public frame validation and same-context enforcement remain in the
+writer. Backend capability
 rows are emitted
 only for runtime-supported directions; NVENC AV1 is advertised only when the
 runtime encode GUID query succeeds, while NVENC VP9 is never advertised.
