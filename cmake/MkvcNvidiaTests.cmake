@@ -42,6 +42,7 @@ function(mkvc_add_nvidia_vp9_fixture_tests vp9_sample)
         src/gpu/intel/level_zero_completion.cpp
         src/gpu/nvidia/cuda_completion.cpp
         src/gpu/nvidia/dynamic_library.cpp
+        src/gpu/nvidia/nvdec_api.cpp
         src/gpu/nvidia/nvidia_native_handle.cpp)
     target_compile_features(mkvc_nvidia_webm_decoder_test PRIVATE cxx_std_17)
     target_include_directories(mkvc_nvidia_webm_decoder_test PRIVATE

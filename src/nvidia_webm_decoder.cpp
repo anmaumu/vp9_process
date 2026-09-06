@@ -1,7 +1,6 @@
 #include "nvidia_webm_decoder.hpp"
 
 #include "gpu/gpu_frame_pool.hpp"
-#include "gpu/nvidia/dynamic_library.hpp"
 #include "gpu/nvidia/nvidia_native_handle.hpp"
 #include "nvidia_probe.hpp"
 #include "webm_packet_reader.hpp"
@@ -12,6 +11,7 @@
 #include <ffnvcodec/dynlink_nvcuvid.h>
 
 #include "gpu/nvidia/cuda_context_guard.hpp"
+#include "gpu/nvidia/nvdec_api.hpp"
 #endif
 
 #include <algorithm>
@@ -25,24 +25,7 @@ namespace mkvc {
 
 struct NvidiaWebmDecoder::Impl : public std::enable_shared_from_this<Impl> {
 #if defined(MKVC_HAS_NVIDIA)
-    std::unique_ptr<gpu::nvidia::DynamicLibrary> cuda;
-    std::unique_ptr<gpu::nvidia::DynamicLibrary> cuvid;
-    tcuInit* cu_init = nullptr;
-    tcuDeviceGet* device_get = nullptr;
-    tcuCtxCreate_v2* context_create = nullptr;
-    tcuCtxDestroy_v2* context_destroy = nullptr;
-    tcuCtxPushCurrent_v2* context_push = nullptr;
-    tcuCtxPopCurrent_v2* context_pop = nullptr;
-    tcuMemcpy2D_v2* memcpy_2d = nullptr;
-    tcuvidCreateVideoParser* parser_create = nullptr;
-    tcuvidParseVideoData* parser_parse = nullptr;
-    tcuvidDestroyVideoParser* parser_destroy = nullptr;
-    tcuvidCreateDecoder* decoder_create = nullptr;
-    tcuvidDestroyDecoder* decoder_destroy = nullptr;
-    tcuvidDecodePicture* decode_picture = nullptr;
-    tcuvidMapVideoFrame64* map_frame = nullptr;
-    tcuvidUnmapVideoFrame64* unmap_frame = nullptr;
-    tcuvidGetDecoderCaps* decoder_caps = nullptr;
+    std::unique_ptr<gpu::nvidia::NvdecApi> api;
     CUcontext context = nullptr;
     CUvideoparser parser = nullptr;
     CUvideodecoder decoder = nullptr;
@@ -81,13 +64,13 @@ namespace {
 bool destroy_deferred_runtime(NvidiaWebmDecoder::Impl& state) {
     if (state.runtime_destroyed || state.context == nullptr || state.outstanding_gpu_frames != 0)
         return true;
-    gpu::nvidia::CudaContextGuard context_guard(state.context, state.context_push,
-                                                state.context_pop);
+    gpu::nvidia::CudaContextGuard context_guard(state.context, state.api->context_push,
+                                                state.api->context_pop);
     if (!context_guard) return false;
-    if (state.decoder != nullptr) (void)state.decoder_destroy(state.decoder);
+    if (state.decoder != nullptr) (void)state.api->decoder_destroy(state.decoder);
     state.decoder = nullptr;
     if (!context_guard.release()) return false;
-    (void)state.context_destroy(state.context);
+    (void)state.api->context_destroy(state.context);
     state.context = nullptr;
     state.runtime_destroyed = true;
     return true;
@@ -97,10 +80,10 @@ void release_mapped_frame(const std::shared_ptr<NvidiaWebmDecoder::Impl>& state,
                           unsigned long long device_pointer) noexcept {
     if (!state) return;
     std::lock_guard<std::mutex> lock(state->runtime_mutex);
-    gpu::nvidia::CudaContextGuard context_guard(state->context, state->context_push,
-                                                state->context_pop);
+    gpu::nvidia::CudaContextGuard context_guard(state->context, state->api->context_push,
+                                                state->api->context_pop);
     if (context_guard) {
-        (void)state->unmap_frame(state->decoder, device_pointer);
+        (void)state->api->unmap_frame(state->decoder, device_pointer);
         (void)context_guard.release();
     }
     if (state->outstanding_gpu_frames != 0) --state->outstanding_gpu_frames;
@@ -130,7 +113,7 @@ int CUDAAPI sequence_callback(void* opaque, CUVIDEOFORMAT* format) {
     caps.nBitDepthMinus8 = format->bit_depth_luma_minus8;
     const uint64_t macroblocks =
         (static_cast<uint64_t>(format->coded_width) * format->coded_height + 255) / 256;
-    if (state.decoder_caps(&caps) != CUDA_SUCCESS || caps.bIsSupported == 0 ||
+    if (state.api->decoder_caps(&caps) != CUDA_SUCCESS || caps.bIsSupported == 0 ||
         format->coded_width < caps.nMinWidth || format->coded_width > caps.nMaxWidth ||
         format->coded_height < caps.nMinHeight || format->coded_height > caps.nMaxHeight ||
         macroblocks > caps.nMaxMBCount) {
@@ -163,7 +146,7 @@ int CUDAAPI sequence_callback(void* opaque, CUVIDEOFORMAT* format) {
     info.ulTargetWidth = static_cast<tcu_ulong>(width);
     info.ulTargetHeight = static_cast<tcu_ulong>(height);
     info.ulNumOutputSurfaces = 8;
-    if (state.decoder_create(&state.decoder, &info) != CUDA_SUCCESS) {
+    if (state.api->decoder_create(&state.decoder, &info) != CUDA_SUCCESS) {
         state.callback_error = "cuvidCreateDecoder failed";
         return 0;
     }
@@ -176,7 +159,7 @@ int CUDAAPI decode_callback(void* opaque, CUVIDPICPARAMS* picture) {
     auto& state = *static_cast<NvidiaWebmDecoder::Impl*>(opaque);
     ++state.decode_callbacks;
     if (state.decoder == nullptr || picture == nullptr ||
-        state.decode_picture(state.decoder, picture) != CUDA_SUCCESS) {
+        state.api->decode_picture(state.decoder, picture) != CUDA_SUCCESS) {
         state.callback_error = "cuvidDecodePicture failed";
         return 0;
     }
@@ -196,8 +179,8 @@ int CUDAAPI display_callback(void* opaque, CUVIDPARSERDISPINFO* display) {
     processing.unpaired_field = display->repeat_first_field < 0;
     unsigned long long device_pointer = 0;
     unsigned int pitch = 0;
-    if (state.map_frame(state.decoder, display->picture_index, &device_pointer, &pitch,
-                        &processing) != CUDA_SUCCESS) {
+    if (state.api->map_frame(state.decoder, display->picture_index, &device_pointer, &pitch,
+                             &processing) != CUDA_SUCCESS) {
         state.callback_error = "cuvidMapVideoFrame failed";
         return 0;
     }
@@ -221,7 +204,7 @@ int CUDAAPI display_callback(void* opaque, CUVIDPARSERDISPINFO* display) {
         if (gpu::nvidia::make_cuda_handle(0, 0, MKVC_GPU_NATIVE_CUDA_POINTER, device_pointer,
                                           reinterpret_cast<uintptr_t>(state.context), 0, 0, native,
                                           native_error) != MKVC_OK) {
-            (void)state.unmap_frame(state.decoder, device_pointer);
+            (void)state.api->unmap_frame(state.decoder, device_pointer);
             state.callback_error = std::move(native_error);
             return 0;
         }
@@ -236,7 +219,7 @@ int CUDAAPI display_callback(void* opaque, CUVIDPARSERDISPINFO* display) {
             {gpu::BackendResourceKind::kNvidiaCudaFrame,
              reinterpret_cast<void*>(static_cast<uintptr_t>(device_pointer))});
         if (acquired != MKVC_OK) {
-            (void)state.unmap_frame(state.decoder, device_pointer);
+            (void)state.api->unmap_frame(state.decoder, device_pointer);
             return 0;
         }
         ++state.outstanding_gpu_frames;
@@ -262,7 +245,7 @@ int CUDAAPI display_callback(void* opaque, CUVIDPARSERDISPINFO* display) {
     copy.dstPitch = state.width;
     copy.WidthInBytes = state.width;
     copy.Height = state.height;
-    bool copied = state.memcpy_2d(&copy) == CUDA_SUCCESS;
+    bool copied = state.api->memcpy_2d(&copy) == CUDA_SUCCESS;
     std::vector<uint8_t> uv(y_size / 2);
     if (copied) {
         copy.srcDevice = static_cast<CUdeviceptr>(device_pointer) +
@@ -270,9 +253,9 @@ int CUDAAPI display_callback(void* opaque, CUVIDPARSERDISPINFO* display) {
         copy.dstHost = uv.data();
         copy.dstPitch = state.width;
         copy.Height = state.height / 2;
-        copied = state.memcpy_2d(&copy) == CUDA_SUCCESS;
+        copied = state.api->memcpy_2d(&copy) == CUDA_SUCCESS;
     }
-    const CUresult unmapped = state.unmap_frame(state.decoder, device_pointer);
+    const CUresult unmapped = state.api->unmap_frame(state.decoder, device_pointer);
     if (!copied || unmapped != CUDA_SUCCESS) {
         state.callback_error = "NVDEC frame readback failed";
         return 0;
@@ -308,50 +291,12 @@ std::unique_ptr<NvidiaWebmDecoder> NvidiaWebmDecoder::create(const mkvc_decoder_
     auto result = std::unique_ptr<NvidiaWebmDecoder>(new NvidiaWebmDecoder());
     auto& state = *result->impl_;
     state.gpu_pool = std::make_shared<gpu::GpuFramePool>(8);
-#ifdef _WIN32
-    state.cuda = std::make_unique<gpu::nvidia::DynamicLibrary>("nvcuda.dll");
-    state.cuvid = std::make_unique<gpu::nvidia::DynamicLibrary>("nvcuvid.dll");
-#else
-    state.cuda = std::make_unique<gpu::nvidia::DynamicLibrary>("libcuda.so.1");
-    state.cuvid = std::make_unique<gpu::nvidia::DynamicLibrary>("libnvcuvid.so.1");
-#endif
-    if (!*state.cuda || !*state.cuvid) {
-        error = "NVIDIA CUDA/NVCUVID driver libraries not found";
-        return nullptr;
-    }
-#define MKVC_LOAD(member, library, type, symbol_name) \
-    state.member = state.library->symbol<type*>(symbol_name)
-    MKVC_LOAD(cu_init, cuda, tcuInit, "cuInit");
-    MKVC_LOAD(device_get, cuda, tcuDeviceGet, "cuDeviceGet");
-    MKVC_LOAD(context_create, cuda, tcuCtxCreate_v2, "cuCtxCreate_v2");
-    MKVC_LOAD(context_destroy, cuda, tcuCtxDestroy_v2, "cuCtxDestroy_v2");
-    MKVC_LOAD(context_push, cuda, tcuCtxPushCurrent_v2, "cuCtxPushCurrent_v2");
-    MKVC_LOAD(context_pop, cuda, tcuCtxPopCurrent_v2, "cuCtxPopCurrent_v2");
-    MKVC_LOAD(memcpy_2d, cuda, tcuMemcpy2D_v2, "cuMemcpy2D_v2");
-    MKVC_LOAD(parser_create, cuvid, tcuvidCreateVideoParser, "cuvidCreateVideoParser");
-    MKVC_LOAD(parser_parse, cuvid, tcuvidParseVideoData, "cuvidParseVideoData");
-    MKVC_LOAD(parser_destroy, cuvid, tcuvidDestroyVideoParser, "cuvidDestroyVideoParser");
-    MKVC_LOAD(decoder_create, cuvid, tcuvidCreateDecoder, "cuvidCreateDecoder");
-    MKVC_LOAD(decoder_destroy, cuvid, tcuvidDestroyDecoder, "cuvidDestroyDecoder");
-    MKVC_LOAD(decode_picture, cuvid, tcuvidDecodePicture, "cuvidDecodePicture");
-    MKVC_LOAD(map_frame, cuvid, tcuvidMapVideoFrame64, "cuvidMapVideoFrame64");
-    MKVC_LOAD(unmap_frame, cuvid, tcuvidUnmapVideoFrame64, "cuvidUnmapVideoFrame64");
-    MKVC_LOAD(decoder_caps, cuvid, tcuvidGetDecoderCaps, "cuvidGetDecoderCaps");
-#undef MKVC_LOAD
-    if (state.cu_init == nullptr || state.device_get == nullptr ||
-        state.context_create == nullptr || state.context_destroy == nullptr ||
-        state.context_push == nullptr || state.context_pop == nullptr ||
-        state.memcpy_2d == nullptr || state.parser_create == nullptr ||
-        state.parser_parse == nullptr || state.parser_destroy == nullptr ||
-        state.decoder_create == nullptr || state.decoder_destroy == nullptr ||
-        state.decode_picture == nullptr || state.map_frame == nullptr ||
-        state.unmap_frame == nullptr || state.decoder_caps == nullptr) {
-        error = "NVIDIA driver is missing required NVDEC symbols";
-        return nullptr;
-    }
+    state.api = gpu::nvidia::NvdecApi::load(error);
+    if (!state.api) return nullptr;
     CUdevice device = 0;
-    if (state.cu_init(0) != CUDA_SUCCESS || state.device_get(&device, 0) != CUDA_SUCCESS ||
-        state.context_create(&state.context, 0, device) != CUDA_SUCCESS) {
+    if (state.api->cu_init(0) != CUDA_SUCCESS ||
+        state.api->device_get(&device, 0) != CUDA_SUCCESS ||
+        state.api->context_create(&state.context, 0, device) != CUDA_SUCCESS) {
         error = "failed to create NVIDIA CUDA context";
         return nullptr;
     }
@@ -365,12 +310,12 @@ std::unique_ptr<NvidiaWebmDecoder> NvidiaWebmDecoder::create(const mkvc_decoder_
     params.pfnSequenceCallback = sequence_callback;
     params.pfnDecodePicture = decode_callback;
     params.pfnDisplayPicture = display_callback;
-    if (state.parser_create(&state.parser, &params) != CUDA_SUCCESS) {
+    if (state.api->parser_create(&state.parser, &params) != CUDA_SUCCESS) {
         error = "cuvidCreateVideoParser failed";
         return nullptr;
     }
     CUcontext popped = nullptr;
-    if (state.context_pop(&popped) != CUDA_SUCCESS || popped != state.context) {
+    if (state.api->context_pop(&popped) != CUDA_SUCCESS || popped != state.context) {
         error = "failed to detach NVIDIA CUDA context";
         return nullptr;
     }
@@ -397,8 +342,8 @@ mkvc_result NvidiaWebmDecoder::read(std::unique_ptr<DecodedFrame>& frame, std::s
         return MKVC_ERROR_INVALID_STATE;
     }
     state.output_mode = Impl::OutputMode::kCpu;
-    gpu::nvidia::CudaContextGuard context_guard(state.context, state.context_push,
-                                                state.context_pop);
+    gpu::nvidia::CudaContextGuard context_guard(state.context, state.api->context_push,
+                                                state.api->context_pop);
     if (!context_guard) {
         error = "failed to activate CUDA context";
         return MKVC_ERROR_CODEC;
@@ -441,7 +386,7 @@ mkvc_result NvidiaWebmDecoder::read(std::unique_ptr<DecodedFrame>& frame, std::s
             break;
         }
         state.callback_error.clear();
-        if (state.parser_parse(state.parser, &source) != CUDA_SUCCESS) {
+        if (state.api->parser_parse(state.parser, &source) != CUDA_SUCCESS) {
             error =
                 state.callback_error.empty() ? "cuvidParseVideoData failed" : state.callback_error;
             result = MKVC_ERROR_CODEC;
@@ -488,8 +433,8 @@ mkvc_result NvidiaWebmDecoder::read_gpu(mkvc_gpu_frame** frame, std::string& err
         error = "NVIDIA GPU frame pool is full";
         return MKVC_WOULD_BLOCK;
     }
-    gpu::nvidia::CudaContextGuard context_guard(state.context, state.context_push,
-                                                state.context_pop);
+    gpu::nvidia::CudaContextGuard context_guard(state.context, state.api->context_push,
+                                                state.api->context_pop);
     if (!context_guard) {
         error = "failed to activate CUDA context";
         return MKVC_ERROR_CODEC;
@@ -523,7 +468,7 @@ mkvc_result NvidiaWebmDecoder::read_gpu(mkvc_gpu_frame** frame, std::string& err
             break;
         }
         state.callback_error.clear();
-        if (state.parser_parse(state.parser, &source) != CUDA_SUCCESS) {
+        if (state.api->parser_parse(state.parser, &source) != CUDA_SUCCESS) {
             error =
                 state.callback_error.empty() ? "cuvidParseVideoData failed" : state.callback_error;
             result = MKVC_ERROR_CODEC;
@@ -560,13 +505,13 @@ mkvc_result NvidiaWebmDecoder::close(std::string& error) {
     {
         std::lock_guard<std::mutex> lock(state.runtime_mutex);
         if (state.context != nullptr && state.parser != nullptr) {
-            gpu::nvidia::CudaContextGuard context_guard(state.context, state.context_push,
-                                                        state.context_pop);
+            gpu::nvidia::CudaContextGuard context_guard(state.context, state.api->context_push,
+                                                        state.api->context_pop);
             if (!context_guard) {
                 error = "failed to activate CUDA context during close";
                 cleanup_failed = true;
             } else {
-                (void)state.parser_destroy(state.parser);
+                (void)state.api->parser_destroy(state.parser);
                 state.parser = nullptr;
                 state.parser_destroyed = true;
                 if (!context_guard.release()) cleanup_failed = true;

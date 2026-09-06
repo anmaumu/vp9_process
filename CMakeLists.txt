@@ -99,7 +99,8 @@ target_link_libraries(mkvcodec PRIVATE ${CMAKE_DL_LIBS})
 if(MKVC_ENABLE_NVIDIA)
     target_sources(mkvcodec PRIVATE
         src/gpu/nvidia/cuda_completion.cpp
-        src/gpu/nvidia/dynamic_library.cpp)
+        src/gpu/nvidia/dynamic_library.cpp
+        src/gpu/nvidia/nvdec_api.cpp)
     target_compile_definitions(mkvcodec PRIVATE MKVC_HAS_NVIDIA=1)
     target_include_directories(mkvcodec PRIVATE
         ${nv_codec_headers_SOURCE_DIR}/include)

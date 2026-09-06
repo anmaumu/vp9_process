@@ -250,6 +250,21 @@ rejects an intentionally missing symbol on Windows and Linux. This makes dynamic
 loader behavior testable on the Intel machine while the Windows NVIDIA tests
 continue to validate actual CUDA/NVCUVID driver loading.
 
+## 2026-09-06: Isolated NVDEC driver API table
+
+The complete required CUDA/NVCUVID symbol set is now loaded and validated by a
+Doxygen-documented `NvdecApi` table. It owns the CUDA and NVCUVID module handles,
+so every resolved function pointer remains valid until parser, decoder, mapped
+frames, and deferred CUDA context teardown have finished. Missing libraries or
+any missing required symbol fail decoder creation without a partial API table.
+
+The decoder state now contains one API object instead of duplicating library
+handles and sixteen raw function-pointer members. CUDA context guards, callbacks,
+readback, mapped-frame release, parser drain, and deferred close all use that
+single table. The real Windows RTX 2060 NVDEC decode regression passes after the
+change; the GPU-independent loader test continues to pass on both operating
+systems.
+
 ## 2026-09-05: Scoped CUDA context activation
 
 CUDA driver context push/pop is now represented by one Doxygen-documented,
