@@ -12,6 +12,7 @@
 
 #include "gpu/nvidia/cuda_context_guard.hpp"
 #include "gpu/nvidia/nvdec_api.hpp"
+#include "gpu/nvidia/nvdec_cpu_output.hpp"
 #endif
 
 #include <algorithm>
@@ -226,45 +227,11 @@ int CUDAAPI display_callback(void* opaque, CUVIDPARSERDISPINFO* display) {
         state.completed_gpu.push_back(std::move(acquisition.core));
         return 1;
     }
-    auto frame = std::make_unique<DecodedFrame>();
-    frame->width = state.width;
-    frame->height = state.height;
-    frame->pts_ns = display->timestamp;
-    const size_t y_size = static_cast<size_t>(state.width) * state.height;
-    const size_t chroma_size = y_size / 4;
-    frame->pixels.resize(y_size + chroma_size * 2);
-    frame->offsets = {0, y_size, y_size + chroma_size};
-    frame->strides = {static_cast<int32_t>(state.width), static_cast<int32_t>(state.width / 2),
-                      static_cast<int32_t>(state.width / 2)};
-    CUDA_MEMCPY2D copy{};
-    copy.srcMemoryType = CU_MEMORYTYPE_DEVICE;
-    copy.srcDevice = static_cast<CUdeviceptr>(device_pointer);
-    copy.srcPitch = pitch;
-    copy.dstMemoryType = CU_MEMORYTYPE_HOST;
-    copy.dstHost = frame->pixels.data();
-    copy.dstPitch = state.width;
-    copy.WidthInBytes = state.width;
-    copy.Height = state.height;
-    bool copied = state.api->memcpy_2d(&copy) == CUDA_SUCCESS;
-    std::vector<uint8_t> uv(y_size / 2);
-    if (copied) {
-        copy.srcDevice = static_cast<CUdeviceptr>(device_pointer) +
-                         static_cast<CUdeviceptr>(pitch) * state.height;
-        copy.dstHost = uv.data();
-        copy.dstPitch = state.width;
-        copy.Height = state.height / 2;
-        copied = state.api->memcpy_2d(&copy) == CUDA_SUCCESS;
-    }
-    const CUresult unmapped = state.api->unmap_frame(state.decoder, device_pointer);
-    if (!copied || unmapped != CUDA_SUCCESS) {
-        state.callback_error = "NVDEC frame readback failed";
+    std::unique_ptr<DecodedFrame> frame;
+    if (gpu::nvidia::consume_nvdec_cpu_frame(*state.api, state.decoder, device_pointer, pitch,
+                                             state.width, state.height, display->timestamp, frame,
+                                             state.callback_error) != MKVC_OK) {
         return 0;
-    }
-    uint8_t* u = frame->pixels.data() + frame->offsets[1];
-    uint8_t* v = frame->pixels.data() + frame->offsets[2];
-    for (size_t index = 0; index < chroma_size; ++index) {
-        u[index] = uv[index * 2];
-        v[index] = uv[index * 2 + 1];
     }
     state.completed.push_back(std::move(frame));
     return 1;

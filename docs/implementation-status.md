@@ -1156,9 +1156,15 @@ native prefetch queue as CPU decode.
 The NVIDIA decoder follows the same bounded prefetch contract. It pushes its
 CUDA context on the actual read thread, lets NVCUVID synchronously parse/decode,
 maps NV12 only for completed display-order frames, and splits the host readback
-into the common owned I420 representation. The NVIDIA writer converts supported
-8-bit CPU inputs to NV12, submits one synchronous NVENC AV1 operation at a time,
-and immediately muxes the returned packet. Backend capability rows are emitted
+into the common owned I420 representation. The CPU-output boundary is isolated in
+`nvdec_cpu_output`: it owns both pitched CUDA 2D readbacks, NV12-to-I420 plane
+separation and the mandatory mapped-frame unmap. The display callback therefore
+only selects CPU/GPU output and enqueues the completed lease. This remains an
+intentional device-to-host copy path; the GPU-surface branch does not use it and
+retains the mapped CUDA resource until its lease is released. The NVIDIA writer
+converts supported 8-bit CPU inputs to NV12, submits one synchronous NVENC AV1
+operation at a time, and immediately muxes the returned packet. Backend capability
+rows are emitted
 only for runtime-supported directions; NVENC AV1 is advertised only when the
 runtime encode GUID query succeeds, while NVENC VP9 is never advertised.
 The oneVPL encoder and decoder use `AsyncDepth=4` publicly and retain four
