@@ -20,6 +20,16 @@
 - GitHub Actions builds strict MkDocs HTML and stores `mkvcodec-documentation` for 30 days.
 - GitHub Pages publication remains disabled until an explicit public-release decision.
 
+## 2026-09-06: Decoder C ABI responsibility split
+
+Decoded CPU-frame retain/release, borrowed I420 view, explicit copy and processing
+entry points now live in `c_api_frame.cpp`. Backend selection, direct CPU/GPU
+reads, bounded prefetch worker synchronization, hardware-pending observation and
+backend close dispatch live in the Doxygen-documented `decoder_pipeline` module.
+`c_api_decoder.cpp` is limited to ABI validation, copy-policy enforcement, handle
+construction, metrics snapshots and exception-to-result translation. Prefetch
+capacity, blocking behavior, diagnostics and public language bindings are unchanged.
+
 ## 2026-09-06: oneVPL encoder runtime responsibility split
 
 Hardware/codec dispatcher filters, optional D3D11-device or VA-display binding,
