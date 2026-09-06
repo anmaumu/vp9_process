@@ -20,6 +20,15 @@
 - GitHub Actions builds strict MkDocs HTML and stores `mkvcodec-documentation` for 30 days.
 - GitHub Pages publication remains disabled until an explicit public-release decision.
 
+## 2026-09-07: oneVPL decoder output responsibility split
+
+The oneVPL decode queue now owns only ordered asynchronous submissions,
+SyncPoint handling, draining and pending-depth metrics. Synchronized CPU NV12
+mapping and I420 conversion live in `vpl_decoder_cpu_output`; bounded native GPU
+surface lease creation and pool backpressure live in `VplDecoderGpuOutput`.
+CPU readback remains an explicit pixel-copy path, while D3D11/VA GPU output keeps
+the original surface and completion object without a host pixel copy.
+
 ## 2026-09-07: oneVPL decoder runtime and packet-pump split
 
 Intel hardware implementation filtering and session ownership now live in the
