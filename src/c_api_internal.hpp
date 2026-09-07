@@ -7,6 +7,7 @@
 #include <atomic>
 #include <condition_variable>
 #include <deque>
+#include <exception>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -89,6 +90,23 @@ namespace mkvc::capi {
 inline mkvc_result fail(mkvc_result result, std::string message) {
     mkvc_last_error = std::move(message);
     return result;
+}
+
+/**
+ * @brief Prevent C++ exceptions from crossing a C ABI boundary.
+ * @param unknown_message Diagnostic used for non-standard exceptions.
+ * @param operation Callable returning one mkvc_result.
+ * @return The callable result, or MKVC_ERROR_INTERNAL after recording a diagnostic.
+ */
+template <typename Operation>
+mkvc_result guard(const char* unknown_message, Operation&& operation) noexcept {
+    try {
+        return std::forward<Operation>(operation)();
+    } catch (const std::exception& exception) {
+        return fail(MKVC_ERROR_INTERNAL, exception.what());
+    } catch (...) {
+        return fail(MKVC_ERROR_INTERNAL, unknown_message);
+    }
 }
 
 }  // namespace mkvc::capi

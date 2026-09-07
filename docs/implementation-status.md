@@ -20,6 +20,16 @@
 - GitHub Actions builds strict MkDocs HTML and stores `mkvcodec-documentation` for 30 days.
 - GitHub Pages publication remains disabled until an explicit public-release decision.
 
+## 2026-09-07: Encoder C ABI validation and exception boundary split
+
+Versioned encoder-config, frame-view, copy-policy and metrics-output validation,
+plus NVIDIA dynamic encode-capability selection, now live in the
+Doxygen-documented `encoder_c_api_support` module. All result-returning encoder
+C entry points use the shared `capi::guard` exception boundary, including copy
+policy configuration, so no C++ exception can cross the stable ABI. Public
+signatures, result mapping and operation-specific diagnostics remain unchanged;
+invalid configuration boundary cases are covered by the native C API test.
+
 ## 2026-09-07: Shared CPU codec input and timing
 
 The libvpx VP9 and SVT-AV1 encoders now share the Doxygen-documented
