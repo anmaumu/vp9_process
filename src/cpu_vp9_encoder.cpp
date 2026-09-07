@@ -1,15 +1,15 @@
 #include "cpu_vp9_encoder.hpp"
 
+#include "encoder/cpu_frame_to_i420.hpp"
+#include "encoder/frame_timing.hpp"
 #include "webm_muxer.hpp"
 
 #if defined(MKVC_HAS_CPU_VP9)
-#include <libyuv/convert.h>
 #include <vpx/vp8cx.h>
 #include <vpx/vpx_encoder.h>
 #endif
 
 #include <algorithm>
-#include <cstring>
 #include <limits>
 #include <thread>
 #include <vector>
@@ -24,9 +24,7 @@ struct CpuVp9Encoder::Impl {
 #endif
     uint32_t width = 0;
     uint32_t height = 0;
-    uint32_t fps_num = 0;
-    uint32_t fps_den = 0;
-    int64_t next_pts = 0;
+    encoder::FrameTiming timing;
     bool closed = false;
     std::vector<uint8_t> image;
 };
@@ -59,23 +57,14 @@ mkvc_result add_packets(CpuVp9Encoder::Impl& impl, bool drain, std::string& erro
             continue;
         }
         const auto pts = static_cast<uint64_t>(packet->data.frame.pts);
-        const uint64_t timestamp_ns =
-            pts * static_cast<uint64_t>(impl.fps_den) * 1000000000ULL / impl.fps_num;
         const bool key = (packet->data.frame.flags & VPX_FRAME_IS_KEY) != 0;
         const mkvc_result result = impl.muxer->add_frame(
             static_cast<const uint8_t*>(packet->data.frame.buf), packet->data.frame.sz,
-            timestamp_ns, static_cast<uint64_t>(impl.fps_den) * 1000000000ULL / impl.fps_num, key,
-            error);
+            impl.timing.to_nanoseconds(static_cast<int64_t>(pts)),
+            impl.timing.duration_nanoseconds(), key, error);
         if (result != MKVC_OK) return result;
     }
     return MKVC_OK;
-}
-
-void copy_plane(uint8_t* destination, int destination_stride, const uint8_t* source,
-                int source_stride, uint32_t width, uint32_t height) {
-    for (uint32_t row = 0; row < height; ++row) {
-        std::memcpy(destination + row * destination_stride, source + row * source_stride, width);
-    }
 }
 
 }  // namespace
@@ -92,8 +81,7 @@ std::unique_ptr<CpuVp9Encoder> CpuVp9Encoder::create(const mkvc_encoder_config& 
     auto& impl = *encoder->impl_;
     impl.width = config.width;
     impl.height = config.height;
-    impl.fps_num = config.fps_num;
-    impl.fps_den = config.fps_den;
+    impl.timing.configure(config.fps_num, config.fps_den);
 
     vpx_codec_enc_cfg_t codec_config{};
     if (vpx_codec_enc_config_default(vpx_codec_vp9_cx(), &codec_config, 0) != VPX_CODEC_OK) {
@@ -159,77 +147,9 @@ mkvc_result CpuVp9Encoder::write(const mkvc_frame_view& frame, std::string& erro
         return MKVC_ERROR_INVALID_ARGUMENT;
     }
 
-    const size_t y_size = static_cast<size_t>(impl.width) * impl.height;
-    const size_t uv_size = static_cast<size_t>(impl.width / 2) * (impl.height / 2);
-    uint8_t* y = impl.image.data();
-    uint8_t* u = y + y_size;
-    uint8_t* v = u + uv_size;
-    int conversion_result = 0;
-    switch (frame.pixel_format) {
-        case MKVC_PIXEL_FORMAT_I420:
-            if (frame.planes[0] == nullptr || frame.planes[1] == nullptr ||
-                frame.planes[2] == nullptr || frame.strides[0] < static_cast<int32_t>(impl.width) ||
-                frame.strides[1] < static_cast<int32_t>(impl.width / 2) ||
-                frame.strides[2] < static_cast<int32_t>(impl.width / 2)) {
-                error = "I420 requires three positive-stride planes";
-                return MKVC_ERROR_INVALID_ARGUMENT;
-            }
-            copy_plane(y, static_cast<int>(impl.width), frame.planes[0], frame.strides[0],
-                       impl.width, impl.height);
-            copy_plane(u, static_cast<int>(impl.width / 2), frame.planes[1], frame.strides[1],
-                       impl.width / 2, impl.height / 2);
-            copy_plane(v, static_cast<int>(impl.width / 2), frame.planes[2], frame.strides[2],
-                       impl.width / 2, impl.height / 2);
-            break;
-        case MKVC_PIXEL_FORMAT_NV12:
-            if (frame.planes[0] == nullptr || frame.planes[1] == nullptr ||
-                frame.strides[0] < static_cast<int32_t>(impl.width) ||
-                frame.strides[1] < static_cast<int32_t>(impl.width)) {
-                error = "NV12 requires Y and interleaved UV positive-stride planes";
-                return MKVC_ERROR_INVALID_ARGUMENT;
-            }
-            conversion_result = libyuv::NV12ToI420(
-                frame.planes[0], frame.strides[0], frame.planes[1], frame.strides[1], y,
-                static_cast<int>(impl.width), u, static_cast<int>(impl.width / 2), v,
-                static_cast<int>(impl.width / 2), static_cast<int>(impl.width),
-                static_cast<int>(impl.height));
-            break;
-        case MKVC_PIXEL_FORMAT_BGR24:
-        case MKVC_PIXEL_FORMAT_RGB24:
-        case MKVC_PIXEL_FORMAT_BGRA32: {
-            const uint32_t bytes_per_pixel =
-                frame.pixel_format == MKVC_PIXEL_FORMAT_BGRA32 ? 4u : 3u;
-            if (frame.planes[0] == nullptr ||
-                frame.strides[0] < static_cast<int32_t>(impl.width * bytes_per_pixel)) {
-                error = "packed RGB input has an invalid pointer or stride";
-                return MKVC_ERROR_INVALID_ARGUMENT;
-            }
-            if (frame.pixel_format == MKVC_PIXEL_FORMAT_BGR24) {
-                conversion_result = libyuv::RGB24ToI420(
-                    frame.planes[0], frame.strides[0], y, static_cast<int>(impl.width), u,
-                    static_cast<int>(impl.width / 2), v, static_cast<int>(impl.width / 2),
-                    static_cast<int>(impl.width), static_cast<int>(impl.height));
-            } else if (frame.pixel_format == MKVC_PIXEL_FORMAT_RGB24) {
-                conversion_result = libyuv::RAWToI420(
-                    frame.planes[0], frame.strides[0], y, static_cast<int>(impl.width), u,
-                    static_cast<int>(impl.width / 2), v, static_cast<int>(impl.width / 2),
-                    static_cast<int>(impl.width), static_cast<int>(impl.height));
-            } else {
-                conversion_result = libyuv::ARGBToI420(
-                    frame.planes[0], frame.strides[0], y, static_cast<int>(impl.width), u,
-                    static_cast<int>(impl.width / 2), v, static_cast<int>(impl.width / 2),
-                    static_cast<int>(impl.width), static_cast<int>(impl.height));
-            }
-            break;
-        }
-        default:
-            error = "unsupported input pixel format";
-            return MKVC_ERROR_NOT_SUPPORTED;
-    }
-    if (conversion_result != 0) {
-        error = "libyuv failed to convert the input frame";
-        return MKVC_ERROR_INTERNAL;
-    }
+    const mkvc_result conversion = encoder::convert_cpu_frame_to_i420(
+        frame, impl.width, impl.height, impl.image, "VP9", error);
+    if (conversion != MKVC_OK) return conversion;
 
     vpx_image_t image{};
     if (vpx_img_wrap(&image, VPX_IMG_FMT_I420, impl.width, impl.height, 1, impl.image.data()) ==
@@ -237,7 +157,7 @@ mkvc_result CpuVp9Encoder::write(const mkvc_frame_view& frame, std::string& erro
         error = "libvpx failed to wrap the copied I420 frame";
         return MKVC_ERROR_CODEC;
     }
-    const int64_t pts = frame.pts >= 0 ? frame.pts : impl.next_pts;
+    const int64_t pts = impl.timing.select(frame.pts);
     const vpx_codec_err_t status =
         vpx_codec_encode(&impl.codec, &image, pts, 1, 0, VPX_DL_GOOD_QUALITY);
     if (status != VPX_CODEC_OK) {
@@ -245,7 +165,7 @@ mkvc_result CpuVp9Encoder::write(const mkvc_frame_view& frame, std::string& erro
                                                     : vpx_codec_error(&impl.codec);
         return MKVC_ERROR_CODEC;
     }
-    impl.next_pts = std::max(impl.next_pts, pts + 1);
+    impl.timing.commit(pts);
     return add_packets(impl, false, error);
 #endif
 }

@@ -1,14 +1,13 @@
 #include "cpu_av1_encoder.hpp"
 
+#include "encoder/cpu_frame_to_i420.hpp"
+#include "encoder/frame_timing.hpp"
 #include "webm_muxer.hpp"
 
 #if defined(MKVC_HAS_CPU_AV1)
-#include <libyuv/convert.h>
 #include <svt-av1/EbSvtAv1Enc.h>
 #endif
 
-#include <algorithm>
-#include <cstring>
 #include <limits>
 #include <string>
 #include <vector>
@@ -23,11 +22,9 @@ struct CpuAv1Encoder::Impl {
 #endif
     uint32_t width = 0;
     uint32_t height = 0;
-    uint32_t fps_num = 0;
-    uint32_t fps_den = 0;
+    encoder::FrameTiming timing;
     uint32_t quality = 32;
     uint32_t keyframe_interval_frames = 0;
-    int64_t next_pts = 0;
     uint64_t frames_in_sequence = 0;
     bool eos_sent = false;
     bool closed = false;
@@ -43,89 +40,6 @@ CpuAv1Encoder::~CpuAv1Encoder() {
 #if defined(MKVC_HAS_CPU_AV1)
 namespace {
 
-void copy_plane(uint8_t* destination, int destination_stride, const uint8_t* source,
-                int source_stride, uint32_t width, uint32_t height) {
-    for (uint32_t row = 0; row < height; ++row) {
-        std::memcpy(destination + row * destination_stride, source + row * source_stride, width);
-    }
-}
-
-mkvc_result convert_to_i420(CpuAv1Encoder::Impl& impl, const mkvc_frame_view& frame,
-                            std::string& error) {
-    const size_t y_size = static_cast<size_t>(impl.width) * impl.height;
-    const size_t uv_size = static_cast<size_t>(impl.width / 2) * (impl.height / 2);
-    uint8_t* y = impl.image.data();
-    uint8_t* u = y + y_size;
-    uint8_t* v = u + uv_size;
-    int conversion_result = 0;
-    switch (frame.pixel_format) {
-        case MKVC_PIXEL_FORMAT_I420:
-            if (frame.planes[0] == nullptr || frame.planes[1] == nullptr ||
-                frame.planes[2] == nullptr || frame.strides[0] < static_cast<int32_t>(impl.width) ||
-                frame.strides[1] < static_cast<int32_t>(impl.width / 2) ||
-                frame.strides[2] < static_cast<int32_t>(impl.width / 2)) {
-                error = "I420 requires three positive-stride planes";
-                return MKVC_ERROR_INVALID_ARGUMENT;
-            }
-            copy_plane(y, static_cast<int>(impl.width), frame.planes[0], frame.strides[0],
-                       impl.width, impl.height);
-            copy_plane(u, static_cast<int>(impl.width / 2), frame.planes[1], frame.strides[1],
-                       impl.width / 2, impl.height / 2);
-            copy_plane(v, static_cast<int>(impl.width / 2), frame.planes[2], frame.strides[2],
-                       impl.width / 2, impl.height / 2);
-            break;
-        case MKVC_PIXEL_FORMAT_NV12:
-            if (frame.planes[0] == nullptr || frame.planes[1] == nullptr ||
-                frame.strides[0] < static_cast<int32_t>(impl.width) ||
-                frame.strides[1] < static_cast<int32_t>(impl.width)) {
-                error = "NV12 requires Y and interleaved UV positive-stride planes";
-                return MKVC_ERROR_INVALID_ARGUMENT;
-            }
-            conversion_result = libyuv::NV12ToI420(
-                frame.planes[0], frame.strides[0], frame.planes[1], frame.strides[1], y,
-                static_cast<int>(impl.width), u, static_cast<int>(impl.width / 2), v,
-                static_cast<int>(impl.width / 2), static_cast<int>(impl.width),
-                static_cast<int>(impl.height));
-            break;
-        case MKVC_PIXEL_FORMAT_BGR24:
-        case MKVC_PIXEL_FORMAT_RGB24:
-        case MKVC_PIXEL_FORMAT_BGRA32: {
-            const uint32_t bytes_per_pixel =
-                frame.pixel_format == MKVC_PIXEL_FORMAT_BGRA32 ? 4u : 3u;
-            if (frame.planes[0] == nullptr ||
-                frame.strides[0] < static_cast<int32_t>(impl.width * bytes_per_pixel)) {
-                error = "packed RGB input has an invalid pointer or stride";
-                return MKVC_ERROR_INVALID_ARGUMENT;
-            }
-            if (frame.pixel_format == MKVC_PIXEL_FORMAT_BGR24) {
-                conversion_result = libyuv::RGB24ToI420(
-                    frame.planes[0], frame.strides[0], y, static_cast<int>(impl.width), u,
-                    static_cast<int>(impl.width / 2), v, static_cast<int>(impl.width / 2),
-                    static_cast<int>(impl.width), static_cast<int>(impl.height));
-            } else if (frame.pixel_format == MKVC_PIXEL_FORMAT_RGB24) {
-                conversion_result = libyuv::RAWToI420(
-                    frame.planes[0], frame.strides[0], y, static_cast<int>(impl.width), u,
-                    static_cast<int>(impl.width / 2), v, static_cast<int>(impl.width / 2),
-                    static_cast<int>(impl.width), static_cast<int>(impl.height));
-            } else {
-                conversion_result = libyuv::ARGBToI420(
-                    frame.planes[0], frame.strides[0], y, static_cast<int>(impl.width), u,
-                    static_cast<int>(impl.width / 2), v, static_cast<int>(impl.width / 2),
-                    static_cast<int>(impl.width), static_cast<int>(impl.height));
-            }
-            break;
-        }
-        default:
-            error = "unsupported AV1 input pixel format";
-            return MKVC_ERROR_NOT_SUPPORTED;
-    }
-    if (conversion_result != 0) {
-        error = "libyuv failed to convert the AV1 input frame";
-        return MKVC_ERROR_INTERNAL;
-    }
-    return MKVC_OK;
-}
-
 mkvc_result collect_packets(CpuAv1Encoder::Impl& impl, bool drain, std::string& error) {
     while (true) {
         EbBufferHeaderType* packet = nullptr;
@@ -139,11 +53,9 @@ mkvc_result collect_packets(CpuAv1Encoder::Impl& impl, bool drain, std::string& 
         }
         const bool eos = (packet->flags & EB_BUFFERFLAG_EOS) != 0;
         if (packet->n_filled_len > 0) {
-            const uint64_t timestamp_ns =
-                static_cast<uint64_t>(packet->pts) * impl.fps_den * 1000000000ULL / impl.fps_num;
             const mkvc_result mux_result = impl.muxer->add_frame(
-                packet->p_buffer, packet->n_filled_len, timestamp_ns,
-                static_cast<uint64_t>(impl.fps_den) * 1000000000ULL / impl.fps_num,
+                packet->p_buffer, packet->n_filled_len, impl.timing.to_nanoseconds(packet->pts),
+                impl.timing.duration_nanoseconds(),
                 packet->pic_type == EB_AV1_KEY_PICTURE ||
                     packet->pic_type == EB_AV1_INTRA_ONLY_PICTURE,
                 error);
@@ -170,8 +82,8 @@ mkvc_result initialize_codec(CpuAv1Encoder::Impl& impl, std::string& error) {
     }
     config.source_width = impl.width;
     config.source_height = impl.height;
-    config.frame_rate_numerator = impl.fps_num;
-    config.frame_rate_denominator = impl.fps_den;
+    config.frame_rate_numerator = impl.timing.fps_num();
+    config.frame_rate_denominator = impl.timing.fps_den();
     config.encoder_bit_depth = 8;
     config.encoder_color_format = EB_YUV420;
     config.level = 63;
@@ -179,9 +91,10 @@ mkvc_result initialize_codec(CpuAv1Encoder::Impl& impl, std::string& error) {
     config.qp = impl.quality;
     config.enc_mode = 8;
     config.pred_structure = RANDOM_ACCESS;
-    config.intra_period_length = impl.keyframe_interval_frames == 0
-                                     ? static_cast<int32_t>(impl.fps_num * 4 / impl.fps_den) - 1
-                                     : static_cast<int32_t>(impl.keyframe_interval_frames) - 1;
+    config.intra_period_length =
+        impl.keyframe_interval_frames == 0
+            ? static_cast<int32_t>(impl.timing.fps_num() * 4 / impl.timing.fps_den()) - 1
+            : static_cast<int32_t>(impl.keyframe_interval_frames) - 1;
     if (svt_av1_enc_set_parameter(impl.codec, &config) != EB_ErrorNone ||
         svt_av1_enc_init(impl.codec) != EB_ErrorNone) {
         error = "SVT-AV1 rejected the encoder configuration";
@@ -229,8 +142,7 @@ std::unique_ptr<CpuAv1Encoder> CpuAv1Encoder::create(const mkvc_encoder_config& 
     auto& impl = *encoder->impl_;
     impl.width = config.width;
     impl.height = config.height;
-    impl.fps_num = config.fps_num;
-    impl.fps_den = config.fps_den;
+    impl.timing.configure(config.fps_num, config.fps_den);
     impl.quality = config.quality;
     impl.keyframe_interval_frames = config.keyframe_interval_frames;
     if (initialize_codec(impl, error) != MKVC_OK) return nullptr;
@@ -263,7 +175,8 @@ mkvc_result CpuAv1Encoder::write(const mkvc_frame_view& frame, std::string& erro
         error = "frame dimensions do not match AV1 encoder configuration";
         return MKVC_ERROR_INVALID_ARGUMENT;
     }
-    const mkvc_result conversion = convert_to_i420(impl, frame, error);
+    const mkvc_result conversion = encoder::convert_cpu_frame_to_i420(
+        frame, impl.width, impl.height, impl.image, "AV1", error);
     if (conversion != MKVC_OK) return conversion;
     const size_t y_size = static_cast<size_t>(impl.width) * impl.height;
     const size_t uv_size = static_cast<size_t>(impl.width / 2) * (impl.height / 2);
@@ -278,12 +191,12 @@ mkvc_result CpuAv1Encoder::write(const mkvc_frame_view& frame, std::string& erro
     header.size = sizeof(header);
     header.p_buffer = reinterpret_cast<uint8_t*>(&input);
     header.n_filled_len = impl.width * impl.height * 3 / 2;
-    header.pts = frame.pts >= 0 ? frame.pts : impl.next_pts;
+    header.pts = impl.timing.select(frame.pts);
     if (svt_av1_enc_send_picture(impl.codec, &header) != EB_ErrorNone) {
         error = "SVT-AV1 rejected an input frame";
         return MKVC_ERROR_CODEC;
     }
-    impl.next_pts = std::max(impl.next_pts, header.pts + 1);
+    impl.timing.commit(header.pts);
     ++impl.frames_in_sequence;
     return collect_packets(impl, false, error);
 #endif

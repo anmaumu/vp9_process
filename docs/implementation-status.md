@@ -20,6 +20,16 @@
 - GitHub Actions builds strict MkDocs HTML and stores `mkvcodec-documentation` for 30 days.
 - GitHub Pages publication remains disabled until an explicit public-release decision.
 
+## 2026-09-07: Shared CPU codec input and timing
+
+The libvpx VP9 and SVT-AV1 encoders now share the Doxygen-documented
+`convert_cpu_frame_to_i420` path for I420/NV12/BGR24/RGB24/BGRA32 validation,
+copy and conversion. `FrameTiming` centralizes explicit/fallback frame PTS,
+monotonic fallback advancement, nanosecond timestamp conversion and fixed frame
+duration. Codec submission and drain behavior remain backend-specific. A native
+test covers every supported input format, invalid stride/staging capacity and
+fractional-frame-rate timing boundaries.
+
 ## 2026-09-07: Shared hardware CPU-to-NV12 conversion
 
 Intel oneVPL and NVIDIA NVENC CPU input now use the same Doxygen-documented

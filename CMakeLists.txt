@@ -89,7 +89,9 @@ add_library(mkvcodec SHARED
 
 if(MKVC_ENABLE_CPU_VP9 OR MKVC_ENABLE_CPU_AV1 OR MKVC_ENABLE_INTEL_ONEVPL OR MKVC_ENABLE_NVIDIA)
     target_sources(mkvcodec PRIVATE
+        src/encoder/cpu_frame_to_i420.cpp
         src/encoder/cpu_frame_to_nv12.cpp
+        src/encoder/frame_timing.cpp
         src/webm_muxer.cpp
         src/webm_packet_reader.cpp)
 endif()
@@ -315,6 +317,23 @@ if(MKVC_BUILD_TESTS)
         target_include_directories(mkvc_frame_processor_test PRIVATE src include)
         target_link_libraries(mkvc_frame_processor_test PRIVATE yuv)
         add_test(NAME mkvc_frame_processor COMMAND mkvc_frame_processor_test)
+    endif()
+
+    if(MKVC_ENABLE_CPU_VP9 OR MKVC_ENABLE_CPU_AV1)
+        add_executable(mkvc_cpu_frame_to_i420_test
+            tests/cpu_frame_to_i420_test.cpp
+            src/encoder/cpu_frame_to_i420.cpp
+            src/encoder/frame_timing.cpp)
+        target_compile_features(mkvc_cpu_frame_to_i420_test PRIVATE cxx_std_17)
+        target_include_directories(mkvc_cpu_frame_to_i420_test PRIVATE src include)
+        target_link_libraries(mkvc_cpu_frame_to_i420_test PRIVATE yuv)
+        if(MSVC)
+            target_compile_options(mkvc_cpu_frame_to_i420_test PRIVATE /W4 /permissive- /EHsc)
+        else()
+            target_compile_options(mkvc_cpu_frame_to_i420_test PRIVATE
+                -Wall -Wextra -Wpedantic -Werror)
+        endif()
+        add_test(NAME mkvc_cpu_frame_to_i420 COMMAND mkvc_cpu_frame_to_i420_test)
     endif()
 
     if(MKVC_ENABLE_CPU_VP9)
