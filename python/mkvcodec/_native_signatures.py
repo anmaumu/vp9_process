@@ -100,6 +100,12 @@ def configure(lib: ct.CDLL, t: dict[str, Any]) -> None:
     lib.mkvc_encoder_write_gpu_frame.restype = ct.c_int
     lib.mkvc_frame_copy_to.argtypes = [t["FrameHandle"], ct.POINTER(t["MutableFrameView"])]
     lib.mkvc_frame_copy_to.restype = ct.c_int
+    lib.mkvc_frame_copy_to_ex.argtypes = [
+        t["FrameHandle"],
+        ct.POINTER(t["MutableFrameView"]),
+        ct.POINTER(t["FrameCopyOptions"]),
+    ]
+    lib.mkvc_frame_copy_to_ex.restype = ct.c_int
     lib.mkvc_frame_get_view.argtypes = [t["FrameHandle"], ct.POINTER(t["FrameView"])]
     lib.mkvc_frame_get_view.restype = ct.c_int
     lib.mkvc_frame_process.argtypes = [

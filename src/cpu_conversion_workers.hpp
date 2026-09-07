@@ -5,13 +5,14 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <future>
 
 namespace mkvc {
 
 /** Return the caller plus worker count available to one parallel conversion. */
-size_t cpu_conversion_parallelism();
+size_t cpu_conversion_parallelism(uint32_t requested_threads);
 
 /** Submit one independent conversion stripe to the bounded shared worker pool. */
 std::future<int> submit_cpu_conversion(std::function<int()> operation);

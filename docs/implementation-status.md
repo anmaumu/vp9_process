@@ -20,6 +20,26 @@
 - GitHub Actions builds strict MkDocs HTML and stores `mkvcodec-documentation` for 30 days.
 - GitHub Pages publication remains disabled until an explicit public-release decision.
 
+## 2026-09-08: Explicit prefetch and packed-conversion concurrency
+
+Python `VideoCapture` now exposes packed CPU conversion concurrency separately
+from codec concurrency: `conversion_threads=0` selects the bounded automatic
+setting, `1` runs conversion only on the caller, and `2..4` selects the total
+caller-plus-worker count. The existing `prefetch=0` synchronous and positive
+bounded read-ahead modes remain explicit and independent. The additive
+versioned `mkvc_frame_copy_options` and `mkvc_frame_copy_to_ex` C ABI make the
+same control available to C, generated Python/.NET bindings, and the C++ RAII
+facade without changing the behavior or binary signature of
+`mkvc_frame_copy_to`.
+
+On the Windows Xeon E5-2697 v2 qualification host, the 600-frame 1920x1080
+fixture produced identical checksums with explicit settings. Median throughput
+over five full-file runs was 40.8 fps for `threads=1`, `prefetch=0`,
+`conversion_threads=1`, and 75.2 fps when only `conversion_threads` changed to
+4. The separately measured OpenCV FFmpeg path with decoder threads fixed to one
+was 74.3 fps. This confirms that decode, read-ahead, and packed conversion are
+separate performance controls rather than aliases.
+
 ## 2026-09-08: Parallel SIMD packed-color conversion
 
 Large I420-to-BGR24/RGB24/BGRA32 copies are split into chroma-aligned row

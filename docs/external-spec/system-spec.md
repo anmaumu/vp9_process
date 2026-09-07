@@ -99,7 +99,7 @@ Status: `CONFIRMED`
 ### 5.2 Decode
 
 - `EXT-DEC-001`: `VideoCapture`は`read`、iterator、context manager、idempotentな`close/release`を提供する。
-- `EXT-DEC-002`: `read_bgr`、`read_nv12`、`read_surface`を明示的に提供する。
+- `EXT-DEC-002`: `read_bgr`、`read_nv12`、`read_surface`を明示的に提供する。packed CPU出力はdecode用`threads`とは独立した`conversion_threads=0..4`を受け、0は自動、1は補助workerなし、2..4は呼出元を含む総変換thread数とする。
 - `EXT-DEC-003`: `read_batch(max_size, timeout_ms=0)`を提供する。
 - `EXT-DEC-004`: `prefetch=0`の同期動作と、正数のbounded先読みを提供する。
 - `EXT-DEC-005`: end-of-streamではPython APIの単発readは`None`、iteratorは`StopIteration`とする。

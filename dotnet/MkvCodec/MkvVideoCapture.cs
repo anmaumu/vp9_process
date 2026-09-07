@@ -4,17 +4,28 @@ namespace MkvCodec;
 
 public sealed record MkvI420Frame(uint Width, uint Height, long PtsNanoseconds,
     byte[] Y, byte[] U, byte[] V);
+public sealed record MkvBgrFrame(uint Width, uint Height, long PtsNanoseconds,
+    byte[] Pixels, int Stride);
 
-/// <summary>Managed IDisposable capture returning owned I420 arrays.</summary>
+/// <summary>Managed IDisposable capture returning owned I420 or packed BGR arrays.</summary>
 public sealed class MkvVideoCapture : IDisposable
 {
     private MkvDecoderHandle? handle;
     private MkvPipelineMetrics? finalMetrics;
+    private readonly uint conversionThreads;
 
+    /// <summary>
+    /// Open a decoder. prefetch controls bounded read-ahead, decodeThreads controls
+    /// the codec, and conversionThreads independently controls large packed conversion.
+    /// </summary>
     public MkvVideoCapture(string path, MkvCodecKind codec = MkvCodecKind.Vp9,
         MkvBackend backend = MkvBackend.Cpu, uint prefetch = 0,
-        bool requireGpuResident = false)
+        bool requireGpuResident = false, uint decodeThreads = 0,
+        uint conversionThreads = 0)
     {
+        if (conversionThreads > 4)
+            throw new ArgumentOutOfRangeException(nameof(conversionThreads),
+                "conversionThreads must be between 0 and 4");
         if (requireGpuResident && backend == MkvBackend.Cpu)
             throw new ArgumentException(
                 "GPU-resident decoding requires Intel or NVIDIA", nameof(backend));
@@ -27,7 +38,8 @@ public sealed class MkvVideoCapture : IDisposable
             var config = new NativeDecoderConfig {
                 StructSize = checked((uint)Marshal.SizeOf<NativeDecoderConfig>()),
                 StructVersion = 1, InputPathUtf8 = utf8,
-                Codec = (uint)codec, Backend = (uint)backend, Prefetch = prefetch
+                Codec = (uint)codec, Backend = (uint)backend,
+                Threads = decodeThreads, Prefetch = prefetch
             };
             MkvCodecInfo.ThrowIfFailed(
                 NativeMethods.mkvc_decoder_create(ref config, out handle));
@@ -52,6 +64,50 @@ public sealed class MkvVideoCapture : IDisposable
             }
         }
         finally { Marshal.FreeCoTaskMem(utf8); }
+        this.conversionThreads = conversionThreads;
+    }
+
+    /// <summary>
+    /// Read one owned packed BGR frame. Large color conversions use the capture's
+    /// bounded conversionThreads setting independently of decoder concurrency.
+    /// </summary>
+    public unsafe MkvBgrFrame? ReadBgr()
+    {
+        ObjectDisposedException.ThrowIf(handle is null || handle.IsClosed, this);
+        MkvResult result = NativeMethods.mkvc_decoder_read(handle!, out MkvFrameHandle frame);
+        if (result == MkvResult.EndOfStream) return null;
+        MkvCodecInfo.ThrowIfFailed(result);
+        using (frame)
+        {
+            var source = new NativeFrameView {
+                StructSize = checked((uint)Marshal.SizeOf<NativeFrameView>()),
+                StructVersion = 1
+            };
+            MkvCodecInfo.ThrowIfFailed(NativeMethods.mkvc_frame_get_view(frame, ref source));
+            int stride = checked((int)source.Width * 3);
+            byte[] pixels = new byte[checked(stride * (int)source.Height)];
+            fixed (byte* pointer = pixels)
+            {
+                var destination = new NativeMutableFrameView {
+                    StructSize = checked((uint)Marshal.SizeOf<NativeMutableFrameView>()),
+                    StructVersion = 1,
+                    PixelFormat = MkvPixelFormat.Bgr24,
+                    Width = source.Width,
+                    Height = source.Height,
+                    Plane0 = (nint)pointer,
+                    Stride0 = stride
+                };
+                var options = new NativeFrameCopyOptions {
+                    StructSize = checked((uint)Marshal.SizeOf<NativeFrameCopyOptions>()),
+                    StructVersion = 1,
+                    ConversionThreads = conversionThreads
+                };
+                MkvCodecInfo.ThrowIfFailed(
+                    NativeMethods.mkvc_frame_copy_to_ex(frame, ref destination, ref options));
+                return new MkvBgrFrame(source.Width, source.Height, destination.Pts,
+                    pixels, stride);
+            }
+        }
     }
 
     public MkvI420Frame? ReadI420()

@@ -325,6 +325,9 @@ def main() -> None:
             assert abs(float(decoded.y.mean()) - expected_blue_y) <= 5
 
             if name == "bgr":
+                expect_value_error(
+                    lambda: mkvcodec.VideoCapture(packed_path, conversion_threads=5)
+                )
                 with mkvcodec.VideoCapture(packed_path) as capture:
                     bgr = capture.read_bgr()
                     assert bgr is not None
@@ -332,6 +335,12 @@ def main() -> None:
                     assert float(bgr[..., 0].mean()) > 240
                     assert float(bgr[..., 2].mean()) < 15
                     assert capture.last_pts_ns == 0
+                with mkvcodec.VideoCapture(
+                    packed_path, conversion_threads=1
+                ) as capture:
+                    single_thread_bgr = capture.read_bgr()
+                    assert single_thread_bgr is not None
+                    assert np.array_equal(single_thread_bgr, bgr)
                 with mkvcodec.VideoCapture(packed_path) as capture:
                     rgb = capture.read_rgb()
                     assert rgb is not None

@@ -144,6 +144,15 @@ internal struct NativeEncoderConfig
 }
 
 [StructLayout(LayoutKind.Sequential)]
+internal struct NativeFrameCopyOptions
+{
+    internal uint StructSize;
+    internal uint StructVersion;
+    internal uint ConversionThreads;
+    internal uint Reserved;
+}
+
+[StructLayout(LayoutKind.Sequential)]
 internal struct NativeFrameProcessConfig
 {
     internal uint StructSize;

@@ -141,6 +141,12 @@ internal static partial class NativeMethods
         ref NativeMutableFrameView destination);
 
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern MkvResult mkvc_frame_copy_to_ex(
+        MkvFrameHandle frame,
+        ref NativeMutableFrameView destination,
+        ref NativeFrameCopyOptions options);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
     internal static extern MkvResult mkvc_frame_get_view(
         MkvFrameHandle frame,
         ref NativeFrameView out_view);

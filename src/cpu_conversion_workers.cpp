@@ -91,7 +91,11 @@ CpuConversionWorkerPool& conversion_workers() {
 
 }  // namespace
 
-size_t cpu_conversion_parallelism() { return conversion_workers().parallelism(); }
+size_t cpu_conversion_parallelism(const uint32_t requested_threads) {
+    if (requested_threads == 1) return 1;
+    const size_t available = conversion_workers().parallelism();
+    return requested_threads == 0 ? available : std::min<size_t>(requested_threads, available);
+}
 
 std::future<int> submit_cpu_conversion(std::function<int()> operation) {
     return conversion_workers().submit(std::move(operation));

@@ -26,7 +26,7 @@ profile: test-spec@1.0
 
 | ID | Test requirement | Level | Environment |
 |---|---|---|---|
-| `TEST-DEC-001` | read/read_bgr/read_nv12/read_surfaceの形式とEOS | integration | backend CI |
+| `TEST-DEC-001` | read/read_bgr/read_nv12/read_surfaceの形式とEOS、conversion_threads 0/1/2/4の画素一致と範囲外拒否 | integration | backend CI |
 | `TEST-DEC-002` | iterator、context manager、idempotent close/release | integration | CPU CI |
 | `TEST-DEC-003` | read_batchのsize、timeout、EOS | unit/integration | CPU CI |
 | `TEST-DEC-004` | prefetch 0/1/4/16、queue上限、hit/miss | performance | CPU/GPU CI |

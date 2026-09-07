@@ -361,6 +361,14 @@ typedef struct mkvc_mutable_frame_view {
     int64_t pts;              /**< Receives decoded PTS in nanoseconds. */
 } mkvc_mutable_frame_view;
 
+/** Per-call CPU frame-copy controls; initialize size and version. */
+typedef struct mkvc_frame_copy_options {
+    uint32_t struct_size;        /**< Size of this struct. */
+    uint32_t struct_version;     /**< Must be 1. */
+    uint32_t conversion_threads; /**< 0=automatic, 1=caller only, 2..4=total threads. */
+    uint32_t reserved;           /**< Must be zero. */
+} mkvc_frame_copy_options;
+
 /** Opaque encoder handle. */
 typedef struct mkvc_encoder mkvc_encoder;
 /** Opaque decoder handle. */
@@ -560,6 +568,11 @@ MKVC_API mkvc_result mkvc_frame_get_view(
 MKVC_API mkvc_result mkvc_frame_copy_to(
     const mkvc_frame* frame,
     mkvc_mutable_frame_view* destination);
+/** Copy or convert with an explicit bounded CPU conversion thread count. */
+MKVC_API mkvc_result mkvc_frame_copy_to_ex(
+    const mkvc_frame* frame,
+    mkvc_mutable_frame_view* destination,
+    const mkvc_frame_copy_options* options);
 /** Apply an immutable processing plan and return a new retained frame. */
 MKVC_API mkvc_result mkvc_frame_process(
     const mkvc_frame* frame,

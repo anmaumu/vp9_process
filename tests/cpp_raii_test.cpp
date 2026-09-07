@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace {
 void release_external(void* opaque) {
@@ -92,6 +93,37 @@ int main(int argc, char** argv) {
     const auto decoded_view = decoded->view();
     assert(decoded_view.pixel_format == MKVC_PIXEL_FORMAT_I420);
     assert(decoded_view.width == width && decoded_view.height == height);
+    std::vector<uint8_t> bgr(width * height * 3);
+    mkvc_mutable_frame_view bgr_view{};
+    bgr_view.struct_size = sizeof(bgr_view);
+    bgr_view.struct_version = 1;
+    bgr_view.pixel_format = MKVC_PIXEL_FORMAT_BGR24;
+    bgr_view.width = width;
+    bgr_view.height = height;
+    bgr_view.planes[0] = bgr.data();
+    bgr_view.strides[0] = width * 3;
+    decoded->copy_to(bgr_view, 1);
+    assert(bgr_view.pts == decoded_view.pts);
+    assert(mkvc_frame_copy_to_ex(decoded->native_handle(), &bgr_view, nullptr) ==
+           MKVC_ERROR_INVALID_ARGUMENT);
+    mkvc_frame_copy_options invalid_copy_options{};
+    invalid_copy_options.struct_size = sizeof(invalid_copy_options);
+    invalid_copy_options.struct_version = 1;
+    invalid_copy_options.struct_size -= 1;
+    assert(mkvc_frame_copy_to_ex(decoded->native_handle(), &bgr_view,
+                                 &invalid_copy_options) == MKVC_ERROR_INVALID_ARGUMENT);
+    invalid_copy_options.struct_size = sizeof(invalid_copy_options);
+    invalid_copy_options.struct_version = 0;
+    assert(mkvc_frame_copy_to_ex(decoded->native_handle(), &bgr_view,
+                                 &invalid_copy_options) == MKVC_ERROR_INVALID_ARGUMENT);
+    invalid_copy_options.struct_version = 1;
+    invalid_copy_options.conversion_threads = 5;
+    assert(mkvc_frame_copy_to_ex(decoded->native_handle(), &bgr_view,
+                                 &invalid_copy_options) == MKVC_ERROR_INVALID_ARGUMENT);
+    invalid_copy_options.conversion_threads = 1;
+    invalid_copy_options.reserved = 1;
+    assert(mkvc_frame_copy_to_ex(decoded->native_handle(), &bgr_view,
+                                 &invalid_copy_options) == MKVC_ERROR_INVALID_ARGUMENT);
     decoded.reset();
     assert(!decoder.read().has_value());
     decoder.close();

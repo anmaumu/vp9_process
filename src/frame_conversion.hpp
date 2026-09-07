@@ -19,6 +19,6 @@ namespace mkvc {
  * @return MKVC_OK or a stable validation/conversion error.
  */
 mkvc_result copy_frame_to(const DecodedFrame& source, mkvc_mutable_frame_view& destination,
-                          std::string& error);
+                          std::string& error, uint32_t conversion_threads = 0);
 
 }  // namespace mkvc

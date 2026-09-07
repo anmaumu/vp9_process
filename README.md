@@ -87,7 +87,9 @@ with mkvcodec.VideoWriter(
     accepted = writer.try_write(bgr_ndarray)  # queue満杯ならFalse
     # writer.cancel()                          # queueを破棄し待機callerを起床
 
-with mkvcodec.VideoCapture("output.webm", prefetch=4) as capture:
+with mkvcodec.VideoCapture(
+    "output.webm", prefetch=4, conversion_threads=2
+) as capture:
     bgr_frame = capture.read()       # or read_bgr()
     pts_ns = capture.last_pts_ns
 ```
@@ -266,6 +268,8 @@ RGB系やNV12を明示するときは`write_rgb`、`write_bgra`、`write_nv12`�
 Captureの既定`read()`とiteratorはBGR ndarrayを返します。`read_i420`、
 `read_rgb`、`read_bgra`、`read_nv12`も選択できます。
 `prefetch=0`は同期decode、正数はnative側の固定容量先読みqueueを使用します。
+`conversion_threads=0`は大きなpacked色変換の自動並列、`1`は補助workerなし、
+`2..4`は呼出元を含む変換thread総数です。decode用`threads`とは独立して指定します。
 Writerの`queue_size=0`は同期encode、正数（Python既定8）は入力をdeep copyして
 native workerへ渡します。通常の`write`はqueue空きを待ち、`try_write`は待機しません。
 CPU AV1 writer/captureは`codec="av1"`で選択します。Writer入力とCapture出力は
@@ -287,6 +291,9 @@ ctest --test-dir build -R mkvc_dotnet --output-on-failure
 NuGet packagingは後続段階です。
 
 GPU-resident経路ではCaptureとWriterへ同じ`MkvGpuFrame` leaseを渡せます。
+CPU BGR出力では`prefetch: 0`で先読みなし、正数でbounded先読み、
+`decodeThreads`でcodec thread数、`conversionThreads: 0..4`で大きなpacked変換の
+総thread数をそれぞれ独立指定できます。`ReadBgr()`は所有されたpacked配列を返します。
 
 ```csharp
 using var capture = new MkvVideoCapture(

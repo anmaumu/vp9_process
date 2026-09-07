@@ -94,6 +94,24 @@ try
         ++count;
     }
     if (count != 10) throw new InvalidOperationException(".NET frame count mismatch");
+    using (var packedCapture = new MkvVideoCapture(
+        path, prefetch: 0, decodeThreads: 1, conversionThreads: 1))
+    {
+        if (packedCapture.ReadBgr() is not { } packedFrame ||
+            packedFrame.Width != width || packedFrame.Height != height ||
+            packedFrame.Pixels.Length != width * height * 3 ||
+            packedFrame.Stride != width * 3)
+            throw new InvalidOperationException("Invalid .NET packed BGR frame");
+    }
+    try
+    {
+        using var invalidConversionThreads = new MkvVideoCapture(
+            path, conversionThreads: 5);
+        throw new InvalidOperationException("Invalid conversion thread count was accepted");
+    }
+    catch (ArgumentOutOfRangeException)
+    {
+    }
 
     using (var writer = new MkvVideoWriter(
         borrowedPath, width, height, queueSize: 0))

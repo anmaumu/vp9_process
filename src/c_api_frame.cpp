@@ -14,6 +14,17 @@
 namespace {
 #define last_error mkvc_last_error
 using mkvc::capi::fail;
+using mkvc::capi::guard;
+
+mkvc_result copy_frame(const mkvc_frame* frame, mkvc_mutable_frame_view* destination,
+                       const uint32_t conversion_threads) {
+    return guard("unknown frame conversion failure", [&] {
+        std::string error;
+        const mkvc_result result = mkvc::copy_frame_to(*frame->implementation, *destination, error,
+                                                       conversion_threads);
+        return result == MKVC_OK ? result : fail(result, std::move(error));
+    });
+}
 }  // namespace
 
 extern "C" {
@@ -55,15 +66,21 @@ mkvc_result mkvc_frame_copy_to(const mkvc_frame* frame, mkvc_mutable_frame_view*
         destination->struct_version != 1) {
         return fail(MKVC_ERROR_INVALID_ARGUMENT, "invalid frame or mutable destination view");
     }
-    try {
-        std::string error;
-        const mkvc_result result = mkvc::copy_frame_to(*frame->implementation, *destination, error);
-        return result == MKVC_OK ? result : fail(result, std::move(error));
-    } catch (const std::exception& exception) {
-        return fail(MKVC_ERROR_INTERNAL, exception.what());
-    } catch (...) {
-        return fail(MKVC_ERROR_INTERNAL, "unknown frame conversion failure");
+    return copy_frame(frame, destination, 0);
+}
+
+mkvc_result mkvc_frame_copy_to_ex(const mkvc_frame* frame,
+                                  mkvc_mutable_frame_view* destination,
+                                  const mkvc_frame_copy_options* options) {
+    last_error.clear();
+    if (frame == nullptr || destination == nullptr || options == nullptr ||
+        destination->struct_size < sizeof(mkvc_mutable_frame_view) ||
+        destination->struct_version != 1 || options->struct_size < sizeof(*options) ||
+        options->struct_version != 1 || options->conversion_threads > 4 ||
+        options->reserved != 0) {
+        return fail(MKVC_ERROR_INVALID_ARGUMENT, "invalid frame copy options");
     }
+    return copy_frame(frame, destination, options->conversion_threads);
 }
 
 mkvc_result mkvc_frame_process(const mkvc_frame* frame, const mkvc_frame_process_config* config,

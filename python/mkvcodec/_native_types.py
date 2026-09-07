@@ -133,6 +133,15 @@ class EncoderConfig(ct.Structure):
     ]
 
 
+class FrameCopyOptions(ct.Structure):
+    _fields_ = [
+        ("struct_size", ct.c_uint32),
+        ("struct_version", ct.c_uint32),
+        ("conversion_threads", ct.c_uint32),
+        ("reserved", ct.c_uint32),
+    ]
+
+
 class FrameProcessConfig(ct.Structure):
     _fields_ = [
         ("struct_size", ct.c_uint32),
@@ -343,6 +352,7 @@ __all__ = [
     "CpuFramePoolConfig",
     "DecoderConfig",
     "EncoderConfig",
+    "FrameCopyOptions",
     "FrameProcessConfig",
     "FrameView",
     "GpuFrameDesc",

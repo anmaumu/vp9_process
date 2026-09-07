@@ -48,10 +48,10 @@ int convert_i420_packed_stripe(const uint32_t format, const uint8_t* y, const in
 int convert_i420_packed(const uint32_t format, const uint8_t* y, const int y_stride,
                         const uint8_t* u, const int u_stride, const uint8_t* v, const int v_stride,
                         uint8_t* destination, const int destination_stride, const int width,
-                        const int height) {
+                        const int height, const uint32_t conversion_threads) {
     constexpr int kParallelPixelThreshold = 1280 * 720;
     const size_t worker_count = static_cast<int64_t>(width) * height >= kParallelPixelThreshold
-                                    ? mkvc::cpu_conversion_parallelism()
+                                    ? mkvc::cpu_conversion_parallelism(conversion_threads)
                                     : 1;
     if (worker_count == 1) {
         return convert_i420_packed_stripe(format, y, y_stride, u, u_stride, v, v_stride,
@@ -84,7 +84,7 @@ int convert_i420_packed(const uint32_t format, const uint8_t* y, const int y_str
 namespace mkvc {
 
 mkvc_result copy_frame_to(const DecodedFrame& source, mkvc_mutable_frame_view& destination,
-                          std::string& error) {
+                          std::string& error, const uint32_t conversion_threads) {
 #if !defined(MKVC_HAS_CPU_VP9) && !defined(MKVC_HAS_CPU_AV1) && !defined(MKVC_HAS_INTEL_ONEVPL) && \
     !defined(MKVC_HAS_NVIDIA)
     (void)source;
@@ -140,7 +140,8 @@ mkvc_result copy_frame_to(const DecodedFrame& source, mkvc_mutable_frame_view& d
             }
             result = convert_i420_packed(
                 destination.pixel_format, y, source.strides[0], u, source.strides[1], v,
-                source.strides[2], destination.planes[0], destination.strides[0], width, height);
+                source.strides[2], destination.planes[0], destination.strides[0], width, height,
+                conversion_threads);
             break;
         }
         default:

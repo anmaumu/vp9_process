@@ -319,6 +319,16 @@ class Frame {
         check(mkvc_frame_get_view(handle_, &value));
         return value;
     }
+    /** Copy or convert into caller memory with bounded packed-conversion concurrency. */
+    void copy_to(mkvc_mutable_frame_view& destination,
+                 uint32_t conversion_threads = 0) const {
+        ensure_open();
+        mkvc_frame_copy_options options{};
+        options.struct_size = sizeof(options);
+        options.struct_version = 1;
+        options.conversion_threads = conversion_threads;
+        check(mkvc_frame_copy_to_ex(handle_, &destination, &options));
+    }
     Frame process(const mkvc_frame_process_config& config) const {
         ensure_open();
         mkvc_frame* output = nullptr;

@@ -30,9 +30,13 @@ class VideoCapture(Iterator[U8Plane]):
     threads : int, default: 0
         CPU worker count, or zero for backend selection.
     prefetch : int, optional
-        Number of decoded CPU frames retained ahead of the reader.
+        Number of decoded CPU frames retained ahead of the reader. Zero
+        disables read-ahead. The CPU default is four; GPU-resident mode is zero.
     require_gpu_resident : bool, default: False
         Disable CPU reads and fail if GPU-resident decoding is unavailable.
+    conversion_threads : int, default: 0
+        Total threads used by large packed BGR/RGB/BGRA conversion. Zero uses
+        the bounded automatic setting; one disables auxiliary workers.
 
     Attributes
     ----------
@@ -50,6 +54,7 @@ class VideoCapture(Iterator[U8Plane]):
         threads: int = 0,
         prefetch: int | None = None,
         require_gpu_resident: bool = False,
+        conversion_threads: int = 0,
     ) -> None:
         if codec not in ("vp9", "av1") or backend not in ("auto", "cpu", "intel", "nvidia"):
             raise ValueError("the Python capture supports VP9/AV1 on CPU, Intel, or NVIDIA")
@@ -78,6 +83,8 @@ class VideoCapture(Iterator[U8Plane]):
         config.threads = threads
         if prefetch < 0:
             raise ValueError("prefetch must be zero or positive")
+        if conversion_threads < 0 or conversion_threads > 4:
+            raise ValueError("conversion_threads must be between 0 and 4")
         config.prefetch = prefetch
         self._handle = native.DecoderHandle()
         native.check(native.lib.mkvc_decoder_create(ct.byref(config), ct.byref(self._handle)))
@@ -98,6 +105,7 @@ class VideoCapture(Iterator[U8Plane]):
         self._closed = False
         self.backend = backend
         self._require_gpu_resident = bool(require_gpu_resident)
+        self._conversion_threads = int(conversion_threads)
         self._last_metrics: PipelineMetrics | None = None
         self.last_pts_ns: int | None = None
 
@@ -132,6 +140,14 @@ class VideoCapture(Iterator[U8Plane]):
         view.struct_version = 1
         native.check(native.lib.mkvc_frame_get_view(handle, ct.byref(view)))
         return view
+
+    def _copy_options(self) -> native.FrameCopyOptions:
+        """Build versioned options for one native CPU frame copy."""
+        options = native.FrameCopyOptions()
+        options.struct_size = ct.sizeof(options)
+        options.struct_version = 1
+        options.conversion_threads = self._conversion_threads
+        return options
 
     def read_i420(self) -> CpuFrame | None:
         """Read one copied I420 frame, or ``None`` at end of stream."""
@@ -204,7 +220,10 @@ class VideoCapture(Iterator[U8Plane]):
             destination.height = source.height
             destination.planes[0] = _plane_pointer(destination_array)
             destination.strides[0] = destination_array.strides[0]
-            native.check(native.lib.mkvc_frame_copy_to(handle, ct.byref(destination)))
+            options = self._copy_options()
+            native.check(native.lib.mkvc_frame_copy_to_ex(
+                handle, ct.byref(destination), ct.byref(options)
+            ))
             self.last_pts_ns = destination.pts
             return destination_array
         finally:
@@ -298,7 +317,10 @@ class VideoCapture(Iterator[U8Plane]):
             destination.width, destination.height = view.width, view.height
             destination.planes[0] = _plane_pointer(output)
             destination.strides[0] = output.strides[0]
-            native.check(native.lib.mkvc_frame_copy_to(processed_handle, ct.byref(destination)))
+            options = self._copy_options()
+            native.check(native.lib.mkvc_frame_copy_to_ex(
+                processed_handle, ct.byref(destination), ct.byref(options)
+            ))
             return output
         finally:
             if processed_handle:
