@@ -219,6 +219,7 @@ wheel/NuGetへ同梱せず、実行時version/source revisionを成果ととも�
 | `TEST-PERF-003` | balanced pipelineにframe間overlapがある | trace | Intel/NVIDIA |
 | `TEST-PERF-004` | 30分以上と数百回open/closeでRAM/VRAM/handleが増加しない | soak | backend CI |
 | `TEST-PERF-005` | queue capacityに従いpeak memoryがbounded | stress | all CI |
+| `TEST-PERF-006` | packed I420変換がlibyuv runtime SIMDを使用し、large frameのchroma-aligned並列stripeが単一callと全byte一致し、padding/PTSを壊さない | unit/benchmark | x86/Arm CPU CI |
 | `TEST-SEC-001` | malformed container/packet/size overflow fuzz | fuzz | sanitizer CI |
 | `TEST-SEC-002` | dynamic library searchが許可名/安全pathに限定 | unit/integration | Windows/Linux |
 

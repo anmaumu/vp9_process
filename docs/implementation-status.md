@@ -20,6 +20,24 @@
 - GitHub Actions builds strict MkDocs HTML and stores `mkvcodec-documentation` for 30 days.
 - GitHub Pages publication remains disabled until an explicit public-release decision.
 
+## 2026-09-08: Parallel SIMD packed-color conversion
+
+Large I420-to-BGR24/RGB24/BGRA32 copies are split into chroma-aligned row
+stripes. A bounded pool of three persistent auxiliary workers plus the calling
+thread processes those stripes through libyuv, which retains its runtime
+SSSE3/AVX2/NEON dispatch. Frames smaller than 1280x720 remain single-threaded to
+avoid scheduling overhead. Exact packed bytes, destination padding and PTS are
+compared against single-call libyuv output for both small frames and a 1280x722
+parallel boundary case. No public ABI or Python API changed.
+
+On the Windows Xeon E5-2697 v2 qualification host, Python VP9 1920x1080 BGR
+decode improved from 57.6 to 121.6 fps with the default CPU thread setting and
+from 62.0 to 204.8 fps with 16 CPU decode threads. NVDEC CPU-BGR readback
+improved from 54.5 to 179.9 fps. Each result is the median of five complete
+600-frame reads after one warm-up pass. OpenCV 5.0/FFmpeg measured 136.5 fps on
+the same source; these host-specific observations are not portable release
+thresholds.
+
 ## 2026-09-07: Decoder C ABI validation and state split
 
 Versioned decoder-config validation, decoder construction, copy-policy state

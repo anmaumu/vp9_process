@@ -29,3 +29,21 @@ hardware-class baselines exist.
 This runner records end-to-end host timings plus the current native aggregate
 queue/backend timings. Conversion, codec, mux and GPU-event timers are not yet
 separated and must not be reverse-engineered from the aggregate totals.
+
+## Packed BGR qualification observation
+
+The 2026-09-08 Windows qualification used a 600-frame, 1920x1080, 60 fps VP9
+test pattern, one full warm-up read and five timed full reads including
+open/close. The host was a 12-core/24-thread Xeon E5-2697 v2 with an RTX 2060.
+
+| Python path | Before parallel conversion | After | Median speedup |
+|---|---:|---:|---:|
+| CPU `read_bgr()`, default decode threads | 57.6 fps | 121.6 fps | 2.11x |
+| CPU `read_bgr()`, 16 decode threads | 62.0 fps | 204.8 fps | 3.30x |
+| NVIDIA `read_bgr()` | 54.5 fps | 179.9 fps | 3.30x |
+
+OpenCV 5.0 using its FFmpeg backend and 16 reported decode threads measured
+136.5 fps on the same file. This comparison validates the optimization on one
+machine only; it is neither a cross-platform baseline nor evidence about GPU
+surface processing. The pixel regression compares conversion output against
+the unpartitioned libyuv function rather than accepting throughput alone.

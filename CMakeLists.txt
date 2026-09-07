@@ -57,6 +57,7 @@ add_library(mkvcodec SHARED
     src/cpu_vp9_encoder.cpp
     src/cpu_vp9_decoder.cpp
     src/cpu_frame_pool.cpp
+    src/cpu_conversion_workers.cpp
     src/frame_conversion.cpp
     src/frame_processor.cpp
     src/gpu/gpu_external_import.cpp
@@ -319,6 +320,22 @@ if(MKVC_BUILD_TESTS)
         target_include_directories(mkvc_frame_processor_test PRIVATE src include)
         target_link_libraries(mkvc_frame_processor_test PRIVATE yuv)
         add_test(NAME mkvc_frame_processor COMMAND mkvc_frame_processor_test)
+
+        add_executable(mkvc_frame_conversion_test
+            tests/frame_conversion_test.cpp src/cpu_conversion_workers.cpp
+            src/frame_conversion.cpp)
+        target_compile_features(mkvc_frame_conversion_test PRIVATE cxx_std_17)
+        target_compile_definitions(mkvc_frame_conversion_test PRIVATE MKVC_HAS_CPU_VP9=1)
+        target_include_directories(mkvc_frame_conversion_test PRIVATE src include)
+        target_link_libraries(mkvc_frame_conversion_test PRIVATE yuv)
+        if(MSVC)
+            target_compile_options(mkvc_frame_conversion_test PRIVATE
+                /W4 /permissive- /EHsc /UNDEBUG)
+        else()
+            target_compile_options(mkvc_frame_conversion_test PRIVATE
+                -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+        endif()
+        add_test(NAME mkvc_frame_conversion COMMAND mkvc_frame_conversion_test)
     endif()
 
     if(MKVC_ENABLE_CPU_VP9 OR MKVC_ENABLE_CPU_AV1)
