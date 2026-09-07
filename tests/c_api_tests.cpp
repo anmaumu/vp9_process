@@ -105,6 +105,38 @@ int main() {
     assert(unsupported_encoder == nullptr);
     assert(std::strstr(mkvc_get_last_error(), "unavailable") != nullptr);
 
+    mkvc_decoder_config decoder_config{};
+    decoder_config.struct_size = sizeof(decoder_config);
+    decoder_config.struct_version = 1;
+    decoder_config.input_path_utf8 = "missing-input.webm";
+    decoder_config.codec = MKVC_CODEC_VP9;
+    decoder_config.backend = MKVC_BACKEND_CPU;
+    auto expect_invalid_decoder_config = [](mkvc_decoder_config invalid) {
+        auto* output = reinterpret_cast<mkvc_decoder*>(static_cast<uintptr_t>(1));
+        assert(mkvc_decoder_create(&invalid, &output) == MKVC_ERROR_INVALID_ARGUMENT);
+        assert(output == nullptr);
+    };
+    mkvc_decoder* invalid_decoder_output =
+        reinterpret_cast<mkvc_decoder*>(static_cast<uintptr_t>(1));
+    assert(mkvc_decoder_create(nullptr, &invalid_decoder_output) == MKVC_ERROR_INVALID_ARGUMENT);
+    assert(invalid_decoder_output == nullptr);
+    assert(mkvc_decoder_create(&decoder_config, nullptr) == MKVC_ERROR_INVALID_ARGUMENT);
+    auto invalid_decoder_config = decoder_config;
+    invalid_decoder_config.struct_size = sizeof(invalid_decoder_config) - 1;
+    expect_invalid_decoder_config(invalid_decoder_config);
+    invalid_decoder_config = decoder_config;
+    invalid_decoder_config.struct_version = 0;
+    expect_invalid_decoder_config(invalid_decoder_config);
+    invalid_decoder_config = decoder_config;
+    invalid_decoder_config.input_path_utf8 = "";
+    expect_invalid_decoder_config(invalid_decoder_config);
+    invalid_decoder_config = decoder_config;
+    invalid_decoder_config.codec = 999;
+    expect_invalid_decoder_config(invalid_decoder_config);
+    invalid_decoder_config = decoder_config;
+    invalid_decoder_config.backend = 999;
+    expect_invalid_decoder_config(invalid_decoder_config);
+
     mkvc_pipeline_metrics metrics{};
     metrics.struct_size = sizeof(metrics);
     metrics.struct_version = 1;

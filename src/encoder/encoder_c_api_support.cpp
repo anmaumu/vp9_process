@@ -29,16 +29,6 @@ bool valid_frame_view(const mkvc_frame_view* frame) noexcept {
            frame->struct_version == 1;
 }
 
-bool valid_copy_policy(const mkvc_copy_policy* policy) noexcept {
-    return policy != nullptr && policy->struct_size >= sizeof(mkvc_copy_policy) &&
-           policy->struct_version == 1;
-}
-
-bool valid_metrics_output(const mkvc_pipeline_metrics* metrics) noexcept {
-    return metrics != nullptr && metrics->struct_size >= sizeof(mkvc_pipeline_metrics) &&
-           metrics->struct_version == 1;
-}
-
 mkvc_result create_encoder_session(const mkvc_encoder_config& config,
                                    std::unique_ptr<EncoderSession>& session, std::string& error) {
     if (config.backend == MKVC_BACKEND_NVIDIA) {

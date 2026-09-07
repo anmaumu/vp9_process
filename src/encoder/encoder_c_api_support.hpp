@@ -19,12 +19,6 @@ bool valid_encoder_config(const mkvc_encoder_config* config) noexcept;
 /** Return whether a versioned CPU frame view is safe to pass to EncoderSession. */
 bool valid_frame_view(const mkvc_frame_view* frame) noexcept;
 
-/** Return whether a versioned copy policy is safe to pass to EncoderSession. */
-bool valid_copy_policy(const mkvc_copy_policy* policy) noexcept;
-
-/** Return whether a versioned metrics destination is safe to overwrite. */
-bool valid_metrics_output(const mkvc_pipeline_metrics* metrics) noexcept;
-
 /**
  * @brief Check dynamic capability constraints and construct an encoder session.
  * @param config Previously validated encoder configuration.

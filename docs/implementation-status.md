@@ -20,6 +20,18 @@
 - GitHub Actions builds strict MkDocs HTML and stores `mkvcodec-documentation` for 30 days.
 - GitHub Pages publication remains disabled until an explicit public-release decision.
 
+## 2026-09-07: Decoder C ABI validation and state split
+
+Versioned decoder-config validation, decoder construction, copy-policy state
+transitions, CPU/GPU read eligibility, and consistent metrics snapshots now live
+in the Doxygen-documented `decoder_c_api_support` module. Encoder and decoder
+share the same versioned copy-policy and metrics-output validation helpers. All
+result-returning decoder C entry points use the common `capi::guard` exception
+boundary, including copy-policy configuration. Public signatures, diagnostics,
+end-of-stream handling, output-pointer clearing, and GPU-resident behavior remain
+unchanged; invalid decoder configuration boundaries are covered by the native C
+API test.
+
 ## 2026-09-07: Encoder C ABI validation and exception boundary split
 
 Versioned encoder-config, frame-view, copy-policy and metrics-output validation,

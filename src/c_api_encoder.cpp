@@ -7,6 +7,7 @@
 #include <utility>
 
 #include "c_api_internal.hpp"
+#include "c_api_validation.hpp"
 #include "encoder/encoder_c_api_support.hpp"
 #include "gpu/gpu_frame.hpp"
 
@@ -41,7 +42,7 @@ mkvc_result mkvc_encoder_create(const mkvc_encoder_config* config, mkvc_encoder*
 
 mkvc_result mkvc_encoder_set_copy_policy(mkvc_encoder* encoder, const mkvc_copy_policy* policy) {
     last_error.clear();
-    if (encoder == nullptr || !mkvc::encoder::capi::valid_copy_policy(policy)) {
+    if (encoder == nullptr || !mkvc::capi::valid_copy_policy(policy)) {
         return fail(MKVC_ERROR_INVALID_ARGUMENT, "invalid encoder copy policy");
     }
     return guard("unknown encoder copy policy failure", [&] {
@@ -164,7 +165,7 @@ mkvc_result mkvc_encoder_close(mkvc_encoder* encoder) {
 mkvc_result mkvc_encoder_get_metrics(const mkvc_encoder* encoder,
                                      mkvc_pipeline_metrics* out_metrics) {
     last_error.clear();
-    if (encoder == nullptr || !mkvc::encoder::capi::valid_metrics_output(out_metrics)) {
+    if (encoder == nullptr || !mkvc::capi::valid_metrics_output(out_metrics)) {
         return fail(MKVC_ERROR_INVALID_ARGUMENT, "invalid encoder metrics output");
     }
     return guard("unknown encoder metrics failure", [&] {

@@ -48,6 +48,7 @@ add_library(mkvcodec SHARED
     src/c_api.cpp
     src/c_api_cpu.cpp
     src/c_api_decoder.cpp
+    src/decoder/decoder_c_api_support.cpp
     src/c_api_encoder.cpp
     src/c_api_frame.cpp
     src/backend_registry.cpp
