@@ -8,6 +8,10 @@
     "libvpx",
     "libwebm",
     "libyuv",
+    {
+      "name": "highway",
+      "platform": "windows & x64"
+    },
     "libvpl",
     "aom",
     "svt-av1",

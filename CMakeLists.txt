@@ -30,6 +30,15 @@ if(MKVC_ENABLE_CPU_VP9 OR MKVC_ENABLE_CPU_AV1 OR MKVC_ENABLE_INTEL_ONEVPL OR MKV
     find_package(libyuv CONFIG REQUIRED)
 endif()
 
+# libyuv's direct 24-bit conversion rows are scalar in classic MSVC x64 builds.
+# Use its SIMD-enabled 32-bit conversion followed by Highway's runtime-dispatched
+# alpha removal on that compiler only. Other toolchains retain the one-pass path.
+if(MSVC AND CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" AND CMAKE_SIZEOF_VOID_P EQUAL 8 AND
+   (MKVC_ENABLE_CPU_VP9 OR MKVC_ENABLE_CPU_AV1 OR MKVC_ENABLE_INTEL_ONEVPL OR MKVC_ENABLE_NVIDIA))
+    find_package(hwy CONFIG REQUIRED)
+    set(MKVC_USE_HIGHWAY_PACKER ON)
+endif()
+
 if(MKVC_ENABLE_INTEL_ONEVPL)
     find_package(VPL 2.10 CONFIG REQUIRED)
 endif()
@@ -89,6 +98,12 @@ add_library(mkvcodec SHARED
     src/nvidia_webm_decoder.cpp
     src/nvidia_webm_encoder.cpp
 )
+
+if(MKVC_USE_HIGHWAY_PACKER)
+    target_sources(mkvcodec PRIVATE src/packed_pixel_conversion.cpp)
+    target_compile_definitions(mkvcodec PRIVATE MKVC_USE_HIGHWAY_PACKER=1)
+    target_link_libraries(mkvcodec PRIVATE hwy::hwy)
+endif()
 
 if(MKVC_ENABLE_CPU_VP9 OR MKVC_ENABLE_CPU_AV1 OR MKVC_ENABLE_INTEL_ONEVPL OR MKVC_ENABLE_NVIDIA)
     target_sources(mkvcodec PRIVATE
@@ -328,6 +343,12 @@ if(MKVC_BUILD_TESTS)
         target_compile_definitions(mkvc_frame_conversion_test PRIVATE MKVC_HAS_CPU_VP9=1)
         target_include_directories(mkvc_frame_conversion_test PRIVATE src include)
         target_link_libraries(mkvc_frame_conversion_test PRIVATE yuv)
+        if(MKVC_USE_HIGHWAY_PACKER)
+            target_sources(mkvc_frame_conversion_test PRIVATE src/packed_pixel_conversion.cpp)
+            target_compile_definitions(mkvc_frame_conversion_test
+                PRIVATE MKVC_USE_HIGHWAY_PACKER=1)
+            target_link_libraries(mkvc_frame_conversion_test PRIVATE hwy::hwy)
+        endif()
         if(MSVC)
             target_compile_options(mkvc_frame_conversion_test PRIVATE
                 /W4 /permissive- /EHsc /UNDEBUG)

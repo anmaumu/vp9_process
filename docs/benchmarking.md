@@ -47,3 +47,22 @@ OpenCV 5.0 using its FFmpeg backend and 16 reported decode threads measured
 machine only; it is neither a cross-platform baseline nor evidence about GPU
 surface processing. The pixel regression compares conversion output against
 the unpartitioned libyuv function rather than accepting throughput alone.
+
+## Classic MSVC x64 24-bit qualification
+
+The 2026-09-09 qualification used the same Windows host and 600-frame 1080p60
+VP9 fixture, with codec threads fixed to one and read-ahead disabled. Classic
+MSVC x64 uses libyuv's SIMD-enabled I420-to-four-channel conversion followed by
+a Highway runtime-dispatched alpha-removal pack. Other compiler/platform builds
+retain libyuv's direct one-pass 24-bit conversion.
+
+| Python path | Direct libyuv 24-bit | libyuv + Highway | Median speedup |
+|---|---:|---:|---:|
+| Retained-frame BGR conversion, 1 thread | 70.2 fps | 434.7 fps | 6.19x |
+| Full `read_bgr()`, 1 decode/1 conversion thread, no prefetch | 38.0 fps | 72.35 fps | 1.90x |
+| Full `read_bgr()`, 1 decode/4 conversion threads, no prefetch | 75.2 fps | 84.57 fps | 1.12x |
+
+Each new value is the median of five runs after warm-up. Output bytes and
+checksums match the direct libyuv BGR/RGB reference, including non-vector-width
+tails and padded destination rows. These measurements qualify this machine and
+are not cross-platform release guarantees.

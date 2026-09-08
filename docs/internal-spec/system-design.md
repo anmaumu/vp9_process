@@ -240,7 +240,7 @@ Status: `PROPOSED`
 ### 9.2 CPU
 
 - `INT-CPU-001`: VP9 encode/decodeはlibvpx、AV1 encodeはSVT-AV1、AV1 decodeはlibaomを使う。
-- `INT-CPU-002`: BGR/RGB/BGRA conversionはlibyuv、I420/NV12入力は可能なら変換を省略する。1280x720以上のpacked出力はchroma-aligned stripeへ分割し、versioned copy optionsの`conversion_threads`で1..4並列を選択する。0はbounded自動選択とする。
+- `INT-CPU-002`: BGR/RGB/BGRA conversionはlibyuv、I420/NV12入力は可能なら変換を省略する。classic MSVC x64でlibyuvの24-bit rowがscalarになるBGR/RGB出力に限り、libyuvのSIMD対応32-bit変換後にHighwayのruntime-dispatched four-to-three packを行う。他のcompiler/platformはlibyuvの一段変換を維持する。Highway packは画素順を変えず、scalar tailと独立strideを扱い、stripe workerごとの再利用scratchから通常のper-frame allocationを除く。1280x720以上のpacked出力はchroma-aligned stripeへ分割し、versioned copy optionsの`conversion_threads`で1..4並列を選択する。0はbounded自動選択とする。
 - `INT-CPU-003`: 1 stream原則1 application workerとしcodec内部threadを設定する。
 - `INT-CPU-004`: reusable buffer poolを使い、per-frame allocationを通常経路から除く。
 - `INT-CPU-005`: flush時にcodec内の遅延packetを全回収する。

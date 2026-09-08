@@ -20,6 +20,24 @@
 - GitHub Actions builds strict MkDocs HTML and stores `mkvcodec-documentation` for 30 days.
 - GitHub Pages publication remains disabled until an explicit public-release decision.
 
+## 2026-09-09: Classic MSVC x64 SIMD 24-bit packing
+
+Classic MSVC x64 no longer sends BGR24/RGB24 output through libyuv's scalar
+24-bit row functions. On that compiler only, libyuv first produces its
+SIMD-enabled BGRA/RGBA representation into reusable thread-local stripe scratch,
+then Google Highway removes the fourth byte with runtime ISA dispatch and a
+scalar tail. Linux, Arm and clang-cl retain the existing one-pass libyuv route.
+The public C ABI and Python/.NET APIs are unchanged. Highway 1.4.0 is a bundled
+native dependency recorded in the manifest, hash-locked legal payload and SPDX
+SBOM under its Apache-2.0-or-BSD-3-Clause terms.
+
+On the Windows Xeon E5-2697 v2 qualification host, five-run median retained-frame
+1920x1080 BGR conversion increased from 70.2 to 434.7 fps with one conversion
+thread. Full Python VP9 decode with `threads=1`, `prefetch=0` increased from
+38.0 to 72.35 fps at `conversion_threads=1`, and from 75.2 to 84.57 fps at
+`conversion_threads=4`. Exact BGR/RGB/BGRA bytes, padded rows, odd vector tails,
+PTS and 1/2/4-thread stripe output pass against the direct libyuv reference.
+
 ## 2026-09-08: Explicit prefetch and packed-conversion concurrency
 
 Python `VideoCapture` now exposes packed CPU conversion concurrency separately
@@ -1416,6 +1434,7 @@ operation before releasing its bitstream/surface and closing the oneVPL session.
 - libvpx `1.16.0#3`
 - libwebm `1.0.0.32`
 - libyuv `1916`
+- Highway `1.4.0` (classic MSVC x64 packed-output path only)
 - SVT-AV1 `4.1.0`
 - libaom `3.15.0`
 - oneVPL dispatcher/headers `2.17.0`; Intel GPU runtime 25.4/API 2.15,

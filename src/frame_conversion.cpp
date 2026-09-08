@@ -6,6 +6,10 @@
 
 #include "cpu_conversion_workers.hpp"
 
+#if defined(MKVC_USE_HIGHWAY_PACKER)
+#include "packed_pixel_conversion.hpp"
+#endif
+
 #if defined(MKVC_HAS_CPU_VP9) || defined(MKVC_HAS_CPU_AV1) || defined(MKVC_HAS_INTEL_ONEVPL) || \
     defined(MKVC_HAS_NVIDIA)
 #include <libyuv/convert_from.h>
@@ -26,6 +30,24 @@ int convert_i420_packed_stripe(const uint32_t format, const uint8_t* y, const in
                                const uint8_t* u, const int u_stride, const uint8_t* v,
                                const int v_stride, uint8_t* destination,
                                const int destination_stride, const int width, const int height) {
+#if defined(MKVC_USE_HIGHWAY_PACKER)
+    if (format == MKVC_PIXEL_FORMAT_BGR24 || format == MKVC_PIXEL_FORMAT_RGB24) {
+        thread_local std::vector<uint8_t> four_channel_scratch;
+        const int scratch_stride = width * 4;
+        four_channel_scratch.resize(static_cast<size_t>(scratch_stride) * height);
+        const int result = format == MKVC_PIXEL_FORMAT_BGR24
+                               ? libyuv::I420ToARGB(y, y_stride, u, u_stride, v, v_stride,
+                                                   four_channel_scratch.data(), scratch_stride,
+                                                   width, height)
+                               : libyuv::I420ToABGR(y, y_stride, u, u_stride, v, v_stride,
+                                                   four_channel_scratch.data(), scratch_stride,
+                                                   width, height);
+        if (result != 0) return result;
+        mkvc::pack_four_to_three(four_channel_scratch.data(), scratch_stride, destination,
+                                 destination_stride, width, height);
+        return 0;
+    }
+#endif
     if (format == MKVC_PIXEL_FORMAT_BGR24) {
         return libyuv::I420ToRGB24(y, y_stride, u, u_stride, v, v_stride, destination,
                                    destination_stride, width, height);
