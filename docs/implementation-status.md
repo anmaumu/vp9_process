@@ -20,6 +20,21 @@
 - GitHub Actions builds strict MkDocs HTML and stores `mkvcodec-documentation` for 30 days.
 - GitHub Pages publication remains disabled until an explicit public-release decision.
 
+## 2026-09-09: GPU frame/import and build-graph responsibility split
+
+GPU frame domain state now remains in `gpu_frame.cpp`, while the opaque handle
+layout is isolated in a private header and stable lease/query/wait entry points
+live in `gpu_frame_c_api.cpp`. External-frame import now separates common
+identity/layout/ownership validation from Intel D3D11/VA/Level Zero adapters and
+the NVIDIA CUDA-event adapter. Public declarations, diagnostics, completion
+semantics, release callbacks and the ABI fingerprint are unchanged.
+
+The root CMake file now delegates dependency discovery and the library's source,
+compile-definition and link topology to `MkvcDependencies.cmake` and
+`MkvcLibrary.cmake`. A single `MKVC_HAS_CODEC_BACKEND` decision replaces repeated
+four-backend conditions. Backend test modules and public options retain their
+previous names and behavior.
+
 ## 2026-09-09: Classic MSVC x64 SIMD 24-bit packing
 
 Classic MSVC x64 no longer sends BGR24/RGB24 output through libyuv's scalar

@@ -2,14 +2,7 @@
  * @file gpu_external_import.cpp
  * @brief C ABI adapters for importing externally owned GPU frames.
  */
-#include "gpu_frame.hpp"
-#include "intel/d3d11_completion.hpp"
-#include "intel/level_zero_completion.hpp"
-#include "intel/va_completion.hpp"
-
-#if defined(MKVC_HAS_NVIDIA)
-#include "nvidia/cuda_completion.hpp"
-#endif
+#include "gpu_external_import.hpp"
 
 #include <atomic>
 #include <exception>
@@ -20,16 +13,16 @@
 
 extern thread_local std::string mkvc_last_error;
 
-namespace {
+namespace mkvc::gpu::external {
 
-mkvc_result gpu_fail(mkvc_result result, std::string message) {
+mkvc_result fail(const mkvc_result result, std::string message) {
     mkvc_last_error = std::move(message);
     return result;
 }
 
 /** Validate backend identity, resource type, layout, and completion contract. */
-bool valid_external_layout(const mkvc_gpu_external_frame_config& config, std::string& error,
-                           bool allow_usm_level_zero_event = false) {
+bool valid_layout(const mkvc_gpu_external_frame_config& config, std::string& error,
+                  const bool allow_usm_level_zero_event) {
     const auto& desc = config.frame;
     const auto& native = config.native_handle;
     if (desc.struct_size < sizeof(desc) || desc.struct_version != 1 ||
@@ -96,9 +89,9 @@ bool valid_external_layout(const mkvc_gpu_external_frame_config& config, std::st
 }
 
 /** Build an owned lease while preserving the external producer's release rules. */
-mkvc_result import_external_with_completion(const mkvc_gpu_external_frame_config& config,
-                                            std::shared_ptr<mkvc::gpu::Completion> producer,
-                                            mkvc_gpu_frame** out_frame) {
+mkvc_result import_with_completion(const mkvc_gpu_external_frame_config& config,
+                                   std::shared_ptr<Completion> producer,
+                                   mkvc_gpu_frame** out_frame) {
     try {
         const auto release = config.release;
         void* const user_data = config.user_data;
@@ -120,18 +113,18 @@ mkvc_result import_external_with_completion(const mkvc_gpu_external_frame_config
             config.frame, std::move(producer), std::move(recycle), config.native_handle, resource);
         *out_frame = mkvc::gpu::make_handle(core);
         if (*out_frame == nullptr) {
-            return gpu_fail(MKVC_ERROR_INTERNAL, "failed to allocate external GPU frame handle");
+            return fail(MKVC_ERROR_INTERNAL, "failed to allocate external GPU frame handle");
         }
         accepted->store(true, std::memory_order_release);
         return MKVC_OK;
     } catch (const std::exception& exception) {
-        return gpu_fail(MKVC_ERROR_INTERNAL, exception.what());
+        return fail(MKVC_ERROR_INTERNAL, exception.what());
     } catch (...) {
-        return gpu_fail(MKVC_ERROR_INTERNAL, "unknown external GPU frame import failure");
+        return fail(MKVC_ERROR_INTERNAL, "unknown external GPU frame import failure");
     }
 }
 
-}  // namespace
+}  // namespace mkvc::gpu::external
 
 extern "C" {
 
@@ -140,12 +133,13 @@ mkvc_result mkvc_gpu_frame_import_external(const mkvc_gpu_external_frame_config*
     mkvc_last_error.clear();
     if (config == nullptr || out_frame == nullptr || config->struct_size < sizeof(*config) ||
         config->struct_version != 1) {
-        return gpu_fail(MKVC_ERROR_INVALID_ARGUMENT, "invalid external GPU frame configuration");
+        return mkvc::gpu::external::fail(MKVC_ERROR_INVALID_ARGUMENT,
+                                         "invalid external GPU frame configuration");
     }
     *out_frame = nullptr;
     std::string error;
-    if (!valid_external_layout(*config, error)) {
-        return gpu_fail(MKVC_ERROR_INVALID_ARGUMENT, std::move(error));
+    if (!mkvc::gpu::external::valid_layout(*config, error)) {
+        return mkvc::gpu::external::fail(MKVC_ERROR_INVALID_ARGUMENT, std::move(error));
     }
     try {
         std::shared_ptr<mkvc::gpu::Completion> producer;
@@ -173,130 +167,12 @@ mkvc_result mkvc_gpu_frame_import_external(const mkvc_gpu_external_frame_config*
                     return MKVC_OK;
                 });
         }
-        return import_external_with_completion(*config, std::move(producer), out_frame);
+        return mkvc::gpu::external::import_with_completion(*config, std::move(producer), out_frame);
     } catch (const std::exception& exception) {
-        return gpu_fail(MKVC_ERROR_INTERNAL, exception.what());
+        return mkvc::gpu::external::fail(MKVC_ERROR_INTERNAL, exception.what());
     } catch (...) {
-        return gpu_fail(MKVC_ERROR_INTERNAL, "unknown external GPU frame import failure");
-    }
-}
-
-mkvc_result mkvc_gpu_frame_import_d3d11_fence(const mkvc_gpu_external_frame_config* config,
-                                              mkvc_gpu_frame** out_frame) {
-    mkvc_last_error.clear();
-    if (out_frame != nullptr) *out_frame = nullptr;
-    if (config == nullptr || out_frame == nullptr || config->struct_size < sizeof(*config) ||
-        config->struct_version != 1) {
-        return gpu_fail(MKVC_ERROR_INVALID_ARGUMENT, "invalid D3D11 fence import configuration");
-    }
-    try {
-        std::string error;
-        if (!valid_external_layout(*config, error))
-            return gpu_fail(MKVC_ERROR_INVALID_ARGUMENT, std::move(error));
-        if (config->frame.backend != MKVC_BACKEND_INTEL ||
-            config->frame.memory_type != MKVC_GPU_MEMORY_D3D11_TEXTURE ||
-            config->native_handle.type != MKVC_GPU_NATIVE_D3D11_TEXTURE ||
-            config->query != nullptr) {
-            return gpu_fail(MKVC_ERROR_INVALID_ARGUMENT,
-                            "D3D11 fence import requires Intel texture and no producer callback");
-        }
-        std::shared_ptr<mkvc::gpu::Completion> producer;
-        const auto result = mkvc::gpu::intel::load_d3d11_fence_completion(*config, producer, error);
-        if (result != MKVC_OK) return gpu_fail(result, std::move(error));
-        return import_external_with_completion(*config, std::move(producer), out_frame);
-    } catch (const std::exception& exception) {
-        return gpu_fail(MKVC_ERROR_INTERNAL, exception.what());
-    } catch (...) {
-        return gpu_fail(MKVC_ERROR_INTERNAL, "unknown D3D11 fence import failure");
-    }
-}
-
-mkvc_result mkvc_gpu_frame_import_va_surface(const mkvc_gpu_external_frame_config* config,
-                                             mkvc_gpu_frame** out_frame) {
-    mkvc_last_error.clear();
-    if (out_frame != nullptr) *out_frame = nullptr;
-    if (config == nullptr || out_frame == nullptr || config->struct_size < sizeof(*config) ||
-        config->struct_version != 1) {
-        return gpu_fail(MKVC_ERROR_INVALID_ARGUMENT, "invalid VA surface import configuration");
-    }
-    try {
-        std::string error;
-        if (!valid_external_layout(*config, error))
-            return gpu_fail(MKVC_ERROR_INVALID_ARGUMENT, std::move(error));
-        if (config->frame.backend != MKVC_BACKEND_INTEL ||
-            config->frame.memory_type != MKVC_GPU_MEMORY_VA_SURFACE ||
-            config->native_handle.type != MKVC_GPU_NATIVE_VA_SURFACE || config->query != nullptr) {
-            return gpu_fail(MKVC_ERROR_INVALID_ARGUMENT,
-                            "native VA import requires Intel VA surface and no producer callback");
-        }
-        std::shared_ptr<mkvc::gpu::Completion> producer;
-        const auto result = mkvc::gpu::intel::load_va_surface_completion(
-            config->native_handle.handles[0], config->native_handle.handles[1], producer, error);
-        if (result != MKVC_OK) return gpu_fail(result, std::move(error));
-        return import_external_with_completion(*config, std::move(producer), out_frame);
-    } catch (const std::exception& exception) {
-        return gpu_fail(MKVC_ERROR_INTERNAL, exception.what());
-    } catch (...) {
-        return gpu_fail(MKVC_ERROR_INTERNAL, "unknown native VA surface import failure");
-    }
-}
-
-mkvc_result mkvc_gpu_frame_import_cuda_event(const mkvc_gpu_external_frame_config* config,
-                                             mkvc_gpu_frame** out_frame) {
-    mkvc_last_error.clear();
-    if (config == nullptr || out_frame == nullptr || config->struct_size < sizeof(*config) ||
-        config->struct_version != 1) {
-        return gpu_fail(MKVC_ERROR_INVALID_ARGUMENT, "invalid CUDA event frame configuration");
-    }
-    *out_frame = nullptr;
-    std::string error;
-    if (!valid_external_layout(*config, error))
-        return gpu_fail(MKVC_ERROR_INVALID_ARGUMENT, std::move(error));
-    if (config->frame.backend != MKVC_BACKEND_NVIDIA || config->query != nullptr ||
-        config->native_handle.handles[3] == 0) {
-        return gpu_fail(MKVC_ERROR_INVALID_ARGUMENT,
-                        "CUDA event import requires NVIDIA, a native event, and no query callback");
-    }
-#if defined(MKVC_HAS_NVIDIA)
-    std::shared_ptr<mkvc::gpu::Completion> producer;
-    const mkvc_result result = mkvc::gpu::nvidia::load_cuda_event_completion(
-        config->native_handle.handles[1], config->native_handle.handles[3], producer, error);
-    if (result != MKVC_OK) return gpu_fail(result, std::move(error));
-    return import_external_with_completion(*config, std::move(producer), out_frame);
-#else
-    return gpu_fail(MKVC_ERROR_NOT_SUPPORTED, "CUDA event import was not enabled in this build");
-#endif
-}
-
-mkvc_result mkvc_gpu_frame_import_level_zero_event(const mkvc_gpu_external_frame_config* config,
-                                                   mkvc_gpu_frame** out_frame) {
-    mkvc_last_error.clear();
-    if (out_frame != nullptr) *out_frame = nullptr;
-    if (config == nullptr || out_frame == nullptr || config->struct_size < sizeof(*config) ||
-        config->struct_version != 1) {
-        return gpu_fail(MKVC_ERROR_INVALID_ARGUMENT,
-                        "invalid Level Zero event import configuration");
-    }
-    try {
-        std::string error;
-        if (!valid_external_layout(*config, error, true))
-            return gpu_fail(MKVC_ERROR_INVALID_ARGUMENT, std::move(error));
-        if (config->frame.backend != MKVC_BACKEND_INTEL ||
-            config->frame.memory_type != MKVC_GPU_MEMORY_USM ||
-            config->native_handle.type != MKVC_GPU_NATIVE_USM_POINTER ||
-            config->native_handle.handles[3] == 0 || config->query != nullptr) {
-            return gpu_fail(MKVC_ERROR_INVALID_ARGUMENT,
-                            "Level Zero event import requires Intel USM and no callback");
-        }
-        std::shared_ptr<mkvc::gpu::Completion> producer;
-        const mkvc_result result = mkvc::gpu::intel::load_level_zero_event_completion(
-            config->native_handle.handles[3], producer, error);
-        if (result != MKVC_OK) return gpu_fail(result, std::move(error));
-        return import_external_with_completion(*config, std::move(producer), out_frame);
-    } catch (const std::exception& exception) {
-        return gpu_fail(MKVC_ERROR_INTERNAL, exception.what());
-    } catch (...) {
-        return gpu_fail(MKVC_ERROR_INTERNAL, "unknown Level Zero event import failure");
+        return mkvc::gpu::external::fail(MKVC_ERROR_INTERNAL,
+                                         "unknown external GPU frame import failure");
     }
 }
 
