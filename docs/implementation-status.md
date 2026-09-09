@@ -20,6 +20,15 @@
 - GitHub Actions builds strict MkDocs HTML and stores `mkvcodec-documentation` for 30 days.
 - GitHub Pages publication remains disabled until an explicit public-release decision.
 
+## 2026-09-09: Python writer frame-view construction split
+
+`VideoWriter` now delegates NumPy dtype/shape/stride validation and native
+`FrameView` construction to `_frame_views.py`. Copied I420/NV12/packed writes
+and synchronous/asynchronous borrowed submissions share the same layout builder,
+while the public writer remains responsible for backend policy, submission,
+metrics and lifetime. Public methods, accepted formats and C ABI behavior are
+unchanged; the extracted helpers carry module and function docstrings.
+
 ## 2026-09-09: GPU frame/import and build-graph responsibility split
 
 GPU frame domain state now remains in `gpu_frame.cpp`, while the opaque handle

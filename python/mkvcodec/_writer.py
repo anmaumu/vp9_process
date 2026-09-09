@@ -5,13 +5,18 @@ from __future__ import annotations
 import ctypes as ct
 from pathlib import Path
 
-import numpy as np
-
 from . import _native as native
 from ._capabilities import _select_backend
 from ._cpu import CpuBuffer, Submission
+from ._frame_views import (
+    FrameInput,
+    make_borrowed_view,
+    make_i420_view,
+    make_nv12_view,
+    make_packed_view,
+)
 from ._gpu import GpuFrame
-from ._io_common import _fps_fraction, _plane_pointer, _read_metrics
+from ._io_common import _fps_fraction, _read_metrics
 from ._types import PipelineMetrics, U8Plane
 
 
@@ -156,27 +161,9 @@ class VideoWriter:
     ) -> bool:
         if self._closed:
             raise RuntimeError("writer is closed")
-        planes = tuple(np.asarray(plane) for plane in (y, u, v))
-        expected = (
-            (self._height, self._width),
-            (self._height // 2, self._width // 2),
-            (self._height // 2, self._width // 2),
+        frame = make_i420_view(
+            y, u, v, width=self._width, height=self._height, pts=pts
         )
-        for plane, shape in zip(planes, expected):
-            if plane.dtype != np.uint8 or plane.ndim != 2 or plane.shape != shape:
-                raise ValueError(f"I420 plane must be uint8 with shape {shape}")
-            if plane.strides[0] <= 0 or plane.strides[1] != 1:
-                raise ValueError("I420 planes require positive row stride and packed columns")
-        frame = native.FrameView()
-        frame.struct_size = ct.sizeof(frame)
-        frame.struct_version = 1
-        frame.pixel_format = native.MKVC_PIXEL_FORMAT_I420
-        frame.width = self._width
-        frame.height = self._height
-        for index, plane in enumerate(planes):
-            frame.planes[index] = _plane_pointer(plane)
-            frame.strides[index] = plane.strides[0]
-        frame.pts = pts
         return self._submit(frame, block=block)
 
     def write_i420(self, y: U8Plane, u: U8Plane, v: U8Plane, *, pts: int = -1) -> None:
@@ -186,24 +173,9 @@ class VideoWriter:
     def _write_nv12(self, y: U8Plane, uv: U8Plane, *, pts: int, block: bool) -> bool:
         if self._closed:
             raise RuntimeError("writer is closed")
-        planes = (np.asarray(y), np.asarray(uv))
-        expected = ((self._height, self._width),
-                    (self._height // 2, self._width))
-        for plane, shape in zip(planes, expected):
-            if plane.dtype != np.uint8 or plane.ndim != 2 or plane.shape != shape:
-                raise ValueError(f"NV12 plane must be uint8 with shape {shape}")
-            if plane.strides[0] <= 0 or plane.strides[1] != 1:
-                raise ValueError("NV12 planes require positive row stride and packed columns")
-        frame = native.FrameView()
-        frame.struct_size = ct.sizeof(frame)
-        frame.struct_version = 1
-        frame.pixel_format = native.MKVC_PIXEL_FORMAT_NV12
-        frame.width = self._width
-        frame.height = self._height
-        for index, plane in enumerate(planes):
-            frame.planes[index] = _plane_pointer(plane)
-            frame.strides[index] = plane.strides[0]
-        frame.pts = pts
+        frame = make_nv12_view(
+            y, uv, width=self._width, height=self._height, pts=pts
+        )
         return self._submit(frame, block=block)
 
     def write_nv12(self, y: U8Plane, uv: U8Plane, *, pts: int = -1) -> None:
@@ -235,21 +207,14 @@ class VideoWriter:
     ) -> bool:
         if self._closed:
             raise RuntimeError("writer is closed")
-        packed = np.asarray(array)
-        expected = (self._height, self._width, channels)
-        if packed.dtype != np.uint8 or packed.ndim != 3 or packed.shape != expected:
-            raise ValueError(f"packed frame must be uint8 with shape {expected}")
-        if packed.strides[0] <= 0 or packed.strides[1] != channels or packed.strides[2] != 1:
-            raise ValueError("packed frame requires interleaved channels and positive row stride")
-        frame = native.FrameView()
-        frame.struct_size = ct.sizeof(frame)
-        frame.struct_version = 1
-        frame.pixel_format = pixel_format
-        frame.width = self._width
-        frame.height = self._height
-        frame.planes[0] = _plane_pointer(packed)
-        frame.strides[0] = packed.strides[0]
-        frame.pts = pts
+        frame = make_packed_view(
+            array,
+            width=self._width,
+            height=self._height,
+            channels=channels,
+            pixel_format=pixel_format,
+            pts=pts,
+        )
         return self._submit(frame, block=block)
 
     def write_bgr(self, frame: U8Plane, *, pts: int = -1) -> None:
@@ -289,65 +254,24 @@ class VideoWriter:
 
     def _make_borrowed_view(
         self,
-        frame: U8Plane | tuple[U8Plane, U8Plane] |
-               tuple[U8Plane, U8Plane, U8Plane],
+        frame: FrameInput,
         *,
         format: str = "bgr",
         pts: int = -1,
     ) -> tuple[native.FrameView, tuple[U8Plane, ...]]:
         if self._closed:
             raise RuntimeError("writer is closed")
-        if format == "i420":
-            if not isinstance(frame, tuple) or len(frame) != 3:
-                raise ValueError("I420 borrowed input must contain (Y, U, V)")
-            planes = tuple(np.asarray(plane) for plane in frame)
-            expected = (
-                (self._height, self._width),
-                (self._height // 2, self._width // 2),
-                (self._height // 2, self._width // 2),
-            )
-            pixel_format = native.MKVC_PIXEL_FORMAT_I420
-        elif format == "nv12":
-            if not isinstance(frame, tuple) or len(frame) != 2:
-                raise ValueError("NV12 borrowed input must contain (Y, UV)")
-            planes = tuple(np.asarray(plane) for plane in frame)
-            expected = (
-                (self._height, self._width),
-                (self._height // 2, self._width),
-            )
-            pixel_format = native.MKVC_PIXEL_FORMAT_NV12
-        elif format in ("bgr", "rgb", "bgra"):
-            if isinstance(frame, tuple):
-                raise ValueError(f"{format} borrowed input must be one ndarray")
-            channels, pixel_format = {
-                "bgr": (3, native.MKVC_PIXEL_FORMAT_BGR24),
-                "rgb": (3, native.MKVC_PIXEL_FORMAT_RGB24),
-                "bgra": (4, native.MKVC_PIXEL_FORMAT_BGRA32),
-            }[format]
-            planes = (np.asarray(frame),)
-            expected = ((self._height, self._width, channels),)
-        else:
-            raise ValueError("format must be i420, nv12, bgr, rgb, or bgra")
-        for plane, shape in zip(planes, expected):
-            if plane.dtype != np.uint8 or plane.shape != shape:
-                raise ValueError(f"borrowed plane must be uint8 with shape {shape}")
-            if plane.strides[0] <= 0 or plane.strides[-1] != 1:
-                raise ValueError("borrowed planes require positive packed element stride")
-            if plane.ndim == 3 and plane.strides[1] != plane.shape[2]:
-                raise ValueError("borrowed packed frame must have interleaved channels")
-        view = native.FrameView()
-        view.struct_size, view.struct_version = ct.sizeof(view), 1
-        view.pixel_format = pixel_format
-        view.width, view.height, view.pts = self._width, self._height, pts
-        for index, plane in enumerate(planes):
-            view.planes[index] = _plane_pointer(plane)
-            view.strides[index] = plane.strides[0]
-        return view, planes
+        return make_borrowed_view(
+            frame,
+            format=format,
+            width=self._width,
+            height=self._height,
+            pts=pts,
+        )
 
     def write_borrowed(
         self,
-        frame: U8Plane | tuple[U8Plane, U8Plane] |
-               tuple[U8Plane, U8Plane, U8Plane],
+        frame: FrameInput,
         *,
         format: str = "bgr",
         pts: int = -1,
@@ -362,8 +286,7 @@ class VideoWriter:
 
     def submit_borrowed(
         self,
-        frame: U8Plane | tuple[U8Plane, U8Plane] |
-               tuple[U8Plane, U8Plane, U8Plane],
+        frame: FrameInput,
         *,
         format: str = "bgr",
         pts: int = -1,
