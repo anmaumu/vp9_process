@@ -20,6 +20,15 @@
 - GitHub Actions builds strict MkDocs HTML and stores `mkvcodec-documentation` for 30 days.
 - GitHub Pages publication remains disabled until an explicit public-release decision.
 
+## 2026-09-10: Python capture output-copy responsibility split
+
+Native frame-view acquisition and I420/NV12/BGR/RGB/BGRA NumPy copy construction
+now live in `_frame_outputs.py`. Direct capture reads and processed-frame reads
+share those helpers, including conversion-thread options and copied timestamps.
+`VideoCapture` retains decoder sequencing, GPU-resident policy, processing-plan
+submission and native handle release. Public methods, output ownership and
+end-of-stream behavior are unchanged; the extracted functions are documented.
+
 ## 2026-09-10: Python CPU ownership responsibility split
 
 Decoded read-only frame ownership now lives in `_borrowed_cpu_frame.py`, while

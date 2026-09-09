@@ -6,13 +6,12 @@ import ctypes as ct
 from pathlib import Path
 from typing import Iterator
 
-import numpy as np
-
 from . import _native as native
 from ._capabilities import _select_backend
 from ._cpu import BorrowedCpuFrame
+from ._frame_outputs import copy_i420, copy_nv12, copy_packed, get_frame_view
 from ._gpu import GpuFrame
-from ._io_common import _plane_pointer, _read_metrics
+from ._io_common import _read_metrics
 from ._types import CpuFrame, PipelineMetrics, U8Plane
 
 
@@ -135,19 +134,7 @@ class VideoCapture(Iterator[U8Plane]):
 
     @staticmethod
     def _get_view(handle: native.FrameHandle) -> native.FrameView:
-        view = native.FrameView()
-        view.struct_size = ct.sizeof(view)
-        view.struct_version = 1
-        native.check(native.lib.mkvc_frame_get_view(handle, ct.byref(view)))
-        return view
-
-    def _copy_options(self) -> native.FrameCopyOptions:
-        """Build versioned options for one native CPU frame copy."""
-        options = native.FrameCopyOptions()
-        options.struct_size = ct.sizeof(options)
-        options.struct_version = 1
-        options.conversion_threads = self._conversion_threads
-        return options
+        return get_frame_view(handle)
 
     def read_i420(self) -> CpuFrame | None:
         """Read one copied I420 frame, or ``None`` at end of stream."""
@@ -158,17 +145,8 @@ class VideoCapture(Iterator[U8Plane]):
             view = self._get_view(handle)
             if view.pixel_format != native.MKVC_PIXEL_FORMAT_I420:
                 raise RuntimeError("native decoder returned a non-I420 frame")
-            arrays: list[U8Plane] = []
-            for index in range(3):
-                width = view.width if index == 0 else view.width // 2
-                height = view.height if index == 0 else view.height // 2
-                byte_count = view.strides[index] * height
-                raw = np.ctypeslib.as_array(view.planes[index], shape=(byte_count,))
-                arrays.append(
-                    raw.reshape(height, view.strides[index])[:, :width].copy()
-                )
             self.last_pts_ns = view.pts
-            return CpuFrame(arrays[0], arrays[1], arrays[2], view.pts)
+            return copy_i420(view)
         finally:
             native.lib.mkvc_frame_release(handle)
 
@@ -209,23 +187,15 @@ class VideoCapture(Iterator[U8Plane]):
             return None
         try:
             source = self._get_view(handle)
-            destination_array = np.empty(
-                (source.height, source.width, channels), dtype=np.uint8
+            output, pts = copy_packed(
+                handle,
+                source,
+                channels=channels,
+                pixel_format=pixel_format,
+                conversion_threads=self._conversion_threads,
             )
-            destination = native.MutableFrameView()
-            destination.struct_size = ct.sizeof(destination)
-            destination.struct_version = 1
-            destination.pixel_format = pixel_format
-            destination.width = source.width
-            destination.height = source.height
-            destination.planes[0] = _plane_pointer(destination_array)
-            destination.strides[0] = destination_array.strides[0]
-            options = self._copy_options()
-            native.check(native.lib.mkvc_frame_copy_to_ex(
-                handle, ct.byref(destination), ct.byref(options)
-            ))
-            self.last_pts_ns = destination.pts
-            return destination_array
+            self.last_pts_ns = pts
+            return output
         finally:
             native.lib.mkvc_frame_release(handle)
 
@@ -283,44 +253,22 @@ class VideoCapture(Iterator[U8Plane]):
             view = self._get_view(processed_handle)
             self.last_pts_ns = view.pts
             if format == "i420":
-                arrays: list[U8Plane] = []
-                for index in range(3):
-                    width = view.width if index == 0 else view.width // 2
-                    height = view.height if index == 0 else view.height // 2
-                    raw = np.ctypeslib.as_array(
-                        view.planes[index], shape=(view.strides[index] * height,)
-                    )
-                    arrays.append(raw.reshape(height, view.strides[index])[:, :width].copy())
-                return CpuFrame(arrays[0], arrays[1], arrays[2], view.pts)
+                return copy_i420(view)
             if format == "nv12":
-                y = np.empty((view.height, view.width), dtype=np.uint8)
-                uv = np.empty((view.height // 2, view.width), dtype=np.uint8)
-                destination = native.MutableFrameView()
-                destination.struct_size = ct.sizeof(destination)
-                destination.struct_version = 1
-                destination.pixel_format = native.MKVC_PIXEL_FORMAT_NV12
-                destination.width, destination.height = view.width, view.height
-                destination.planes[0], destination.planes[1] = _plane_pointer(y), _plane_pointer(uv)
-                destination.strides[0], destination.strides[1] = y.strides[0], uv.strides[0]
-                native.check(native.lib.mkvc_frame_copy_to(processed_handle, ct.byref(destination)))
-                return y, uv
+                output, _ = copy_nv12(processed_handle, view)
+                return output
             channels, pixel_format = {
                 "bgr": (3, native.MKVC_PIXEL_FORMAT_BGR24),
                 "rgb": (3, native.MKVC_PIXEL_FORMAT_RGB24),
                 "bgra": (4, native.MKVC_PIXEL_FORMAT_BGRA32),
             }[format]
-            output = np.empty((view.height, view.width, channels), dtype=np.uint8)
-            destination = native.MutableFrameView()
-            destination.struct_size = ct.sizeof(destination)
-            destination.struct_version = 1
-            destination.pixel_format = pixel_format
-            destination.width, destination.height = view.width, view.height
-            destination.planes[0] = _plane_pointer(output)
-            destination.strides[0] = output.strides[0]
-            options = self._copy_options()
-            native.check(native.lib.mkvc_frame_copy_to_ex(
-                processed_handle, ct.byref(destination), ct.byref(options)
-            ))
+            output, _ = copy_packed(
+                processed_handle,
+                view,
+                channels=channels,
+                pixel_format=pixel_format,
+                conversion_threads=self._conversion_threads,
+            )
             return output
         finally:
             if processed_handle:
@@ -346,21 +294,9 @@ class VideoCapture(Iterator[U8Plane]):
             return None
         try:
             source = self._get_view(handle)
-            y = np.empty((source.height, source.width), dtype=np.uint8)
-            uv = np.empty((source.height // 2, source.width), dtype=np.uint8)
-            destination = native.MutableFrameView()
-            destination.struct_size = ct.sizeof(destination)
-            destination.struct_version = 1
-            destination.pixel_format = native.MKVC_PIXEL_FORMAT_NV12
-            destination.width = source.width
-            destination.height = source.height
-            destination.planes[0] = _plane_pointer(y)
-            destination.planes[1] = _plane_pointer(uv)
-            destination.strides[0] = y.strides[0]
-            destination.strides[1] = uv.strides[0]
-            native.check(native.lib.mkvc_frame_copy_to(handle, ct.byref(destination)))
-            self.last_pts_ns = destination.pts
-            return y, uv
+            output, pts = copy_nv12(handle, source)
+            self.last_pts_ns = pts
+            return output
         finally:
             native.lib.mkvc_frame_release(handle)
 
