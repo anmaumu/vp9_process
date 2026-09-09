@@ -6,8 +6,8 @@ import ctypes as ct
 from pathlib import Path
 
 from . import _native as native
-from ._capabilities import _select_backend
 from ._cpu import CpuBuffer, Submission
+from ._encoder_config import build_encoder_config
 from ._frame_views import (
     FrameInput,
     make_borrowed_view,
@@ -16,7 +16,7 @@ from ._frame_views import (
     make_packed_view,
 )
 from ._gpu import GpuFrame
-from ._io_common import _fps_fraction, _read_metrics
+from ._io_common import _read_metrics
 from ._types import PipelineMetrics, U8Plane
 
 
@@ -60,48 +60,19 @@ class VideoWriter:
         queue_size: int | None = None,
         require_gpu_resident: bool = False,
     ) -> None:
-        if codec not in ("vp9", "av1") or backend not in (
-            "auto", "cpu", "intel", "nvidia"
-        ):
-            raise ValueError(
-                "the Python writer supports VP9/AV1 on CPU, Intel or NVIDIA"
-            )
-        if backend == "auto":
-            backend = _select_backend(codec, "encode", require_gpu_resident)
-        if queue_size is None:
-            queue_size = 0 if require_gpu_resident else 8
-        if require_gpu_resident and backend not in ("intel", "nvidia"):
-            raise ValueError(
-                "require_gpu_resident requires the Intel or NVIDIA backend"
-            )
-        if require_gpu_resident and queue_size != 0:
-            raise ValueError(
-                "require_gpu_resident currently requires queue_size=0"
-            )
+        config, backend = build_encoder_config(
+            path,
+            codec=codec,
+            backend=backend,
+            fps=fps,
+            frame_size=frame_size,
+            quality=quality,
+            keyframe_interval_frames=keyframe_interval_frames,
+            threads=threads,
+            queue_size=queue_size,
+            require_gpu_resident=require_gpu_resident,
+        )
         width, height = frame_size
-        rate = _fps_fraction(fps)
-        encoded_path = str(Path(path)).encode("utf-8")
-        config = native.EncoderConfig()
-        config.struct_size = ct.sizeof(config)
-        config.struct_version = 1
-        config.output_path_utf8 = encoded_path
-        config.codec = (native.MKVC_CODEC_VP9 if codec == "vp9" else
-                        native.MKVC_CODEC_AV1)
-        config.backend = {
-            "cpu": native.MKVC_BACKEND_CPU,
-            "intel": native.MKVC_BACKEND_INTEL,
-            "nvidia": native.MKVC_BACKEND_NVIDIA,
-        }[backend]
-        config.width = width
-        config.height = height
-        config.fps_num = rate.numerator
-        config.fps_den = rate.denominator
-        config.quality = quality
-        config.keyframe_interval_frames = keyframe_interval_frames
-        config.threads = threads
-        if queue_size < 0:
-            raise ValueError("queue_size must be zero or positive")
-        config.queue_size = queue_size
         self._handle = native.EncoderHandle()
         native.check(native.lib.mkvc_encoder_create(ct.byref(config), ct.byref(self._handle)))
         if require_gpu_resident:

@@ -20,6 +20,15 @@
 - GitHub Actions builds strict MkDocs HTML and stores `mkvcodec-documentation` for 30 days.
 - GitHub Pages publication remains disabled until an explicit public-release decision.
 
+## 2026-09-10: Python encoder-config construction split
+
+Python codec/backend selection, default queue policy, FPS normalization and
+versioned `EncoderConfig` construction now live in `_encoder_config.py`.
+`VideoWriter` retains native session creation, GPU copy-policy application,
+submission and cleanup. The path bytes remain owned by the returned ctypes
+structure through creation. Public constructor defaults, validation errors and
+backend selection behavior are unchanged.
+
 ## 2026-09-10: Python processing-plan construction split
 
 `read_processed()` now delegates option validation and versioned CPU
