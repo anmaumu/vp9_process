@@ -32,8 +32,10 @@ semantics, release callbacks and the ABI fingerprint are unchanged.
 The root CMake file now delegates dependency discovery and the library's source,
 compile-definition and link topology to `MkvcDependencies.cmake` and
 `MkvcLibrary.cmake`. A single `MKVC_HAS_CODEC_BACKEND` decision replaces repeated
-four-backend conditions. Backend test modules and public options retain their
-previous names and behavior.
+four-backend conditions. Backend-neutral native tests, CPU VP9 fixture tests and
+.NET smoke tests now live in `MkvcCoreTests.cmake`; the 93-line root file retains
+only public options and orchestration. Backend test modules, test names, fixtures
+and public options retain their previous names and behavior.
 
 ## 2026-09-09: Classic MSVC x64 SIMD 24-bit packing
 
