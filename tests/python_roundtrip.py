@@ -243,6 +243,13 @@ def main() -> None:
                     )
 
         with mkvcodec.VideoCapture(path, prefetch=0) as capture:
+            expect_value_error(lambda: capture.read_processed(fit="invalid"))
+            expect_value_error(lambda: capture.read_processed(rotate=45))
+            expect_value_error(lambda: capture.read_processed(format="gray"))
+            expect_value_error(
+                lambda: capture.read_processed(background=(0, 0, 256))
+            )
+            assert capture.last_pts_ns is None
             processed = capture.read_processed(
                 crop=(8, 4, 48, 40),
                 size=(80, 80),

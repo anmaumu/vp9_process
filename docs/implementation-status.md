@@ -20,6 +20,15 @@
 - GitHub Actions builds strict MkDocs HTML and stores `mkvcodec-documentation` for 30 days.
 - GitHub Pages publication remains disabled until an explicit public-release decision.
 
+## 2026-09-10: Python processing-plan construction split
+
+`read_processed()` now delegates option validation and versioned CPU
+`FrameProcessConfig` construction to `_processing_plan.py`. Invalid fit, rotation,
+output format and background requests are rejected before consuming a decoded
+frame; regression coverage now asserts that ordering explicitly. Crop, resize,
+fit, rotation, flip and background values retain their native representation.
+The public processing API and CPU-only behavior are unchanged.
+
 ## 2026-09-10: Python capture output-copy responsibility split
 
 Native frame-view acquisition and I420/NV12/BGR/RGB/BGRA NumPy copy construction

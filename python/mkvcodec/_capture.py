@@ -12,6 +12,7 @@ from ._cpu import BorrowedCpuFrame
 from ._frame_outputs import copy_i420, copy_nv12, copy_packed, get_frame_view
 from ._gpu import GpuFrame
 from ._io_common import _read_metrics
+from ._processing_plan import build_process_config
 from ._types import CpuFrame, PipelineMetrics, U8Plane
 
 
@@ -216,37 +217,21 @@ class VideoCapture(Iterator[U8Plane]):
         This initial implementation is CPU-resident. GPU captures return an
         explicit not-supported error instead of silently copying to the CPU.
         """
-        if fit not in ("stretch", "contain", "cover"):
-            raise ValueError("fit must be stretch, contain, or cover")
-        if rotate not in (0, 90, 180, 270):
-            raise ValueError("rotate must be 0, 90, 180, or 270")
-        if format not in ("bgr", "rgb", "bgra", "i420", "nv12"):
-            raise ValueError("unsupported output format")
-        if any(value < 0 or value > 255 for value in background):
-            raise ValueError("background components must be in [0, 255]")
+        config = build_process_config(
+            size=size,
+            crop=crop,
+            fit=fit,
+            rotate=rotate,
+            flip_horizontal=flip_horizontal,
+            flip_vertical=flip_vertical,
+            background=background,
+            output_format=format,
+        )
         source_handle = self._read_handle()
         if source_handle is None:
             return None
         processed_handle = native.FrameHandle()
         try:
-            config = native.FrameProcessConfig()
-            config.struct_size = ct.sizeof(config)
-            config.struct_version = 1
-            config.backend = native.MKVC_BACKEND_CPU
-            if crop is not None:
-                config.crop_x, config.crop_y, config.crop_width, config.crop_height = crop
-            if size is not None:
-                config.output_width, config.output_height = size
-            config.fit = {
-                "stretch": native.MKVC_FRAME_FIT_STRETCH,
-                "contain": native.MKVC_FRAME_FIT_CONTAIN,
-                "cover": native.MKVC_FRAME_FIT_COVER,
-            }[fit]
-            config.rotation = rotate
-            config.flip_horizontal = flip_horizontal
-            config.flip_vertical = flip_vertical
-            r, g, b = background
-            config.background_rgba = (r << 24) | (g << 16) | (b << 8) | 255
             native.check(native.lib.mkvc_frame_process(
                 source_handle, ct.byref(config), ct.byref(processed_handle)
             ))
