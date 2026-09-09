@@ -20,6 +20,16 @@
 - GitHub Actions builds strict MkDocs HTML and stores `mkvcodec-documentation` for 30 days.
 - GitHub Pages publication remains disabled until an explicit public-release decision.
 
+## 2026-09-10: Python CPU ownership responsibility split
+
+Decoded read-only frame ownership now lives in `_borrowed_cpu_frame.py`, while
+asynchronous encoder completion and retained-input ownership live in
+`_submission.py`. `_cpu.py` retains the writable native buffer and fixed-capacity
+pool implementation and re-exports all four public types for import compatibility.
+The shared ndarray subclass in `_cpu_array.py` continues to propagate native
+leases through NumPy slices. Public type identities, close semantics and generated
+API documentation are unchanged.
+
 ## 2026-09-09: Python writer frame-view construction split
 
 `VideoWriter` now delegates NumPy dtype/shape/stride validation and native
