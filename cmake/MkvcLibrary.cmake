@@ -19,6 +19,7 @@ add_library(mkvcodec SHARED
     src/cpu_vp9_encoder.cpp
     src/cpu_vp9_encoder_runtime.cpp
     src/cpu_vp9_decoder.cpp
+    src/cpu_vp9_decoder_runtime.cpp
     src/cpu_frame_pool.cpp
     src/cpu_conversion_workers.cpp
     src/frame_conversion.cpp
@@ -50,6 +51,7 @@ add_library(mkvcodec SHARED
     src/cpu_av1_encoder.cpp
     src/cpu_av1_encoder_runtime.cpp
     src/cpu_av1_decoder.cpp
+    src/cpu_av1_decoder_runtime.cpp
     src/intel_vpl_probe.cpp
     src/intel_vpl_encoder.cpp
     src/intel_vpl_decoder.cpp

@@ -62,6 +62,13 @@ submission, CPU/GPU collection and drain logic, and close-time synchronization.
 Surface release order, device-loss injection, GPU-pool backpressure, async-depth
 metrics and FIFO output behavior remain unchanged.
 
+## 2026-09-11: CPU VP9/AV1 decoder runtime split
+
+The CPU decoders now expose thin create/read/close lifecycle facades over
+codec-specific state and runtime modules. Incremental libwebm reads, submitted
+packet timestamp ownership, I420 extraction, VP9 null drain, AV1 temporal-unit
+completion and idempotent codec destruction retain their existing behavior.
+
 ## 2026-09-11: Container EBML primitive split
 
 Container suffix and DocType policy remain in `container_format.cpp`, while

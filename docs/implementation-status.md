@@ -91,6 +91,8 @@ GPU vendor driver/runtimeはwheel/NuGetへ同梱せず、実行環境側の責�
   Windows/Linux固有のload・symbol・close処理の重複を解消した。
 - Intel decoder queueはmutable state、DecodeFrameAsync submit、CPU/GPU collect・
   drain、close-time sync/releaseを別translation unitへ分離した。
+- CPU VP9/AV1 decoderはpublic create/read/close lifecycle、mutable state、
+  libvpx/libaom demux・decode・I420 extraction runtimeを分離した。
 - Python writerはframe-view/config構築、captureはoutput copy/process plan構築、CPU
   ownershipはdecoded lease/pool/submissionへ分離した。
 - Intel USMはnative reservation、writable slot/ownership transfer、pool/backpressureを
