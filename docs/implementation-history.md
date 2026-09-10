@@ -24,6 +24,14 @@
 - GitHub Actions builds strict MkDocs HTML and stores `mkvcodec-documentation` for 30 days.
 - GitHub Pages publication remains disabled until an explicit public-release decision.
 
+## 2026-09-11: NVIDIA NVENC encoder submission split
+
+The NVIDIA encoder now separates its public create/flush/close lifecycle,
+mutable state, and CPU/CUDA submission pipeline. Timestamp and GOP selection,
+CUDA-context binding, NVENC submission, packet muxing and post-mux counter
+commit live in one documented internal adapter. CPU conversion and direct CUDA
+resource paths retain their existing validation, copy and lifetime behavior.
+
 ## 2026-09-11: Container EBML primitive split
 
 Container suffix and DocType policy remain in `container_format.cpp`, while

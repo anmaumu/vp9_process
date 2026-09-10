@@ -1,84 +1,25 @@
 #include "nvidia_webm_encoder.hpp"
 
-#include "gpu/gpu_frame.hpp"
+#include "gpu/nvidia/nvenc_encoder_submission.hpp"
 #include "nvidia_probe.hpp"
-#include "webm_muxer.hpp"
+#include "nvidia_webm_encoder_state.hpp"
 
 #if defined(MKVC_HAS_NVIDIA)
-#include <ffnvcodec/dynlink_cuda.h>
-
 #include "gpu/nvidia/nvenc_api.hpp"
-#include "gpu/nvidia/nvenc_cpu_conversion.hpp"
-#include "gpu/nvidia/nvenc_cpu_submission.hpp"
-#include "gpu/nvidia/nvenc_gpu_frame_validation.hpp"
-#include "gpu/nvidia/nvenc_gpu_submission.hpp"
 #include "gpu/nvidia/nvenc_packet_io.hpp"
 #include "gpu/nvidia/nvenc_session.hpp"
 #endif
 
 #include <algorithm>
 #include <limits>
-#include <vector>
 
 namespace mkvc {
-
-struct NvidiaWebmEncoder::Impl {
-#if defined(MKVC_HAS_NVIDIA)
-    std::unique_ptr<gpu::nvidia::NvencApi> api;
-    std::unique_ptr<gpu::nvidia::NvencSessionManager> session_manager;
-    std::unique_ptr<WebmMuxer> muxer;
-#endif
-    uint32_t width = 0;
-    uint32_t height = 0;
-    uint32_t fps_num = 0;
-    uint32_t fps_den = 0;
-    uint32_t keyframe_interval = 0;
-    uint64_t frame_index = 0;
-    int64_t next_pts = 0;
-    bool closed = false;
-    std::vector<uint8_t> i420;
-    std::vector<uint8_t> nv12;
-};
 
 NvidiaWebmEncoder::NvidiaWebmEncoder() : impl_(std::make_unique<Impl>()) {}
 NvidiaWebmEncoder::~NvidiaWebmEncoder() {
     std::string ignored;
     close(ignored);
 }
-
-#if defined(MKVC_HAS_NVIDIA)
-namespace {
-
-/** Timestamp and picture flags selected before one synchronous submission. */
-struct PictureTiming {
-    int64_t pts_ns = 0;
-    int64_t duration_ns = 0;
-    bool force_keyframe = false;
-};
-
-mkvc_result mux_packet(NvidiaWebmEncoder::Impl& state, std::string& error) {
-    const uint64_t default_duration =
-        static_cast<uint64_t>(state.fps_den) * 1000000000ULL / state.fps_num;
-    return gpu::nvidia::mux_nvenc_packet(*state.api, state.session_manager->session(), *state.muxer,
-                                         default_duration, error);
-}
-
-/** Select monotonic fallback timing and the configured GOP boundary. */
-PictureTiming select_picture_timing(const NvidiaWebmEncoder::Impl& state, int64_t requested_pts) {
-    const int64_t duration =
-        static_cast<int64_t>(static_cast<uint64_t>(state.fps_den) * 1000000000ULL / state.fps_num);
-    return {requested_pts >= 0 ? requested_pts : state.next_pts, duration,
-            state.frame_index % state.keyframe_interval == 0};
-}
-
-/** Commit counters only after both NVENC submission and container mux succeed. */
-void commit_picture(NvidiaWebmEncoder::Impl& state, const PictureTiming& timing) {
-    ++state.frame_index;
-    state.next_pts = std::max(state.next_pts, timing.pts_ns + timing.duration_ns);
-}
-
-}  // namespace
-#endif
 
 std::unique_ptr<NvidiaWebmEncoder> NvidiaWebmEncoder::create(const mkvc_encoder_config& config,
                                                              std::string& error) {
@@ -128,29 +69,7 @@ mkvc_result NvidiaWebmEncoder::write_gpu(const std::shared_ptr<gpu::GpuFrameCore
     error = "NVIDIA backend was not built";
     return MKVC_ERROR_NOT_SUPPORTED;
 #else
-    auto& state = *impl_;
-    if (state.closed) {
-        error = "NVIDIA encoder is closed";
-        return MKVC_ERROR_INVALID_STATE;
-    }
-    gpu::nvidia::NvencCudaFrameView input;
-    mkvc_result result =
-        gpu::nvidia::prepare_nvenc_cuda_frame(frame, state.width, state.height, input, error);
-    if (result != MKVC_OK) return result;
-    const auto source_context =
-        reinterpret_cast<CUcontext>(static_cast<uintptr_t>(input.context_handle));
-    result = state.session_manager->bind_cuda_context(*state.api, source_context, frame,
-                                                      state.frame_index, error);
-    if (result != MKVC_OK) return result;
-
-    const PictureTiming timing = select_picture_timing(state, input.pts_ns);
-    result = gpu::nvidia::submit_nvenc_cuda_frame(
-        *state.api, state.session_manager->session(), input.cuda_array, input.resource_handle,
-        state.width, state.height, input.pitch, state.frame_index, timing.pts_ns,
-        timing.duration_ns, timing.force_keyframe, error);
-    if (result == MKVC_OK) result = mux_packet(state, error);
-    if (result == MKVC_OK) commit_picture(state, timing);
-    return result;
+    return gpu::nvidia::write_nvenc_gpu_frame(*impl_, frame, error);
 #endif
 }
 
@@ -160,26 +79,7 @@ mkvc_result NvidiaWebmEncoder::write(const mkvc_frame_view& frame, std::string& 
     error = "NVIDIA backend was not built";
     return MKVC_ERROR_NOT_SUPPORTED;
 #else
-    auto& state = *impl_;
-    if (state.closed) {
-        error = "NVIDIA encoder is closed";
-        return MKVC_ERROR_INVALID_STATE;
-    }
-    if (frame.width != state.width || frame.height != state.height) {
-        error = "frame dimensions do not match NVIDIA encoder";
-        return MKVC_ERROR_INVALID_ARGUMENT;
-    }
-    mkvc_result result = gpu::nvidia::convert_nvenc_input_to_nv12(frame, state.width, state.height,
-                                                                  state.i420, state.nv12, error);
-    if (result != MKVC_OK) return result;
-    const PictureTiming timing = select_picture_timing(state, frame.pts);
-    result = gpu::nvidia::submit_nvenc_cpu_frame(
-        *state.api, state.session_manager->session(), state.nv12.data(), state.width, state.height,
-        state.frame_index, timing.pts_ns, timing.duration_ns, timing.force_keyframe, error);
-    if (result != MKVC_OK) return result;
-    result = mux_packet(state, error);
-    if (result == MKVC_OK) commit_picture(state, timing);
-    return result;
+    return gpu::nvidia::write_nvenc_cpu_frame(*impl_, frame, error);
 #endif
 }
 

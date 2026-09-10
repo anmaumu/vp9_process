@@ -98,6 +98,7 @@ if(MKVC_ENABLE_NVIDIA)
         src/gpu/nvidia/nvenc_api.cpp
         src/gpu/nvidia/nvenc_cpu_conversion.cpp
         src/gpu/nvidia/nvenc_cpu_submission.cpp
+        src/gpu/nvidia/nvenc_encoder_submission.cpp
         src/gpu/nvidia/nvenc_gpu_frame_validation.cpp
         src/gpu/nvidia/nvenc_gpu_submission.cpp
         src/gpu/nvidia/nvenc_packet_io.cpp
