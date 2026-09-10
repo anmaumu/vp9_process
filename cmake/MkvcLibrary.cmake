@@ -21,6 +21,7 @@ add_library(mkvcodec SHARED
     src/cpu_conversion_workers.cpp
     src/frame_conversion.cpp
     src/frame_processor.cpp
+    src/frame_processor_i420.cpp
     src/gpu/gpu_external_import.cpp
     src/gpu/gpu_external_import_intel.cpp
     src/gpu/gpu_external_import_nvidia.cpp

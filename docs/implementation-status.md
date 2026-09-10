@@ -69,6 +69,8 @@ GPU vendor driver/runtimeはwheel/NuGetへ同梱せず、実行環境側の責�
   owner lifetime transferを共通化し、backend固有部をvalidationと同期方式に限定した。
 - External GPU importのscalar/frame-size検証はassemblyから分離し、公開例外messageを
   回帰テストで固定した。
+- CPU frame processorは処理フローとlibyuv I420 primitivesを別translation unitへ
+  分離し、将来のGPU processor追加時にbackend境界を共有しやすくした。
 - Python writerはframe-view/config構築、captureはoutput copy/process plan構築、CPU
   ownershipはdecoded lease/pool/submissionへ分離した。
 - Intel USMはnative reservation、writable slot/ownership transfer、pool/backpressureを

@@ -49,6 +49,15 @@ the backend import assembly. Public tests pin malformed frame-size, scalar,
 pitch and NV12-dimension error messages so later backend work cannot silently
 change the Python validation boundary.
 
+## 2026-09-10: CPU frame-processing primitive split
+
+The CPU processing coordinator now contains only policy validation and the
+crop/rotate/flip/fit pipeline. I420 allocation, copy, crop, rotation, mirror,
+bilinear scale and RGBA-background fill moved to a documented internal
+translation unit. Output pixels and public C ABI behavior remain unchanged,
+while a future GPU processor can reuse the coordinator boundary without
+depending on libyuv implementation details.
+
 ## 2026-09-10: Python Intel USM ownership split
 
 Native GPU-pool reservation lifetime now lives in
