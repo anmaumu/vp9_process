@@ -79,6 +79,8 @@ GPU vendor driver/runtimeはwheel/NuGetへ同梱せず、実行環境側の責�
   AV1 backendと同じ保守境界へ揃えた。
 - Async failure testはprocess固有temporary directoryを使い、同一host上の複数build
   matrixを並列実行してもartifactが衝突しない。
+- Intel oneVPL encoderはfacade stateとGPU surface submission adapterを分離し、
+  timestamp・imported wrapper・completion・queue進行を一つの内部境界へ集約した。
 - Python writerはframe-view/config構築、captureはoutput copy/process plan構築、CPU
   ownershipはdecoded lease/pool/submissionへ分離した。
 - Intel USMはnative reservation、writable slot/ownership transfer、pool/backpressureを

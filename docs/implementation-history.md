@@ -55,6 +55,15 @@ directory. Concurrent Intel and CPU build-matrix runs on the same Linux host
 can no longer remove or replace one another's injected-failure outputs. This
 fixes a test-harness race without changing library behavior.
 
+## 2026-09-11: Intel oneVPL GPU submission split
+
+The oneVPL encoder facade now keeps lifecycle and CPU submission, while a
+documented adapter owns compatible-surface validation, timestamp assignment,
+external wrapper acquisition, completion leases and ordered queue progress.
+The mutable facade state moved to an internal header shared only by these
+implementation units. Decode-to-encode remains GPU-resident and preserves the
+existing imported-surface retirement order.
+
 ## 2026-09-10: Python GPU frame native-access split
 
 `GpuFrame` keeps its documented import factories, interop discovery, plane

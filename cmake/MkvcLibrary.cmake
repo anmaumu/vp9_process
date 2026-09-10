@@ -135,6 +135,7 @@ if(MKVC_ENABLE_INTEL_ONEVPL)
         src/gpu/intel/vpl_encoder_sequence.cpp
         src/gpu/intel/vpl_encoder_runtime.cpp
         src/gpu/intel/vpl_encoder_queue.cpp
+        src/gpu/intel/vpl_gpu_submission.cpp
         src/gpu/intel/vpl_imported_surface_tracker.cpp
         src/gpu/intel/vpl_packet_muxer.cpp
         src/gpu/intel/vpl_surface_import.cpp)
