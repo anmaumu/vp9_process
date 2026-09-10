@@ -50,7 +50,7 @@ function(mkvc_add_nvidia_vp9_fixture_tests vp9_sample)
         tests/nvidia_webm_decoder_test.cpp
         tests/nvidia_gpu_test_support.cpp
         src/nvidia_webm_decoder.cpp src/nvidia_probe.cpp
-        src/container_format.cpp src/webm_packet_reader.cpp
+        src/container_format.cpp src/container_ebml.cpp src/webm_packet_reader.cpp
         src/gpu/gpu_frame.cpp src/gpu/gpu_frame_c_api.cpp
         src/gpu/gpu_frame_pool.cpp
         src/gpu/intel/va_completion.cpp

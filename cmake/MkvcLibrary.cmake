@@ -14,6 +14,7 @@ add_library(mkvcodec SHARED
     src/c_api_frame.cpp
     src/backend_registry.cpp
     src/container_format.cpp
+    src/container_ebml.cpp
     src/decoder/decoder_pipeline.cpp
     src/cpu_vp9_encoder.cpp
     src/cpu_vp9_decoder.cpp

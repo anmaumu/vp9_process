@@ -24,6 +24,14 @@
 - GitHub Actions builds strict MkDocs HTML and stores `mkvcodec-documentation` for 30 days.
 - GitHub Pages publication remains disabled until an explicit public-release decision.
 
+## 2026-09-11: Container EBML primitive split
+
+Container suffix and DocType policy remain in `container_format.cpp`, while
+bounded EBML header parsing, fixed-width size rewriting and atomic file
+replacement now live in a documented internal module. WebM validation and MKV
+finalization keep the same errors and on-disk behavior, with low-level byte
+handling isolated for focused maintenance.
+
 ## 2026-09-10: Python GPU frame native-access split
 
 `GpuFrame` keeps its documented import factories, interop discovery, plane
