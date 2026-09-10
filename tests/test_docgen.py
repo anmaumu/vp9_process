@@ -30,6 +30,8 @@ class DocgenTests(unittest.TestCase):
                 "api/c-abi.md",
                 "api/python.md",
                 "specification/external.md",
+                "implementation-status.md",
+                "implementation-history.md",
                 "docgen.md",
                 "abi-governance.md",
             )

@@ -121,7 +121,8 @@ timeout 35m python3 tests/python_intel_opencl_roundtrip.py \
 ```
 
 この実行例を記載したことは30分試験の実施済みを意味しない。実測結果は
-`docs/implementation-status.md`に分けて記録する。
+`docs/implementation-history.md`へ時系列で記録し、現在の合否だけを
+`docs/implementation-status.md`へ反映する。
 
 Arc/USM追加検証（TEST-GPU-005/008/009/013/014/019/020）:
 

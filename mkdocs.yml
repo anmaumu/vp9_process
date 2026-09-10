@@ -9,6 +9,7 @@ theme:
 nav:
   - Home: index.md
   - Implementation status: implementation-status.md
+  - Implementation history: implementation-history.md
   - Docgen: docgen.md
   - ABI governance: abi-governance.md
   - Specification:

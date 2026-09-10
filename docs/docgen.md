@@ -20,6 +20,7 @@ comments. Stable C ABI declarations are additionally protected by
 - `docs/design-model.json`
 - `docs/quality-gate.json`
 - `docs/implementation-status.md`
+- `docs/implementation-history.md`
 - `docs/abi-governance.md`
 - `include/mkvcodec/mkvc.h`
 - `python/mkvcodec/_types.py`、`_capabilities.py`、`_cpu.py`、`_borrowed_cpu_frame.py`、`_submission.py`、`_gpu.py`、`_gpu_plane.py`、`_intel_usm.py`、`_writer.py`、`_capture.py`、`_api.py`
