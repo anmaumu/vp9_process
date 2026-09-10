@@ -87,6 +87,8 @@ GPU vendor driver/runtimeはwheel/NuGetへ同梱せず、実行環境側の責�
   versioned descriptor・error mappingを担うC ABI translation unitへ分離した。
 - Encoder queueはowned/borrowed producer submissionと、flush barrier・cancel・
   worker close制御を別moduleへ分離し、backpressureとcompletion契約を維持した。
+- NVIDIA probeはcodec runtimeと同じRAII dynamic-library moduleを使用し、
+  Windows/Linux固有のload・symbol・close処理の重複を解消した。
 - Python writerはframe-view/config構築、captureはoutput copy/process plan構築、CPU
   ownershipはdecoded lease/pool/submissionへ分離した。
 - Intel USMはnative reservation、writable slot/ownership transfer、pool/backpressureを

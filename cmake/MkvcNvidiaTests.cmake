@@ -18,7 +18,8 @@ function(mkvc_add_nvidia_foundation_tests)
     add_test(NAME mkvc_nvenc_cpu_conversion COMMAND mkvc_nvenc_cpu_conversion_test)
 
     add_executable(mkvc_nvidia_probe_test
-        tests/nvidia_probe_test.cpp src/nvidia_probe.cpp)
+        tests/nvidia_probe_test.cpp src/nvidia_probe.cpp
+        src/gpu/nvidia/dynamic_library.cpp)
     target_compile_features(mkvc_nvidia_probe_test PRIVATE cxx_std_17)
     target_include_directories(mkvc_nvidia_probe_test PRIVATE
         src ${nv_codec_headers_SOURCE_DIR}/include)
@@ -50,6 +51,7 @@ function(mkvc_add_nvidia_vp9_fixture_tests vp9_sample)
         tests/nvidia_webm_decoder_test.cpp
         tests/nvidia_gpu_test_support.cpp
         src/nvidia_webm_decoder.cpp src/nvidia_probe.cpp
+        src/gpu/nvidia/dynamic_library.cpp
         src/container_format.cpp src/container_ebml.cpp src/webm_packet_reader.cpp
         src/gpu/gpu_frame.cpp src/gpu/gpu_frame_c_api.cpp
         src/gpu/gpu_frame_pool.cpp

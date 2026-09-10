@@ -48,6 +48,13 @@ Both producer paths preserve bounded backpressure, metrics and terminal-state
 propagation; control operations retain ordered flush tokens and cancellation
 completion of every queued borrowed submission.
 
+## 2026-09-11: NVIDIA probe dynamic-library consolidation
+
+The CUDA/NVDEC/NVENC capability probe now uses the same documented RAII
+dynamic-library wrapper as the runtime codec adapters. Probe behavior, driver
+filenames, required-symbol checks and runtime capability reporting remain
+unchanged, while platform module ownership is implemented only once.
+
 ## 2026-09-11: Container EBML primitive split
 
 Container suffix and DocType policy remain in `container_format.cpp`, while
