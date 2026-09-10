@@ -85,6 +85,8 @@ GPU vendor driver/runtimeはwheel/NuGetへ同梱せず、実行環境側の責�
   timestamp・GOP・CUDA context・mux・成功後counter更新を内部adapterへ集約した。
 - GPU resource poolはC++のslot・generation・backpressure本体と、opaque handle・
   versioned descriptor・error mappingを担うC ABI translation unitへ分離した。
+- Encoder queueはowned/borrowed producer submissionと、flush barrier・cancel・
+  worker close制御を別moduleへ分離し、backpressureとcompletion契約を維持した。
 - Python writerはframe-view/config構築、captureはoutput copy/process plan構築、CPU
   ownershipはdecoded lease/pool/submissionへ分離した。
 - Intel USMはnative reservation、writable slot/ownership transfer、pool/backpressureを

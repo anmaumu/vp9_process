@@ -11,6 +11,7 @@
 #include "encoder/encoder_backend_execution.hpp"
 #include "encoder/encoder_backend_factory.hpp"
 #include "encoder/encoder_queue_control.hpp"
+#include "encoder/encoder_queue_submission.hpp"
 #include "encoder/encoder_session_state.hpp"
 #include "encoder/encoder_worker.hpp"
 

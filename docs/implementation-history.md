@@ -40,6 +40,14 @@ descriptor translation, public validation and thread-local error mapping moved
 to a dedicated C ABI translation unit. Pool capacity, timeout and lifetime
 semantics remain unchanged.
 
+## 2026-09-11: Encoder queue submission/control split
+
+The asynchronous encoder queue now isolates owned-frame copying and borrowed
+submission ownership from flush barriers, cancellation and worker shutdown.
+Both producer paths preserve bounded backpressure, metrics and terminal-state
+propagation; control operations retain ordered flush tokens and cancellation
+completion of every queued borrowed submission.
+
 ## 2026-09-11: Container EBML primitive split
 
 Container suffix and DocType policy remain in `container_format.cpp`, while

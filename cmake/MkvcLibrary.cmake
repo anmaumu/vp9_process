@@ -44,6 +44,7 @@ add_library(mkvcodec SHARED
     src/encoder/encoder_backend_factory.cpp
     src/encoder/encoder_c_api_support.cpp
     src/encoder/encoder_queue_control.cpp
+    src/encoder/encoder_queue_submission.cpp
     src/encoder/encoder_worker.cpp
     src/encoder_session.cpp
     src/cpu_av1_encoder.cpp
