@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import ctypes as ct
 from typing import Callable
 
 from . import _native as native
@@ -12,6 +11,11 @@ from ._gpu_cuda import _import_dlpack_nv12 as _import_dlpack_nv12_impl
 from ._gpu_intel import _import_d3d11_texture as _import_d3d11_texture_impl
 from ._gpu_intel import _import_usm_nv12 as _import_usm_nv12_impl
 from ._gpu_intel import _import_va_surface as _import_va_surface_impl
+from ._gpu_frame_native import (
+    get_gpu_frame_descriptor,
+    get_gpu_native_handle,
+    wait_gpu_frame,
+)
 from ._gpu_interop import describe_interop
 from ._gpu_plane import GpuPlane
 from ._types import GpuInteropInfo
@@ -179,17 +183,7 @@ class GpuFrame:
         """
         if self._closed:
             raise RuntimeError("GPU frame is released")
-        value = native.GpuFrameDesc()
-        value.struct_size, value.struct_version = ct.sizeof(value), 1
-        native.check(native.lib.mkvc_gpu_frame_get_desc(self._handle, ct.byref(value)))
-        return {
-            "backend": value.backend, "memory_type": value.memory_type,
-            "device_id": value.device_id, "generation": value.generation,
-            "pixel_format": value.pixel_format, "width": value.width,
-            "height": value.height, "plane_count": value.plane_count,
-            "plane_offsets": tuple(value.plane_offsets),
-            "pitches": tuple(value.pitches), "pts_ns": value.pts,
-        }
+        return get_gpu_frame_descriptor(self._handle)
 
     @property
     def native_handle(self) -> dict[str, object]:
@@ -203,16 +197,7 @@ class GpuFrame:
         """
         if self._closed:
             raise RuntimeError("GPU frame is released")
-        value = native.GpuNativeHandleDesc()
-        value.struct_size, value.struct_version = ct.sizeof(value), 1
-        native.check(native.lib.mkvc_gpu_frame_get_native_handle(
-            self._handle, ct.byref(value)
-        ))
-        return {
-            "type": value.type, "borrowed": bool(value.borrowed),
-            "device_id": value.device_id, "generation": value.generation,
-            "handles": tuple(value.handles),
-        }
+        return get_gpu_native_handle(self._handle)
 
     @property
     def interop(self) -> GpuInteropInfo:
@@ -251,9 +236,7 @@ class GpuFrame:
         """
         if self._closed:
             raise RuntimeError("GPU frame is released")
-        if timeout_ms < 0 or timeout_ms > 0xFFFFFFFF:
-            raise ValueError("timeout_ms is outside uint32 range")
-        native.check(native.lib.mkvc_gpu_frame_wait(self._handle, timeout_ms))
+        wait_gpu_frame(self._handle, timeout_ms)
 
     def plane(self, index: int) -> "GpuPlane":
         """Return a GPU plane implementing the Python DLPack protocol.

@@ -63,6 +63,8 @@ GPU vendor driver/runtimeはwheel/NuGetへ同梱せず、実行環境側の責�
 - root CMakeは93行のorchestrationに縮小し、dependency、library、core/backend test
   definitionsをmoduleへ分離した。
 - GPU frameのdomain、C ABI、Intel/NVIDIA external importを別translation unitへ分離した。
+- Python `GpuFrame`は公開lease/import APIと、descriptor/native-handle/completionの
+  C ABI marshallingを分離した。
 - Python writerはframe-view/config構築、captureはoutput copy/process plan構築、CPU
   ownershipはdecoded lease/pool/submissionへ分離した。
 - Intel USMはnative reservation、writable slot/ownership transfer、pool/backpressureを

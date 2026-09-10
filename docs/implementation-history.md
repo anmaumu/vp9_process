@@ -24,6 +24,16 @@
 - GitHub Actions builds strict MkDocs HTML and stores `mkvcodec-documentation` for 30 days.
 - GitHub Pages publication remains disabled until an explicit public-release decision.
 
+## 2026-09-10: Python GPU frame native-access split
+
+`GpuFrame` keeps its documented import factories, interop discovery, plane
+creation and lease lifetime. Versioned descriptor/native-handle retrieval,
+normalization and bounded producer-completion wait now live in
+`_gpu_frame_native.py`. This avoids hiding public class methods behind a mixin,
+which the source API generator would not document. Returned dictionaries,
+timeout validation, optional DLPack injection and public type identity are
+unchanged.
+
 ## 2026-09-10: Python Intel USM ownership split
 
 Native GPU-pool reservation lifetime now lives in
