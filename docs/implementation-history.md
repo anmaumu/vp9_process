@@ -24,6 +24,14 @@
 - GitHub Actions builds strict MkDocs HTML and stores `mkvcodec-documentation` for 30 days.
 - GitHub Pages publication remains disabled until an explicit public-release decision.
 
+## 2026-09-11: Decoder seek deferred
+
+Decoder seek is explicitly outside the initial-release acceptance scope. The
+current API guarantees forward-only reads through EOS. A future timestamp seek
+design will cover previous-keyframe/exact modes, codec reset, prefetch restart,
+GPU pending-surface drain, VFR behavior and survival of already-issued frame
+leases before any public ABI is added.
+
 ## 2026-09-11: NVIDIA NVENC encoder submission split
 
 The NVIDIA encoder now separates its public create/flush/close lifecycle,

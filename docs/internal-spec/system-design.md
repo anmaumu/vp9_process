@@ -237,6 +237,11 @@ Status: `PROPOSED`
 - `INT-CONT-003`: VP9/AV1 CodecID、codec configuration、keyframe、PTS/durationを正しく設定する。
 - `INT-CONT-004`: closeでは全codec packet回収後にSegmentをfinalizeする。
 
+シークは将来拡張とし、現行demux cursorは単方向にのみ進める。実装時はCue/Cluster
+からのkeyframe探索、codec reset、exact seek時のforward decode、prefetch queueの
+停止・破棄・再起動、GPU pending surfaceのdrainを一つのtransactionとして扱う。
+既に外部へ貸し出したCPU/GPU frame leaseはseekによって無効化しない。
+
 ### 9.2 CPU
 
 - `INT-CPU-001`: VP9 encode/decodeはlibvpx、AV1 encodeはSVT-AV1、AV1 decodeはlibaomを使う。

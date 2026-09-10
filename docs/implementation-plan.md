@@ -44,6 +44,7 @@
 - [ ] Windows D3D11 Intel hardware verification
 - [x] Intel encoder multi-SyncPoint overlap and AsyncDepth 1/2/4/8 ordering tests
 - [x] Intel decoder multi-SyncPoint overlap and AsyncDepth 1/2/4/8 ordering tests
+- [ ] Future: timestamp-based decoder seek（previous-keyframe/exact、prefetch/GPU drain対応）
 - [x] Linux Intel decode surface→encoder direct shared-surface submission (no CPU Map/readback)
 - [x] Intel external D3D11/VA shared-import adapter with runtime interface/copy gate
 - [x] Linux Intel external VA import positive VP9 hardware qualification (same display, video-memory input)

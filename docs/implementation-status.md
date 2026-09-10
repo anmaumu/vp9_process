@@ -103,6 +103,12 @@ GPU vendor driver/runtimeはwheel/NuGetへ同梱せず、実行環境側の責�
   分離し、Arc B580の実USM/DLPack/VA/oneVPL往復で再認定した。
 - 公開API、ABI fingerprint、test名、fixture名はこれらの分割で変更していない。
 
+## Deferred feature scope
+
+- Decoder seekは初期リリース対象外で、現行APIは先頭からEOSまでの逐次readのみを
+  保証する。将来はtimestamp基準のprevious-keyframe/exact seekを先に設計し、
+  frame-index seekはVFR・frame count契約の確定後に検討する。
+
 ## Remaining acceptance work
 
 1. AV1対応NVIDIA GPUでNVDEC/NVENC positive GPU-resident transcodeを認定する。

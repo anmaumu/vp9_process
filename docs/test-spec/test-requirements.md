@@ -30,6 +30,10 @@ profile: test-spec@1.0
 | `TEST-DEC-002` | iterator、context manager、idempotent close/release | integration | CPU CI |
 | `TEST-DEC-003` | read_batchのsize、timeout、EOS | unit/integration | CPU CI |
 | `TEST-DEC-004` | prefetch 0/1/4/16、queue上限、hit/miss | performance | CPU/GPU CI |
+
+現行リリースでは逐次読み込みとEOSを試験対象とし、seek APIは受け入れ対象に含めない。
+将来seekを実装する際は、keyframe/exact精度、VFR、prefetch再起動、codec reset、
+GPU surface drain、既存frame leaseの継続有効性を追加試験として必須化する。
 | `TEST-ENC-001` | BGR/RGB/BGRA/I420/NV12 shape/dtype/stride | unit/integration | CPU CI |
 | `TEST-ENC-002` | write_batch、flush、遅延packet全回収 | integration | CPU/GPU CI |
 | `TEST-ENC-003` | queue満杯block、try_write WOULD_BLOCK、cancelがproducer/flush/submissionを起床しqueued workだけをcancel terminalへ遷移する | concurrency | CPU CI |

@@ -105,6 +105,11 @@ Status: `CONFIRMED`
 - `EXT-DEC-005`: end-of-streamではPython APIの単発readは`None`、iteratorは`StopIteration`とする。
 - `EXT-DEC-006`: CPU backendはnative decode planeをread-only NumPy viewとしてleaseする`read_borrowed`を提供し、owned `read`と明示的に区別する。
 
+シークは初期リリースの対象外とする。decoderは先頭からEOSまでの逐次読み込みを
+保証し、timestamp／frame indexによる位置変更APIは公開しない。将来版では
+timestamp基準の`previous_keyframe`と`exact`を優先し、frame-index seekは
+VFR・frame countの扱いを定義した後に検討する。
+
 ### 5.3 Encode
 
 - `EXT-ENC-001`: `VideoWriter`は`write`、context manager、idempotentな`flush/close/release`を提供する。
