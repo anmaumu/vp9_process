@@ -45,6 +45,7 @@ add_library(mkvcodec SHARED
     src/encoder/encoder_worker.cpp
     src/encoder_session.cpp
     src/cpu_av1_encoder.cpp
+    src/cpu_av1_encoder_runtime.cpp
     src/cpu_av1_decoder.cpp
     src/intel_vpl_probe.cpp
     src/intel_vpl_encoder.cpp

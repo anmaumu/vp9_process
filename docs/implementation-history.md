@@ -32,6 +32,14 @@ replacement now live in a documented internal module. WebM validation and MKV
 finalization keep the same errors and on-disk behavior, with low-level byte
 handling isolated for focused maintenance.
 
+## 2026-09-11: CPU AV1 runtime split
+
+The CPU AV1 encoder now separates public create/write/flush/close lifecycle,
+mutable state, and SVT-AV1 runtime operations. Codec configuration, I420
+submission, packet draining and EOS cleanup live behind documented internal
+helpers. Quality, preset, GOP timing, packet timestamps and mux finalization
+order remain unchanged.
+
 ## 2026-09-10: Python GPU frame native-access split
 
 `GpuFrame` keeps its documented import factories, interop discovery, plane
