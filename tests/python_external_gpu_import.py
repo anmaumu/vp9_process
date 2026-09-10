@@ -31,11 +31,86 @@ class DependencyRegistrar:
         raise AssertionError("synchronized USM must not register a dependency")
 
 
+def expect_value_error(action, message: str) -> None:
+    """Assert that one public import rejects input with the stable message."""
+    try:
+        action()
+    except ValueError as error:
+        assert str(error) == message
+    else:
+        raise AssertionError(f"invalid external import was accepted: {message}")
+
+
+expect_value_error(
+    lambda: mkvcodec.GpuFrame.import_va_surface(
+        display=0x1000,
+        surface_id=0,
+        device_id=0,
+        frame_size=[64, 48],
+        owner=Owner(),
+        producer_synchronized=True,
+    ),
+    "frame_size must contain width and height",
+)
+expect_value_error(
+    lambda: mkvcodec.GpuFrame.import_d3d11_texture(
+        texture=0x1000,
+        fence=0x2000,
+        fence_value=1,
+        device_id=0,
+        frame_size=(64.0, 48),
+        owner=Owner(),
+    ),
+    "D3D11 import descriptors must be integers",
+)
+expect_value_error(
+    lambda: mkvcodec.GpuFrame.import_cuda_array(
+        array=0x4000,
+        context=0x2000,
+        device_id=0,
+        frame_size=[64, 48],
+        owner=Owner(),
+        producer_synchronized=True,
+    ),
+    "frame_size must contain integer width and height",
+)
+expect_value_error(
+    lambda: mkvcodec.GpuFrame.import_usm_nv12(
+        pointer=0x1000,
+        context=0x2000,
+        queue=0x3000,
+        device_id=0,
+        frame_size=(63, 48),
+        pitch=64,
+        owner=Owner(),
+        producer_synchronized=True,
+    ),
+    "USM import descriptor is invalid",
+)
+expect_value_error(
+    lambda: mkvcodec.GpuFrame.import_cuda_pointer(
+        pointer=0x1000,
+        context=0x2000,
+        device_id=0,
+        frame_size=(64, 48),
+        pitch=63,
+        owner=Owner(),
+        producer_synchronized=True,
+    ),
+    "CUDA import descriptor is invalid",
+)
+
+
 owner = Owner()
 va_owner_ref = weakref.ref(owner)
 va_frame = mkvcodec.GpuFrame.import_va_surface(
-    display=0x1000, surface_id=0, device_id=0, frame_size=(64, 48),
-    owner=owner, producer_synchronized=True)
+    display=0x1000,
+    surface_id=0,
+    device_id=0,
+    frame_size=(64, 48),
+    owner=owner,
+    producer_synchronized=True,
+)
 del owner
 gc.collect()
 assert va_owner_ref() is not None
@@ -50,8 +125,13 @@ assert va_owner_ref() is None
 for invalid_surface in (-1, 0xFFFFFFFF, 0x100000000):
     try:
         mkvcodec.GpuFrame.import_va_surface(
-            display=0x1000, surface_id=invalid_surface, device_id=0,
-            frame_size=(64, 48), owner=Owner(), producer_synchronized=True)
+            display=0x1000,
+            surface_id=invalid_surface,
+            device_id=0,
+            frame_size=(64, 48),
+            owner=Owner(),
+            producer_synchronized=True,
+        )
     except ValueError:
         pass
     else:
@@ -59,13 +139,14 @@ for invalid_surface in (-1, 0xFFFFFFFF, 0x100000000):
 
 # A native import failure must cancel the holder without retaining its owner.
 from unittest.mock import patch
+
 owner = Owner()
 failed_va_owner = weakref.ref(owner)
 with patch.object(api.native.lib, "mkvc_gpu_frame_import_va_surface", return_value=3):
     try:
         mkvcodec.GpuFrame.import_va_surface(
-            display=0x1000, surface_id=0, device_id=0,
-            frame_size=(64, 48), owner=owner)
+            display=0x1000, surface_id=0, device_id=0, frame_size=(64, 48), owner=owner
+        )
     except ValueError:
         pass
     else:
@@ -77,8 +158,13 @@ assert failed_va_owner() is None
 for invalid_target in (0, -1, 0xFFFFFFFFFFFFFFFF):
     try:
         mkvcodec.GpuFrame.import_d3d11_texture(
-            texture=0x1000, fence=0x2000, fence_value=invalid_target,
-            device_id=0, frame_size=(64, 48), owner=Owner())
+            texture=0x1000,
+            fence=0x2000,
+            fence_value=invalid_target,
+            device_id=0,
+            frame_size=(64, 48),
+            owner=Owner(),
+        )
     except ValueError:
         pass
     else:
@@ -88,8 +174,13 @@ failed_d3d_owner = weakref.ref(owner)
 with patch.object(api.native.lib, "mkvc_gpu_frame_import_d3d11_fence", return_value=3):
     try:
         mkvcodec.GpuFrame.import_d3d11_texture(
-            texture=0x1000, fence=0x2000, fence_value=1,
-            device_id=0, frame_size=(64, 48), owner=owner)
+            texture=0x1000,
+            fence=0x2000,
+            fence_value=1,
+            device_id=0,
+            frame_size=(64, 48),
+            owner=owner,
+        )
     except ValueError:
         pass
     else:
@@ -128,9 +219,16 @@ usm_owner_ref = weakref.ref(owner)
 registrar = DependencyRegistrar()
 registrar_ref = weakref.ref(registrar)
 usm = mkvcodec.GpuFrame.import_usm_nv12(
-    pointer=0x3000, context=0x4000, queue=0x5000, device_id=0,
-    frame_size=(64, 48), pitch=64, owner=owner,
-    producer_synchronized=True, dependency_registrar=registrar)
+    pointer=0x3000,
+    context=0x4000,
+    queue=0x5000,
+    device_id=0,
+    frame_size=(64, 48),
+    pitch=64,
+    owner=owner,
+    producer_synchronized=True,
+    dependency_registrar=registrar,
+)
 del owner
 del registrar
 gc.collect()
@@ -155,13 +253,17 @@ assert ct.sizeof(api.native.GpuResourcePoolConfig) == 16
 assert ct.sizeof(api.native.GpuResourceReservationDesc) == 24
 assert ct.sizeof(api.native.GpuResourcePoolStats) == 48
 pool = mkvcodec.IntelUsmFramePool(
-    [(0x9000, pool_owner)], context=0xA000, queue=0xB000, device_id=0,
-    frame_size=(64, 48), pitch=64)
+    [(0x9000, pool_owner)], context=0xA000, queue=0xB000, device_id=0, frame_size=(64, 48), pitch=64
+)
 del pool_owner
 pooled = pool.acquire(producer_synchronized=True)
 initial_pool_stats = pool.stats
-assert (initial_pool_stats.capacity, initial_pool_stats.in_use,
-        initial_pool_stats.peak_in_use, initial_pool_stats.acquisitions) == (1, 1, 1, 1)
+assert (
+    initial_pool_stats.capacity,
+    initial_pool_stats.in_use,
+    initial_pool_stats.peak_in_use,
+    initial_pool_stats.acquisitions,
+) == (1, 1, 1, 1)
 assert pool.try_acquire(producer_synchronized=True) is None
 assert pool.stats.rejected_acquisitions == 1
 try:
@@ -205,10 +307,14 @@ else:
 
 held = pool.acquire(producer_synchronized=True)
 released = threading.Event()
+
+
 def release_held():
     time.sleep(0.05)
     held.close()
     released.set()
+
+
 thread = threading.Thread(target=release_held)
 thread.start()
 waited = pool.acquire(timeout_ms=1000, producer_synchronized=True)
@@ -221,9 +327,16 @@ assert pool_owner_ref() is None
 
 try:
     mkvcodec.GpuFrame.import_usm_nv12(
-        pointer=0x3000, context=0x4000, queue=0x5000, device_id=0,
-        frame_size=(64, 48), pitch=64, owner=Owner(),
-        producer_synchronized=True, dependency_registrar=object())
+        pointer=0x3000,
+        context=0x4000,
+        queue=0x5000,
+        device_id=0,
+        frame_size=(64, 48),
+        pitch=64,
+        owner=Owner(),
+        producer_synchronized=True,
+        dependency_registrar=object(),
+    )
 except TypeError:
     pass
 else:
@@ -231,8 +344,14 @@ else:
 
 try:
     mkvcodec.GpuFrame.import_usm_nv12(
-        pointer=0x3000, context=0x4000, queue=0x5000, device_id=0,
-        frame_size=(64, 48), pitch=64, owner=Owner())
+        pointer=0x3000,
+        context=0x4000,
+        queue=0x5000,
+        device_id=0,
+        frame_size=(64, 48),
+        pitch=64,
+        owner=Owner(),
+    )
 except ValueError:
     pass
 else:
@@ -258,15 +377,18 @@ class DLDevice(ct.Structure):
 
 
 class DLDataType(ct.Structure):
-    _fields_ = [("code", ct.c_uint8), ("bits", ct.c_uint8),
-                ("lanes", ct.c_uint16)]
+    _fields_ = [("code", ct.c_uint8), ("bits", ct.c_uint8), ("lanes", ct.c_uint16)]
 
 
 class DLTensor(ct.Structure):
     _fields_ = [
-        ("data", ct.c_void_p), ("device", DLDevice), ("ndim", ct.c_int),
-        ("dtype", DLDataType), ("shape", ct.POINTER(ct.c_int64)),
-        ("strides", ct.POINTER(ct.c_int64)), ("byte_offset", ct.c_uint64),
+        ("data", ct.c_void_p),
+        ("device", DLDevice),
+        ("ndim", ct.c_int),
+        ("dtype", DLDataType),
+        ("shape", ct.POINTER(ct.c_int64)),
+        ("strides", ct.POINTER(ct.c_int64)),
+        ("byte_offset", ct.c_uint64),
     ]
 
 
@@ -276,7 +398,8 @@ class DLManagedTensor(ct.Structure):
 
 DLDeleter = ct.CFUNCTYPE(None, ct.POINTER(DLManagedTensor))
 DLManagedTensor._fields_ = [
-    ("dl_tensor", DLTensor), ("manager_ctx", ct.c_void_p),
+    ("dl_tensor", DLTensor),
+    ("manager_ctx", ct.c_void_p),
     ("deleter", DLDeleter),
 ]
 
@@ -291,9 +414,9 @@ def make_dlpack(rows=72):
         deleted.append(True)
 
     managed = DLManagedTensor(
-        DLTensor(ct.c_void_p(0x3000), DLDevice(2, 0), 2,
-                 DLDataType(1, 8, 1), shape, strides, 0),
-        None, deleter,
+        DLTensor(ct.c_void_p(0x3000), DLDevice(2, 0), 2, DLDataType(1, 8, 1), shape, strides, 0),
+        None,
+        deleter,
     )
 
     class Provider:
@@ -306,7 +429,9 @@ def make_dlpack(rows=72):
 
 provider, deleted, storage = make_dlpack()
 dlpack_frame = mkvcodec.GpuFrame.import_dlpack_nv12(
-    provider, context=0x2000, frame_size=(64, 48),
+    provider,
+    context=0x2000,
+    frame_size=(64, 48),
     producer_synchronized=True,
 )
 assert dlpack_frame.native_handle["handles"][0] == 0x3000
@@ -319,7 +444,9 @@ assert deleted == [True]
 invalid_provider, invalid_deleted, invalid_storage = make_dlpack(rows=71)
 try:
     mkvcodec.GpuFrame.import_dlpack_nv12(
-        invalid_provider, context=0x2000, frame_size=(64, 48),
+        invalid_provider,
+        context=0x2000,
+        frame_size=(64, 48),
         producer_synchronized=True,
     )
 except ValueError:
@@ -364,8 +491,10 @@ with patch.object(capability_api, "backend_capabilities", return_value=rows):
     assert api._select_backend("vp9", "decode", False) == "nvidia"
     assert api._select_backend("vp9", "encode", False) == "intel"
     assert api._select_backend("av1", "encode", True) == "nvidia"
-    assert mkvcodec.select_backend(
-        "vp9", decode=True, encode=True, require_gpu_resident=True) == "intel"
+    assert (
+        mkvcodec.select_backend("vp9", decode=True, encode=True, require_gpu_resident=True)
+        == "intel"
+    )
 with patch.object(capability_api, "backend_capabilities", return_value=(rows[0],)):
     try:
         api._select_backend("vp9", "encode", True)
@@ -373,9 +502,7 @@ with patch.object(capability_api, "backend_capabilities", return_value=(rows[0],
         assert "GPU-resident" in str(error)
     else:
         raise AssertionError("strict GPU auto-selection silently chose CPU")
-with patch.object(
-    capability_api, "backend_capabilities", return_value=(rows[0], rows[2])
-):
+with patch.object(capability_api, "backend_capabilities", return_value=(rows[0], rows[2])):
     try:
         mkvcodec.select_backend("vp9", require_gpu_resident=True)
     except RuntimeError as error:

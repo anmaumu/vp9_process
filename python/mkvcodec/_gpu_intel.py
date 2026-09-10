@@ -10,6 +10,12 @@ from ._gpu_import_common import (
     import_external_frame,
     make_nv12_external_config,
 )
+from ._gpu_import_validation import (
+    frame_size as validate_frame_size,
+    validate_d3d11,
+    validate_usm,
+    validate_va_surface,
+)
 
 if TYPE_CHECKING:
     from ._gpu import GpuFrame
@@ -39,26 +45,16 @@ def _import_d3d11_texture(
         raise RuntimeError("D3D11 import requires the mkvcodec stable-ABI extension")
     if owner is None:
         raise ValueError("D3D11 import requires a resource owner")
-    if not isinstance(frame_size, tuple) or len(frame_size) != 2:
-        raise ValueError("frame_size must contain width and height")
-    width, height = frame_size
-    if any(
-        not isinstance(value, int)
-        for value in (texture, fence, fence_value, device_id, width, height, pts_ns)
-    ):
-        raise ValueError("D3D11 import descriptors must be integers")
-    if (
-        not 0 < texture <= 0xFFFFFFFFFFFFFFFF
-        or not 0 < fence <= 0xFFFFFFFFFFFFFFFF
-        or not 0 < fence_value < 0xFFFFFFFFFFFFFFFF
-        or not 0 <= device_id <= 0xFFFFFFFFFFFFFFFF
-        or not 0 < width <= 0xFFFFFFFF
-        or not 0 < height <= 0xFFFFFFFF
-        or width & 1
-        or height & 1
-        or not -0x8000000000000000 <= pts_ns <= 0x7FFFFFFFFFFFFFFF
-    ):
-        raise ValueError("D3D11 import descriptor is invalid")
+    width, height = validate_frame_size(frame_size, integers=False)
+    validate_d3d11(
+        texture=texture,
+        fence=fence,
+        fence_value=fence_value,
+        device_id=device_id,
+        width=width,
+        height=height,
+        pts_ns=pts_ns,
+    )
     config = make_nv12_external_config(
         backend=native.MKVC_BACKEND_INTEL,
         memory_type=native.MKVC_GPU_MEMORY_D3D11_TEXTURE,
@@ -101,25 +97,15 @@ def _import_va_surface(
         raise RuntimeError("VA import requires the mkvcodec stable-ABI extension")
     if owner is None:
         raise ValueError("VA import requires a resource owner")
-    if not isinstance(frame_size, tuple) or len(frame_size) != 2:
-        raise ValueError("frame_size must contain width and height")
-    width, height = frame_size
-    if any(
-        not isinstance(value, int)
-        for value in (display, surface_id, device_id, width, height, pts_ns)
-    ):
-        raise ValueError("VA import descriptors must be integers")
-    if (
-        not 0 < display <= 0xFFFFFFFFFFFFFFFF
-        or not 0 <= surface_id < 0xFFFFFFFF
-        or not 0 <= device_id <= 0xFFFFFFFFFFFFFFFF
-        or not 0 < width <= 0xFFFFFFFF
-        or not 0 < height <= 0xFFFFFFFF
-        or width & 1
-        or height & 1
-        or not -0x8000000000000000 <= pts_ns <= 0x7FFFFFFFFFFFFFFF
-    ):
-        raise ValueError("VA import descriptor is invalid")
+    width, height = validate_frame_size(frame_size, integers=False)
+    validate_va_surface(
+        display=display,
+        surface_id=surface_id,
+        device_id=device_id,
+        width=width,
+        height=height,
+        pts_ns=pts_ns,
+    )
     config = make_nv12_external_config(
         backend=native.MKVC_BACKEND_INTEL,
         memory_type=native.MKVC_GPU_MEMORY_VA_SURFACE,
@@ -172,35 +158,18 @@ def _import_usm_nv12(
         raise TypeError("dependency_registrar must be callable or None")
     if producer_synchronized == (event != 0):
         raise ValueError("provide exactly one of a Level Zero event or producer_synchronized=True")
-    if (
-        not isinstance(frame_size, tuple)
-        or len(frame_size) != 2
-        or any(not isinstance(value, int) for value in frame_size)
-    ):
-        raise ValueError("frame_size must contain integer width and height")
-    width, height = frame_size
-    values = (pointer, context, queue, event, device_id, width, height, pitch, pts_ns)
-    if any(not isinstance(value, int) for value in values):
-        raise ValueError("USM import descriptors must be integers")
-    if (
-        pointer <= 0
-        or context <= 0
-        or queue <= 0
-        or device_id < 0
-        or width <= 0
-        or height <= 0
-        or width & 1
-        or height & 1
-        or pitch < width
-        or pitch > 0xFFFFFFFF
-        or event < 0
-        or any(value > 0xFFFFFFFFFFFFFFFF for value in (pointer, context, queue, event, device_id))
-        or width > 0xFFFFFFFF
-        or height > 0xFFFFFFFF
-        or pts_ns < -0x8000000000000000
-        or pts_ns > 0x7FFFFFFFFFFFFFFF
-    ):
-        raise ValueError("USM import descriptor is invalid")
+    width, height = validate_frame_size(frame_size, integers=True)
+    validate_usm(
+        pointer=pointer,
+        context=context,
+        queue=queue,
+        event=event,
+        device_id=device_id,
+        width=width,
+        height=height,
+        pitch=pitch,
+        pts_ns=pts_ns,
+    )
     config = make_nv12_external_config(
         backend=native.MKVC_BACKEND_INTEL,
         memory_type=native.MKVC_GPU_MEMORY_USM,

@@ -10,6 +10,12 @@ from ._gpu_import_common import (
     import_external_frame,
     make_nv12_external_config,
 )
+from ._gpu_import_validation import (
+    frame_size as validate_frame_size,
+    validate_cuda_array,
+    validate_cuda_pointer,
+    validate_nv12_dimensions,
+)
 
 if TYPE_CHECKING:
     from ._gpu import GpuFrame
@@ -41,30 +47,17 @@ def _import_cuda_pointer(
     if not producer_synchronized and event <= 0:
         raise ValueError("event is required unless producer_synchronized=True")
     width, height = frame_size
-    values = (pointer, context, device_id, width, height, pitch, stream, event)
-    if any(not isinstance(value, int) for value in values):
-        raise ValueError("CUDA import descriptors must be integers")
-    if (
-        pointer <= 0
-        or context <= 0
-        or device_id < 0
-        or width <= 0
-        or height <= 0
-        or width & 1
-        or height & 1
-        or pitch < width
-        or stream < 0
-        or event < 0
-        or any(
-            value > 0xFFFFFFFFFFFFFFFF
-            for value in (pointer, context, device_id, pitch, stream, event)
-        )
-        or width > 0xFFFFFFFF
-        or height > 0xFFFFFFFF
-        or pts_ns < -0x8000000000000000
-        or pts_ns > 0x7FFFFFFFFFFFFFFF
-    ):
-        raise ValueError("CUDA import descriptor is invalid")
+    validate_cuda_pointer(
+        pointer=pointer,
+        context=context,
+        device_id=device_id,
+        width=width,
+        height=height,
+        pitch=pitch,
+        stream=stream,
+        event=event,
+        pts_ns=pts_ns,
+    )
     config = make_nv12_external_config(
         backend=native.MKVC_BACKEND_NVIDIA,
         memory_type=native.MKVC_GPU_MEMORY_CUDA_POINTER,
@@ -107,15 +100,8 @@ def _import_dlpack_nv12(
         raise RuntimeError("DLPack import requires the mkvcodec stable-ABI extension")
     if not isinstance(context, int) or context <= 0 or context > 0xFFFFFFFFFFFFFFFF:
         raise ValueError("context must be a nonzero CUDA context pointer")
-    if (
-        not isinstance(frame_size, tuple)
-        or len(frame_size) != 2
-        or any(not isinstance(value, int) for value in frame_size)
-    ):
-        raise ValueError("frame_size must contain integer width and height")
-    width, height = frame_size
-    if width <= 0 or height <= 0 or width & 1 or height & 1:
-        raise ValueError("NV12 dimensions must be positive and even")
+    width, height = validate_frame_size(frame_size, integers=True)
+    validate_nv12_dimensions(width, height)
     pointer, device_id, pitch, owner = dlpack_extension().consume_nv12(tensor, width, height)
     return cls.import_cuda_pointer(
         pointer=pointer,
@@ -154,33 +140,17 @@ def _import_cuda_array(
         raise RuntimeError("external CUDA import requires the mkvcodec stable-ABI extension")
     if not producer_synchronized and event <= 0:
         raise ValueError("event is required unless producer_synchronized=True")
-    if (
-        not isinstance(frame_size, tuple)
-        or len(frame_size) != 2
-        or any(not isinstance(value, int) for value in frame_size)
-    ):
-        raise ValueError("frame_size must contain integer width and height")
-    width, height = frame_size
-    values = (array, context, device_id, width, height, stream, event)
-    if any(not isinstance(value, int) for value in values):
-        raise ValueError("CUDA import descriptors must be integers")
-    if (
-        array <= 0
-        or context <= 0
-        or device_id < 0
-        or width <= 0
-        or height <= 0
-        or width & 1
-        or height & 1
-        or stream < 0
-        or event < 0
-        or any(value > 0xFFFFFFFFFFFFFFFF for value in (array, context, device_id, stream, event))
-        or width > 0xFFFFFFFF
-        or height > 0xFFFFFFFF
-        or pts_ns < -0x8000000000000000
-        or pts_ns > 0x7FFFFFFFFFFFFFFF
-    ):
-        raise ValueError("CUDA array import descriptor is invalid")
+    width, height = validate_frame_size(frame_size, integers=True)
+    validate_cuda_array(
+        array=array,
+        context=context,
+        device_id=device_id,
+        width=width,
+        height=height,
+        stream=stream,
+        event=event,
+        pts_ns=pts_ns,
+    )
     config = make_nv12_external_config(
         backend=native.MKVC_BACKEND_NVIDIA,
         memory_type=native.MKVC_GPU_MEMORY_CUDA_ARRAY,

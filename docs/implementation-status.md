@@ -67,6 +67,8 @@ GPU vendor driver/runtimeはwheel/NuGetへ同梱せず、実行環境側の責�
   C ABI marshallingを分離した。
 - Intel/NVIDIAのPython external GPU importは、versioned NV12 descriptor構築と
   owner lifetime transferを共通化し、backend固有部をvalidationと同期方式に限定した。
+- External GPU importのscalar/frame-size検証はassemblyから分離し、公開例外messageを
+  回帰テストで固定した。
 - Python writerはframe-view/config構築、captureはoutput copy/process plan構築、CPU
   ownershipはdecoded lease/pool/submissionへ分離した。
 - Intel USMはnative reservation、writable slot/ownership transfer、pool/backpressureを

@@ -42,6 +42,13 @@ transfer path. Backend modules retain their public validation, native handle
 layout and synchronization choice. This removes five copies of C ABI assembly
 without changing public signatures or ownership semantics.
 
+## 2026-09-10: Python external GPU import validation split
+
+CUDA pointer/array and Intel D3D11/VA/USM scalar validation now lives outside
+the backend import assembly. Public tests pin malformed frame-size, scalar,
+pitch and NV12-dimension error messages so later backend work cannot silently
+change the Python validation boundary.
+
 ## 2026-09-10: Python Intel USM ownership split
 
 Native GPU-pool reservation lifetime now lives in
