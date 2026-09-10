@@ -55,6 +55,13 @@ dynamic-library wrapper as the runtime codec adapters. Probe behavior, driver
 filenames, required-symbol checks and runtime capability reporting remain
 unchanged, while platform module ownership is implemented only once.
 
+## 2026-09-11: Intel decoder queue lifecycle split
+
+The oneVPL decoder queue now separates mutable FIFO/output state, asynchronous
+submission, CPU/GPU collection and drain logic, and close-time synchronization.
+Surface release order, device-loss injection, GPU-pool backpressure, async-depth
+metrics and FIFO output behavior remain unchanged.
+
 ## 2026-09-11: Container EBML primitive split
 
 Container suffix and DocType policy remain in `container_format.cpp`, while

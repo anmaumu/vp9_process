@@ -48,6 +48,9 @@ function(mkvc_add_intel_codec_integration_test)
         src/gpu/intel/vpl_decoder_gpu_output.cpp
         src/gpu/intel/vpl_decoder_pump.cpp
         src/gpu/intel/vpl_decoder_queue.cpp
+        src/gpu/intel/vpl_decoder_queue_close.cpp
+        src/gpu/intel/vpl_decoder_queue_collect.cpp
+        src/gpu/intel/vpl_decoder_queue_submit.cpp
         src/gpu/intel/vpl_decoder_runtime.cpp
         src/gpu/intel/vpl_encoder_sequence.cpp
         src/gpu/intel/vpl_encoder_runtime.cpp
