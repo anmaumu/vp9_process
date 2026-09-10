@@ -93,6 +93,8 @@ GPU vendor driver/runtimeはwheel/NuGetへ同梱せず、実行環境側の責�
   drain、close-time sync/releaseを別translation unitへ分離した。
 - CPU VP9/AV1 decoderはpublic create/read/close lifecycle、mutable state、
   libvpx/libaom demux・decode・I420 extraction runtimeを分離した。
+- Decoder pipelineはbackend access、prefetch worker/consumer、同期CPU/GPU readを
+  分離し、pipeline本体をmode dispatchとclose順序の調整へ限定した。
 - Python writerはframe-view/config構築、captureはoutput copy/process plan構築、CPU
   ownershipはdecoded lease/pool/submissionへ分離した。
 - Intel USMはnative reservation、writable slot/ownership transfer、pool/backpressureを

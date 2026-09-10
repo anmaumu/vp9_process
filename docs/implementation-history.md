@@ -69,6 +69,14 @@ codec-specific state and runtime modules. Incremental libwebm reads, submitted
 packet timestamp ownership, I420 extraction, VP9 null drain, AV1 temporal-unit
 completion and idempotent codec destruction retain their existing behavior.
 
+## 2026-09-11: Decoder synchronous/prefetch path split
+
+Decoder backend access, direct CPU/GPU reads and the bounded CPU prefetch worker
+now live in separate documented modules. The pipeline remains the policy-level
+dispatcher. Queue waits, backend timing, accepted/completed counts, hardware
+pending peaks, terminal propagation and close-before-backend ordering are
+unchanged.
+
 ## 2026-09-11: Container EBML primitive split
 
 Container suffix and DocType policy remain in `container_format.cpp`, while

@@ -4,6 +4,7 @@
 
 #include "c_api_internal.hpp"
 #include "decoder/decoder_pipeline.hpp"
+#include "decoder/decoder_prefetch.hpp"
 
 namespace mkvc::decoder::capi {
 

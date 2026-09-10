@@ -21,12 +21,6 @@ namespace decoder {
 mkvc_result create_backend(mkvc_decoder& decoder, const mkvc_decoder_config& config,
                            std::string& error);
 
-/** Start the bounded CPU prefetch worker when capacity is nonzero. */
-void start_prefetch(mkvc_decoder& decoder);
-
-/** Stop and join the prefetch worker, then discard queued CPU frames. */
-void stop_prefetch(mkvc_decoder& decoder);
-
 /** Read one CPU frame through either direct or prefetched execution. */
 mkvc_result read_cpu(mkvc_decoder& decoder, std::unique_ptr<DecodedFrame>& frame,
                      std::string& error);
