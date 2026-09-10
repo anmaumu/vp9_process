@@ -31,6 +31,7 @@ add_library(mkvcodec SHARED
     src/gpu/gpu_frame_c_api.cpp
     src/gpu/gpu_frame_pool.cpp
     src/gpu/gpu_resource_pool.cpp
+    src/gpu/gpu_resource_pool_c_api.cpp
     src/gpu/dlpack_adapter.cpp
     src/gpu/intel/intel_native_handle.cpp
     src/gpu/intel/va_completion.cpp

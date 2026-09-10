@@ -32,6 +32,14 @@ CUDA-context binding, NVENC submission, packet muxing and post-mux counter
 commit live in one documented internal adapter. CPU conversion and direct CUDA
 resource paths retain their existing validation, copy and lifetime behavior.
 
+## 2026-09-11: GPU resource-pool C ABI split
+
+The bounded reservation pool now contains only slot synchronization,
+generation tracking, backpressure and statistics. Opaque C handles, versioned
+descriptor translation, public validation and thread-local error mapping moved
+to a dedicated C ABI translation unit. Pool capacity, timeout and lifetime
+semantics remain unchanged.
+
 ## 2026-09-11: Container EBML primitive split
 
 Container suffix and DocType policy remain in `container_format.cpp`, while

@@ -83,6 +83,8 @@ GPU vendor driver/runtimeはwheel/NuGetへ同梱せず、実行環境側の責�
   timestamp・imported wrapper・completion・queue進行を一つの内部境界へ集約した。
 - NVIDIA NVENC encoderはfacade lifecycle、mutable state、CPU/CUDA submissionを分離し、
   timestamp・GOP・CUDA context・mux・成功後counter更新を内部adapterへ集約した。
+- GPU resource poolはC++のslot・generation・backpressure本体と、opaque handle・
+  versioned descriptor・error mappingを担うC ABI translation unitへ分離した。
 - Python writerはframe-view/config構築、captureはoutput copy/process plan構築、CPU
   ownershipはdecoded lease/pool/submissionへ分離した。
 - Intel USMはnative reservation、writable slot/ownership transfer、pool/backpressureを
