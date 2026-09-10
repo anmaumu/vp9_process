@@ -17,6 +17,7 @@ add_library(mkvcodec SHARED
     src/container_ebml.cpp
     src/decoder/decoder_pipeline.cpp
     src/cpu_vp9_encoder.cpp
+    src/cpu_vp9_encoder_runtime.cpp
     src/cpu_vp9_decoder.cpp
     src/cpu_frame_pool.cpp
     src/cpu_conversion_workers.cpp

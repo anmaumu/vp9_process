@@ -1,5 +1,3 @@
-#include "mkvcodec/mkvc.h"
-
 #include <chrono>
 #include <cstdint>
 #include <cstdlib>
@@ -7,6 +5,14 @@
 #include <future>
 #include <string>
 #include <vector>
+
+#include "mkvcodec/mkvc.h"
+
+#if defined(_WIN32)
+#include <process.h>
+#else
+#include <unistd.h>
+#endif
 
 namespace {
 
@@ -50,19 +56,25 @@ mkvc_encoder_config config_for(const std::string& path) {
     return config;
 }
 
+uint64_t process_id() {
+#if defined(_WIN32)
+    return static_cast<uint64_t>(_getpid());
+#else
+    return static_cast<uint64_t>(getpid());
+#endif
+}
+
 }  // namespace
 
 int main() {
-    const auto directory = std::filesystem::temp_directory_path();
-    const std::string failed_path =
-        (directory / "mkvc-async-injected-failure.webm").string();
-    const std::string recovered_path =
-        (directory / "mkvc-async-recovered.webm").string();
-    const std::string canceled_path =
-        (directory / "mkvc-async-canceled.webm").string();
-    std::filesystem::remove(failed_path);
-    std::filesystem::remove(recovered_path);
-    std::filesystem::remove(canceled_path);
+    const auto directory = std::filesystem::temp_directory_path() /
+                           ("mkvc-async-failure-" + std::to_string(process_id()));
+    std::error_code filesystem_error;
+    std::filesystem::remove_all(directory, filesystem_error);
+    if (!std::filesystem::create_directories(directory, filesystem_error)) return 20;
+    const std::string failed_path = (directory / "mkvc-async-injected-failure.webm").string();
+    const std::string recovered_path = (directory / "mkvc-async-recovered.webm").string();
+    const std::string canceled_path = (directory / "mkvc-async-canceled.webm").string();
 
     constexpr uint32_t width = 64;
     constexpr uint32_t height = 48;
@@ -95,19 +107,20 @@ int main() {
     }
     bool observed_failure = false;
     for (auto& writer : writers) {
-        if (writer.wait_for(std::chrono::seconds(5)) !=
-            std::future_status::ready) return 2;
+        if (writer.wait_for(std::chrono::seconds(5)) != std::future_status::ready) return 2;
         const mkvc_result result = writer.get();
-        if (result == MKVC_ERROR_IO) observed_failure = true;
-        else if (result != MKVC_OK) return 3;
+        if (result == MKVC_ERROR_IO)
+            observed_failure = true;
+        else if (result != MKVC_OK)
+            return 3;
     }
     if (!observed_failure || mkvc_encoder_close(failed) != MKVC_ERROR_IO) return 4;
     mkvc_pipeline_metrics metrics{};
     metrics.struct_size = sizeof(metrics);
     metrics.struct_version = 1;
-    if (mkvc_encoder_get_metrics(failed, &metrics) != MKVC_OK ||
-        metrics.completed_frames != 0 || metrics.queue_capacity != 1 ||
-        metrics.peak_queue_depth > 1) return 5;
+    if (mkvc_encoder_get_metrics(failed, &metrics) != MKVC_OK || metrics.completed_frames != 0 ||
+        metrics.queue_capacity != 1 || metrics.peak_queue_depth > 1)
+        return 5;
     mkvc_encoder_destroy(failed);
 
     const std::string submission_failed_path =
@@ -115,17 +128,17 @@ int main() {
     std::filesystem::remove(submission_failed_path);
     mkvc_encoder* submission_failed = nullptr;
     auto submission_failed_config = config_for(submission_failed_path);
-    if (mkvc_encoder_create(&submission_failed_config, &submission_failed) !=
-        MKVC_OK) return 8;
+    if (mkvc_encoder_create(&submission_failed_config, &submission_failed) != MKVC_OK) return 8;
     mkvc_submission* failed_submission = nullptr;
-    if (mkvc_encoder_submit_frame_borrowed(
-            submission_failed, &frame, &failed_submission) != MKVC_OK ||
-        failed_submission == nullptr) return 9;
-    if (mkvc_submission_wait(failed_submission, 5000) != MKVC_ERROR_IO)
-        return 10;
+    if (mkvc_encoder_submit_frame_borrowed(submission_failed, &frame, &failed_submission) !=
+            MKVC_OK ||
+        failed_submission == nullptr)
+        return 9;
+    if (mkvc_submission_wait(failed_submission, 5000) != MKVC_ERROR_IO) return 10;
     uint32_t failed_status = MKVC_SUBMISSION_PENDING;
     if (mkvc_submission_query(failed_submission, &failed_status) != MKVC_OK ||
-        failed_status != MKVC_SUBMISSION_FAILED) return 11;
+        failed_status != MKVC_SUBMISSION_FAILED)
+        return 11;
     mkvc_submission_release(failed_submission);
     if (mkvc_encoder_close(submission_failed) != MKVC_ERROR_IO) return 12;
     mkvc_encoder_destroy(submission_failed);
@@ -138,25 +151,27 @@ int main() {
     if (mkvc_encoder_create(&canceled_config, &canceled) != MKVC_OK) return 13;
     std::vector<mkvc_submission*> canceled_submissions(3, nullptr);
     for (auto& submission : canceled_submissions) {
-        if (mkvc_encoder_submit_frame_borrowed(
-                canceled, &frame, &submission) != MKVC_OK) return 14;
+        if (mkvc_encoder_submit_frame_borrowed(canceled, &frame, &submission) != MKVC_OK) return 14;
     }
     if (mkvc_encoder_cancel(canceled) != MKVC_OK ||
         mkvc_encoder_write_frame(canceled, &frame) != MKVC_ERROR_CANCELLED ||
-        mkvc_encoder_flush(canceled) != MKVC_ERROR_CANCELLED) return 15;
+        mkvc_encoder_flush(canceled) != MKVC_ERROR_CANCELLED)
+        return 15;
     uint32_t canceled_count = 0;
     for (auto* submission : canceled_submissions) {
         const mkvc_result result = mkvc_submission_wait(submission, 5000);
-        if (result == MKVC_ERROR_CANCELLED) ++canceled_count;
-        else if (result != MKVC_OK) return 16;
+        if (result == MKVC_ERROR_CANCELLED)
+            ++canceled_count;
+        else if (result != MKVC_OK)
+            return 16;
         uint32_t status = MKVC_SUBMISSION_PENDING;
         if (mkvc_submission_query(submission, &status) != MKVC_OK) return 17;
-        if (result == MKVC_ERROR_CANCELLED &&
-            status != MKVC_SUBMISSION_CANCELLED) return 18;
+        if (result == MKVC_ERROR_CANCELLED && status != MKVC_SUBMISSION_CANCELLED) return 18;
         mkvc_submission_release(submission);
     }
     if (canceled_count == 0 || mkvc_encoder_cancel(canceled) != MKVC_OK ||
-        mkvc_encoder_close(canceled) != MKVC_OK) return 19;
+        mkvc_encoder_close(canceled) != MKVC_OK)
+        return 19;
     mkvc_encoder_destroy(canceled);
     set_delay_hook(nullptr);
 
@@ -164,13 +179,11 @@ int main() {
     auto recovered_config = config_for(recovered_path);
     if (mkvc_encoder_create(&recovered_config, &recovered) != MKVC_OK ||
         mkvc_encoder_write_frame(recovered, &frame) != MKVC_OK ||
-        mkvc_encoder_close(recovered) != MKVC_OK) return 6;
+        mkvc_encoder_close(recovered) != MKVC_OK)
+        return 6;
     mkvc_encoder_destroy(recovered);
-    if (!std::filesystem::exists(recovered_path) ||
-        std::filesystem::file_size(recovered_path) == 0) return 7;
-    std::filesystem::remove(failed_path);
-    std::filesystem::remove(recovered_path);
-    std::filesystem::remove(submission_failed_path);
-    std::filesystem::remove(canceled_path);
+    if (!std::filesystem::exists(recovered_path) || std::filesystem::file_size(recovered_path) == 0)
+        return 7;
+    std::filesystem::remove_all(directory, filesystem_error);
     return 0;
 }

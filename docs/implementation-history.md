@@ -40,6 +40,21 @@ submission, packet draining and EOS cleanup live behind documented internal
 helpers. Quality, preset, GOP timing, packet timestamps and mux finalization
 order remain unchanged.
 
+## 2026-09-11: CPU VP9 runtime split
+
+The CPU VP9 encoder now separates public lifecycle, mutable state and libvpx
+runtime operations. Default configuration, thread selection, CQ quality,
+row-multithreading, keyframe cadence, I420 submission, packet timestamps and
+GOOD_QUALITY drain behavior remain unchanged. Its maintenance boundary now
+matches the CPU AV1 backend.
+
+## 2026-09-11: Parallel async-failure test isolation
+
+Each async encoder failure test now uses a process-specific temporary
+directory. Concurrent Intel and CPU build-matrix runs on the same Linux host
+can no longer remove or replace one another's injected-failure outputs. This
+fixes a test-harness race without changing library behavior.
+
 ## 2026-09-10: Python GPU frame native-access split
 
 `GpuFrame` keeps its documented import factories, interop discovery, plane

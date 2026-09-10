@@ -75,6 +75,10 @@ GPU vendor driver/runtimeはwheel/NuGetへ同梱せず、実行環境側の責�
   replacementから分離した。
 - CPU AV1 encoderはpublic lifecycle、mutable state、SVT-AV1 runtime処理を分離し、
   frame conversion・packet drain・EOS・mux finalizeの順序を維持した。
+- CPU VP9 encoderもpublic lifecycle、mutable state、libvpx runtime処理を分離し、
+  AV1 backendと同じ保守境界へ揃えた。
+- Async failure testはprocess固有temporary directoryを使い、同一host上の複数build
+  matrixを並列実行してもartifactが衝突しない。
 - Python writerはframe-view/config構築、captureはoutput copy/process plan構築、CPU
   ownershipはdecoded lease/pool/submissionへ分離した。
 - Intel USMはnative reservation、writable slot/ownership transfer、pool/backpressureを
