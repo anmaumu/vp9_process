@@ -34,6 +34,14 @@ which the source API generator would not document. Returned dictionaries,
 timeout validation, optional DLPack injection and public type identity are
 unchanged.
 
+## 2026-09-10: Python external GPU import assembly split
+
+Intel D3D11/VA/USM and NVIDIA CUDA pointer/array imports now share one
+versioned NV12 descriptor builder and one exception-safe owner-lifetime
+transfer path. Backend modules retain their public validation, native handle
+layout and synchronization choice. This removes five copies of C ABI assembly
+without changing public signatures or ownership semantics.
+
 ## 2026-09-10: Python Intel USM ownership split
 
 Native GPU-pool reservation lifetime now lives in
