@@ -77,6 +77,13 @@ dispatcher. Queue waits, backend timing, accepted/completed counts, hardware
 pending peaks, terminal propagation and close-before-backend ordering are
 unchanged.
 
+## 2026-09-11: CPU C ABI responsibility split
+
+The CPU C ABI now separates asynchronous submission lifetime/encoder bridging,
+frame-pool create/acquire operations, and buffer descriptor/view/release
+translation into three translation units. Public symbols, error text, blocking
+release semantics, pooled owner retention and ABI layouts remain unchanged.
+
 ## 2026-09-11: Container EBML primitive split
 
 Container suffix and DocType policy remain in `container_format.cpp`, while

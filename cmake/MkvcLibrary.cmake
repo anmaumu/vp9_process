@@ -7,7 +7,9 @@ module describes only source ownership, compile contracts, and link topology.
 
 add_library(mkvcodec SHARED
     src/c_api.cpp
-    src/c_api_cpu.cpp
+    src/c_api_cpu_buffer.cpp
+    src/c_api_cpu_frame_pool.cpp
+    src/c_api_cpu_submission.cpp
     src/c_api_decoder.cpp
     src/decoder/decoder_c_api_support.cpp
     src/c_api_encoder.cpp
