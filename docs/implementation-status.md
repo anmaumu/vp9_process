@@ -65,6 +65,8 @@ GPU vendor driver/runtimeはwheel/NuGetへ同梱せず、実行環境側の責�
 - GPU frameのdomain、C ABI、Intel/NVIDIA external importを別translation unitへ分離した。
 - Python writerはframe-view/config構築、captureはoutput copy/process plan構築、CPU
   ownershipはdecoded lease/pool/submissionへ分離した。
+- Intel USMはnative reservation、writable slot/ownership transfer、pool/backpressureを
+  分離し、Arc B580の実USM/DLPack/VA/oneVPL往復で再認定した。
 - 公開API、ABI fingerprint、test名、fixture名はこれらの分割で変更していない。
 
 ## Remaining acceptance work

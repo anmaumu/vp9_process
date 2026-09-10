@@ -24,6 +24,17 @@
 - GitHub Actions builds strict MkDocs HTML and stores `mkvcodec-documentation` for 30 days.
 - GitHub Pages publication remains disabled until an explicit public-release decision.
 
+## 2026-09-10: Python Intel USM ownership split
+
+Native GPU-pool reservation lifetime now lives in
+`_gpu_resource_reservation.py`; exclusive writable slot state and transfer into
+an event-backed `GpuFrame` live in `_intel_usm_slot.py`; `_intel_usm.py` retains
+resource validation, bounded acquisition, backpressure statistics and pool
+lifetime. The public module re-exports both public types. An eight-frame Arc B580
+USM→DLPack→VA shared-import→oneVPL AV1 run passed with pool capacity four,
+peak use three, eight registered consumer dependencies and all allocation/event
+owners released. Public type identity and ownership semantics are unchanged.
+
 ## 2026-09-10: Current status and implementation history split
 
 The former chronological implementation-status file is preserved in full as
