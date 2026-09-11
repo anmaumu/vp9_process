@@ -9,6 +9,14 @@
 [implementation-status.md](implementation-status.md)を使用する。この履歴には
 過去の判断、測定値、詳細なverification matrixを粒度を落とさず保持する。
 
+## 2026-09-12: CPU VP9/AV1 luma SSIM acceptance
+
+CPU codec acceptance now complements the existing 28 dB Y-PSNR threshold with
+mean luma SSIM >= 0.90 for both libvpx VP9 and SVT-AV1/libaom round-trips. The
+shared metric uses deterministic uniform 8x8 blocks, includes partial edge
+blocks, evaluates in float64 and has no SciPy or scikit-image dependency. Unit
+tests pin identity, visible degradation, shape and block-size behavior.
+
 ## 2026-09-12: Bounded malformed-container mutation smoke
 
 Input probe and every decoder using the shared packet reader now enforce one
@@ -1641,7 +1649,7 @@ and an OS/oneVPL trace has not yet independently proven zero host pixel transfer
 | Specification | Implementation | Verification | Status |
 |---|---|---|---|
 | `EXT-CODEC-001` / `AC-CODEC-001` | libvpx VP9 CPU encode/decode | `mkvc_cpu_vp9_encode` | synchronous I420 round-trip passing with PSNR >= 28 dB |
-| `EXT-CODEC-002` / `AC-CODEC-002` | SVT-AV1 encode and libaom decode | `mkvc_python_av1_encode` | 8-bit internal round-trip, FFmpeg decode and Y-PSNR >= 28 dB passing; SSIM pending |
+| `EXT-CODEC-002` / `AC-CODEC-002` | SVT-AV1 encode and libaom decode | `mkvc_python_av1_encode` | 8-bit internal round-trip, FFmpeg decode, Y-PSNR >= 28 dB and mean block SSIM >= 0.90 passing |
 | `EXT-CONT-001..003` / `AC-CONT-001` | libwebm mux/finalize/demux plus extension-selected EBML DocType validation and bounded atomic Matroska header installation | `mkvc_python_roundtrip`, `mkvc_python_intel_roundtrip`, `mkvc_cpu_vp9_external_decode`, `mkvc_cpu_vp9_metadata` | WebM and Matroska distinction complete for CPU/Intel/NVIDIA backend entry points; external oracle currently covers VP9 WebM |
 | `EXT-ENC-001` | create/write/flush/idempotent close/destroy | `mkvc_cpu_vp9_encode` | synchronous and bounded asynchronous CPU paths complete |
 | `EXT-ENC-002` | BGR/RGB/BGRA/I420/NV12 CPU input | VP9/AV1 Python round-trips | complete for both CPU writers |
@@ -1671,8 +1679,8 @@ and an OS/oneVPL trace has not yet independently proven zero host pixel transfer
 | `INT-CPU-004` / `INT-PIPE-001/005/006` | bounded worker queue, reusable frame buffers, cancel/close wakeups, owned input and cumulative metrics | native/Python nonblocking, cancel and flush tests | CPU writer complete for current queue/metric contract |
 | `INT-STATE-001..003` | running/flushing/closed behavior | close/write-after-close checks | CPU writer subset complete |
 | `TEST-CONT-001/002` | independent decode/metadata plus DocType, mismatch and unsupported-extension verification | FFmpeg + ffprobe and Python CPU/Intel integration | VP9 WebM oracle and CPU/Intel WebM/Matroska roundtrips passing |
-| `TEST-CODEC-001` | VP9 encode/decode round-trip with quality metrics | internal decode and Y-PSNR >= 28 dB | SSIM pending |
-| `TEST-CODEC-002` | SVT-AV1 to libaom/FFmpeg round-trip | 30-frame PTS/order/count, Y-PSNR >= 28 dB, all 8-bit inputs | SSIM pending |
+| `TEST-CODEC-001` | VP9 encode/decode round-trip with quality metrics | internal decode, Y-PSNR >= 28 dB and mean 8x8 luma SSIM >= 0.90 | complete for 8-bit CPU path |
+| `TEST-CODEC-002` | SVT-AV1 to libaom/FFmpeg round-trip | 30-frame PTS/order/count, Y-PSNR >= 28 dB, mean 8x8 luma SSIM >= 0.90, all 8-bit inputs | complete for 8-bit CPU path |
 | `INT-INTEL-001/002` | oneVPL 2.x hardware session, internal NV12 surfaces, VP9/AV1 encode/decode and libwebm mux/demux | `mkvc_intel_vpl_probe`, `mkvc_intel_vpl_encode`, `mkvc_python_intel_roundtrip` in required-hardware mode | Linux VA-API public Writer/Capture passing for both codecs with ordered multi-SyncPoint encode/decode; zero-copy and Windows hardware run pending |
 | `INT-PIPE-003`, `TEST-INTEL-002` | per-operation bitstream/surface ownership and oldest-first SyncPoint collection | VP9/AV1 encode and decode at AsyncDepth 1/2/4/8 plus injected collection failure | exact requested pending high-water mark, ordered output, best-effort SyncPoint cleanup, repeated idempotent close and post-failure session recreation passing |
 | `INT-ERR-006`, `INT-PIPE-005`, `TEST-ERR-002` | test-build-only asynchronous backend failure injection | `mkvc_async_failure` with eight concurrent writers and queue capacity one | all blocked writers wake within timeout, terminal IO reaches close, queue stays bounded and a clean session can be recreated |

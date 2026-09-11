@@ -17,8 +17,8 @@ profile: test-spec@1.0
 | `TEST-CONT-001` | VP9/AV1 MKV/WebMを独立toolでprobe/decodeし、C ABI/Pythonの自動codec判別、明示codec不一致拒否、codec/解像度/fps/frame数/durationとknown状態を照合 | integration | CPU CI |
 | `TEST-CONT-002` | DocType、extension/container矛盾、WebM subset違反を検証 | unit/integration | CPU CI |
 | `TEST-CONT-003` | PTS、duration、keyframe、長時間timestamp、display orderを検証 | integration | CPU/GPU CI |
-| `TEST-CODEC-001` | libvpx VP9 encode→decode round-tripとPSNR/SSIM | integration | CPU CI |
-| `TEST-CODEC-002` | SVT-AV1→libaom round-tripとPSNR/SSIM | integration | CPU CI |
+| `TEST-CODEC-001` | libvpx VP9 encode→decode round-tripでY-PSNR 28 dB以上、8x8 uniform-block luma SSIM平均0.90以上 | integration | CPU CI |
+| `TEST-CODEC-002` | SVT-AV1→libaom round-tripでY-PSNR 28 dB以上、8x8 uniform-block luma SSIM平均0.90以上 | integration | CPU CI |
 | `TEST-CODEC-003` | H.264/HEVC列挙・指定・fallbackを拒否 | unit/integration | all CI |
 | `TEST-CODEC-004` | invalid codec/backend組合せを初期化時に拒否 | unit | all CI |
 

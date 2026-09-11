@@ -6,6 +6,7 @@ import math
 import numpy as np
 
 import mkvcodec
+from quality_metrics import luma_ssim
 
 
 def main() -> None:
@@ -53,6 +54,7 @@ def main() -> None:
         squared_error = 0.0
         sample_count = 0
         pts_values: list[int] = []
+        ssim_values: list[float] = []
         rows, columns = np.indices((height, width))
         info = mkvcodec.probe_video(path)
         assert info.codec == "av1"
@@ -76,12 +78,14 @@ def main() -> None:
                 difference = decoded.y.astype(np.float64) - expected
                 squared_error += float(np.square(difference).sum())
                 sample_count += difference.size
+                ssim_values.append(luma_ssim(expected, decoded.y))
                 pts_values.append(decoded.pts_ns)
         assert len(pts_values) == 30, pts_values
         assert pts_values == sorted(pts_values)
         mse = squared_error / sample_count
         psnr = 10.0 * math.log10(255.0 * 255.0 / mse)
         assert psnr >= 28.0
+        assert float(np.mean(ssim_values)) >= 0.90
 
         with mkvcodec.VideoCapture(path, codec="av1", prefetch=4) as capture:
             frames = list(capture)

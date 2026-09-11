@@ -7,6 +7,7 @@ import shutil
 import numpy as np
 
 import mkvcodec
+from quality_metrics import luma_ssim
 
 
 def expect_value_error(callback) -> None:
@@ -61,6 +62,12 @@ def main() -> None:
         assert [frame.pts_ns for frame in frames] == sorted(
             frame.pts_ns for frame in frames
         )
+        ssim = []
+        rows, columns = np.indices((height, width))
+        for index, frame in enumerate(frames):
+            expected = ((columns * 3 + rows * 2 + index * 7) & 0xFF).astype(np.uint8)
+            ssim.append(luma_ssim(expected, frame.y))
+        assert float(np.mean(ssim)) >= 0.90
 
         batch_path = os.path.join(directory, "batch.webm")
         batch_input = [(frame.y, frame.u, frame.v) for frame in frames[:7]]
