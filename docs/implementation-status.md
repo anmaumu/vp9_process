@@ -30,7 +30,7 @@ regression thresholdではない。
 | GPU strict mode | 共通GpuFrame lease、native handle、DLPack、`require_gpu_resident`、copy-path metrics | driver内部まで含む完全copy proofは環境別に継続 |
 | C++ | move-only RAII facade、CPU/GPU frame、pool、submission | Intel/NVIDIAのC++ hardware round-trip認定が残件 |
 | .NET | .NET 8 P/Invoke、SafeHandle、codec自動判別・動画情報probe、全8-bit CPU形式、native pool Submit＋cancellable `WaitAsync`、GPU surface API | managed GPU hardware round-tripが残件 |
-| Packaging | dependency manifest、legal payload collector、SPDX SBOM、wheel/NuGet builderとinspector | project LICENSE決定、Windows実artifact、公開前legal reviewが残件 |
+| Packaging | dependency manifest、legal payload collector、SPDX SBOM、wheel/NuGet builderとinspector、非system native依存収録、qualification/release分離、Windows実artifact load認定 | project LICENSE決定、全backend構成のrelease artifact、公開前legal reviewが残件 |
 
 H.264/HEVCは公開codec、暗黙fallback、配布対象のいずれにも含めない。
 GPU vendor driver/runtimeはwheel/NuGetへ同梱せず、実行環境側の責任とする。
@@ -114,14 +114,13 @@ GPU vendor driver/runtimeはwheel/NuGetへ同梱せず、実行環境側の責�
 1. AV1対応NVIDIA GPUでNVDEC/NVENC positive GPU-resident transcodeを認定する。
 2. Intel Windows D3D11の実機end-to-endとmanaged/C++ hardware round-tripを認定する。
 3. Intel direct oneVPL USM consumption、cross-context fault、30分pool soakを完了する。
-4. Windows wheel/NuGetを実作成し、native DLL、legal payload、SBOM、loadを検査する。
-5. project LICENSEを決定し、配布物について最終legal reviewを行う。
-6. 性能baselineと許容regression thresholdを承認する。
+4. project LICENSEを決定し、全backend構成の配布物について最終legal reviewを行う。
+5. 性能baselineと許容regression thresholdを承認する。
 
 ## Verified dependency baseline
 
 - vcpkg registry `114d9fe62faf35856b45cf55cb93b57028a45d63`
-- libvpx `1.16.0#3`、libwebm `1.0.0.32`、libyuv `1916`
+- libvpx `1.16.0#3`、libwebm `1.0.0.32`、libyuv `1916`、libjpeg-turbo `3.2.0`
 - Highway `1.4.0`、SVT-AV1 `4.1.0`、libaom `3.15.0`
 - oneVPL dispatcher/headers `2.17.0`
 - nv-codec-headers `n13.1.15.0`

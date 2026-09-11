@@ -26,6 +26,17 @@
       "required_notices": ["libyuv-LICENSE.txt", "libyuv-PATENTS.txt"]
     },
     {
+      "name": "libjpeg-turbo",
+      "version": "3.2.0",
+      "license": "IJG AND BSD-3-Clause",
+      "source": "https://github.com/libjpeg-turbo/libjpeg-turbo",
+      "distribution": "bundled",
+      "required_notices": [
+        "libjpeg-turbo-LICENSE.md",
+        "libjpeg-turbo-README.ijg"
+      ]
+    },
+    {
       "name": "Highway",
       "version": "1.4.0",
       "license": "Apache-2.0 OR BSD-3-Clause",

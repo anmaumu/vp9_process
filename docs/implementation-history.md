@@ -9,6 +9,31 @@
 [implementation-status.md](implementation-status.md)を使用する。この履歴には
 過去の判断、測定値、詳細なverification matrixを粒度を落とさず保持する。
 
+## 2026-09-11: Windows wheel and NuGet artifact qualification
+
+The Windows wheel and RID-specific NuGet package now include the complete
+non-system DLL closure used by the qualified NVIDIA/CPU-VP9 build: `mkvcodec`,
+`webm`, `libyuv`, `Highway` and the transitive `jpeg62` library. The Python
+loader temporarily admits only the selected Core directory while Windows
+resolves these adjacent dependencies. libjpeg-turbo 3.2.0 was added to the
+dependency manifest, locked legal-source collection and SPDX SBOM after the
+isolated wheel load exposed the transitive dependency.
+
+Both qualification artifacts contain the original locked legal payload and an
+explicit `QUALIFICATION_ONLY.txt`. A disposable non-license fixture is accepted
+only with the qualification flag; both artifacts are rejected by the normal
+release compliance gate. A clean wheel install completed the 1,000-frame Python
+VP9 round-trip without `MKVC_LIBRARY_PATH`. A local-source NuGet restore completed
+the full .NET CPU formats, pool, metadata and asynchronous-completion smoke under
+the same condition. This qualifies package assembly/loading, not publication or
+the still-unqualified Intel-Windows/AV1-capable-NVIDIA backend combinations.
+
+Qualification SHA-256 values were
+`928736243F9FD802A658CE24E1F86389A34CA2A949A78C4289FEC3846CBAF576` for
+the wheel and
+`50742C4C922D5B241C1301960ED8EEECD1DAB11B58DBBB269554B9510ABAEDA7` for
+the NuGet package.
+
 ## 2026-09-11: Managed asynchronous submission completion
 
 `.NET` `MkvSubmission.WaitAsync` now polls native completion without occupying a
@@ -1696,6 +1721,7 @@ operation before releasing its bitstream/surface and closing the oneVPL session.
 - libvpx `1.16.0#3`
 - libwebm `1.0.0.32`
 - libyuv `1916`
+- libjpeg-turbo `3.2.0` (runtime dependency of the qualified Windows shared libyuv)
 - Highway `1.4.0` (classic MSVC x64 packed-output path only)
 - SVT-AV1 `4.1.0`
 - libaom `3.15.0`

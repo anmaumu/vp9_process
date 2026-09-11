@@ -14,6 +14,8 @@ class BuildWheelTests(unittest.TestCase):
             root = pathlib.Path(temporary)
             native = root / "libmkvcodec.so"
             native.write_bytes(b"native-test")
+            dependency = root / "libdependency.so"
+            dependency.write_bytes(b"dependency-test")
             project_license = root / "PROJECT-LICENSE.txt"
             project_license.write_text("test project license\n", encoding="utf-8")
             legal = root / "legal"
@@ -27,12 +29,14 @@ class BuildWheelTests(unittest.TestCase):
             (legal / "THIRD_PARTY_NOTICES.md").write_text("notices\n", encoding="utf-8")
             compliance_gate.write_sbom(legal / "sbom.spdx.json", manifest)
             wheel = build_wheel.build_wheel(
-                native, legal, project_license, root / "dist", "manylinux_2_28_x86_64"
+                native, legal, project_license, root / "dist", "manylinux_2_28_x86_64",
+                native_dependencies=(dependency,),
             )
             compliance_gate.inspect_artifact(wheel, manifest)
             with zipfile.ZipFile(wheel) as archive:
                 names = archive.namelist()
                 self.assertIn("mkvcodec/libmkvcodec.so", names)
+                self.assertIn("mkvcodec/libdependency.so", names)
                 record_name = "mkvcodec-0.1.0.dist-info/RECORD"
                 rows = list(csv.reader(io.StringIO(archive.read(record_name).decode())))
                 self.assertEqual(len(rows), len(names))
@@ -61,6 +65,34 @@ class BuildWheelTests(unittest.TestCase):
                 build_wheel.build_wheel(
                     native, root, root / "missing", root / "dist", "win_amd64"
                 )
+
+    def test_qualification_wheel_is_rejected_by_release_gate(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = pathlib.Path(temporary)
+            native = root / "mkvcodec.dll"
+            native.write_bytes(b"native-test")
+            project_license = root / "LICENSE.txt"
+            project_license.write_text("test fixture\n", encoding="utf-8")
+            legal = root / "legal"
+            legal.mkdir()
+            manifest = compliance_gate.load_manifest()
+            for component in manifest["components"]:
+                if component["distribution"] == "dependency":
+                    continue
+                for notice in component["required_notices"]:
+                    (legal / notice).write_text("legal text\n", encoding="utf-8")
+            (legal / "THIRD_PARTY_NOTICES.md").write_text(
+                "notices\n", encoding="utf-8"
+            )
+            compliance_gate.write_sbom(legal / "sbom.spdx.json", manifest)
+            wheel = build_wheel.build_wheel(
+                native, legal, project_license, root / "dist", "win_amd64",
+                qualification_only=True,
+            )
+            with self.assertRaisesRegex(
+                compliance_gate.GateError, "qualification-only"
+            ):
+                compliance_gate.inspect_artifact(wheel, manifest)
 
 
 if __name__ == "__main__":

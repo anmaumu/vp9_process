@@ -24,6 +24,13 @@ def _load() -> ct.CDLL:
     errors: list[str] = []
     for candidate in _candidate_paths():
         try:
+            path = Path(candidate)
+            if os.name == "nt" and path.is_absolute():
+                # Python 3.8+ deliberately excludes PATH/current-directory DLL
+                # probing. Admit only the directory containing the selected Core
+                # while Windows resolves its package-local dependencies.
+                with os.add_dll_directory(str(path.parent)):
+                    return ct.CDLL(candidate)
             return ct.CDLL(candidate)
         except OSError as exc:
             errors.append(f"{candidate}: {exc}")

@@ -375,6 +375,12 @@ Status: `PROPOSED`
 - `INT-SEC-005`: fuzz test対象をdemux、C ABI struct validation、packet/frame validationとする。
 - `INT-SEC-006`: dependency SBOMとsecurity update手順を維持する。
 
+Packaging builderは主Core、binding extension、動的linkされた非system native依存を
+明示的な入力として受け、wheelではpackage directory、NuGetではRID別native directoryへ
+同居させる。qualification-only markerを検出したartifactは、明示的な検証overrideが
+ないrelease inspectionでfail closedとする。GPU vendor driver/runtimeは入力にも成果物にも
+許可しない。
+
 ## 12. C ABI / Binding Rules
 
 Status: `PROPOSED`

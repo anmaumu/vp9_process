@@ -1,0 +1,5 @@
+NOT A PROJECT LICENSE.
+
+This fixture exists only to validate package assembly and loading before the
+project owner selects a license. It grants no rights and must not be used in a
+published or redistributed artifact.

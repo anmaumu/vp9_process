@@ -61,6 +61,38 @@ class ComplianceGateTests(unittest.TestCase):
                 for notice in notices:
                     archive.writestr(prefix + notice, "text")
             compliance_gate.inspect_artifact(artifact, self.manifest)
+            with self.assertRaisesRegex(compliance_gate.GateError, "required native"):
+                compliance_gate.inspect_artifact(
+                    artifact,
+                    self.manifest,
+                    required_native_names=("missing-dependency.dll",),
+                )
+
+    def test_qualification_marker_requires_explicit_override(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            artifact = pathlib.Path(temporary) / "qualification"
+            artifact.mkdir()
+            (artifact / "QUALIFICATION_ONLY.txt").write_text(
+                "not for publication\n", encoding="utf-8"
+            )
+            with self.assertRaisesRegex(
+                compliance_gate.GateError, "qualification-only"
+            ):
+                compliance_gate.inspect_artifact(artifact, self.manifest)
+
+    def test_qualification_license_cannot_be_used_for_release(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            license_path = pathlib.Path(temporary) / "LICENSE.txt"
+            license_path.write_bytes(
+                compliance_gate.QUALIFICATION_LICENSE_SENTINEL + b"\nfixture\n"
+            )
+            with self.assertRaisesRegex(
+                compliance_gate.GateError, "qualification-only"
+            ):
+                compliance_gate.validate_project_license(license_path)
+            compliance_gate.validate_project_license(
+                license_path, qualification_only=True
+            )
 
 
 if __name__ == "__main__":

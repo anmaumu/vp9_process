@@ -13,8 +13,8 @@
   <PropertyGroup Condition="'$(MkvCodecProjectLicense)' != ''">
     <PackageLicenseFile>LICENSE.txt</PackageLicenseFile>
   </PropertyGroup>
-  <ItemGroup Condition="'$(MkvCodecNativePath)' != '' and '$(RuntimeIdentifier)' != ''">
-    <None Include="$(MkvCodecNativePath)" Pack="true"
+  <ItemGroup Condition="'$(MkvCodecNativeDirectory)' != '' and '$(RuntimeIdentifier)' != ''">
+    <None Include="$(MkvCodecNativeDirectory)/*" Pack="true"
           PackagePath="runtimes/$(RuntimeIdentifier)/native/" />
   </ItemGroup>
   <ItemGroup Condition="'$(MkvCodecLegalDir)' != ''">
@@ -28,9 +28,13 @@
   <ItemGroup>
     <None Include="..\..\README.md" Pack="true" PackagePath="README.md" />
   </ItemGroup>
+  <ItemGroup Condition="'$(MkvCodecQualificationOnly)' == 'true'">
+    <None Update="qualification-only.txt" Pack="true"
+          PackagePath="QUALIFICATION_ONLY.txt" />
+  </ItemGroup>
   <Target Name="ValidateMkvCodecPackInputs" BeforeTargets="Pack">
-    <Error Condition="'$(MkvCodecNativePath)' == ''"
-           Text="MkvCodecNativePath is required for package creation." />
+    <Error Condition="'$(MkvCodecNativeDirectory)' == ''"
+           Text="MkvCodecNativeDirectory is required for package creation." />
     <Error Condition="'$(RuntimeIdentifier)' == ''"
            Text="RuntimeIdentifier is required for package creation." />
     <Error Condition="'$(MkvCodecLegalDir)' == ''"

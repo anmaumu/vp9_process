@@ -1,0 +1,1 @@
+This package validates assembly and loading only. It is not approved for publication or redistribution.

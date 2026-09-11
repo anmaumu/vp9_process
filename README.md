@@ -367,15 +367,21 @@ Project license確定後のpackage作成例です。`--project-license`は省略
 
 ```shell
 python tools/build_wheel.py --native build/libmkvcodec.so \
+  --native-dependency build/libwebm.so \
   --legal-dir build/legal/licenses --project-license path/to/LICENSE \
   --output-dir dist --platform-tag manylinux_2_28_x86_64
 python tools/build_nuget.py --dotnet path/to/dotnet \
-  --native build/libmkvcodec.so --legal-dir build/legal/licenses \
+  --native build/libmkvcodec.so --native-dependency build/libwebm.so \
+  --legal-dir build/legal/licenses \
   --project-license path/to/LICENSE --output-dir dist --rid linux-x64
 ```
 
 対応するWindows指定はwheelが`win_amd64`、NuGetが`win-x64`です。生成処理の最後に
 compliance gateが自動実行され、native/managed assetの配置も検査されます。
+動的linkされた非system libraryは`--native-dependency`を繰り返してすべて指定します。
+project license決定前の機械的検証には`--qualification-only`を使えます。この場合は
+`QUALIFICATION_ONLY.txt`が収録され、通常のrelease compliance gateは意図的に失敗するため、
+そのartifactを公開・再配布できません。
 
 ## Performance baseline
 

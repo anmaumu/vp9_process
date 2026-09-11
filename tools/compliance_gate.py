@@ -36,10 +36,23 @@ FORBIDDEN_CODEC_SYMBOLS = (
     "V_MPEGH/ISO/HEVC",
 )
 SOURCE_SUFFIXES = {".c", ".cc", ".cpp", ".cxx", ".h", ".hpp", ".cs", ".py"}
+QUALIFICATION_LICENSE_SENTINEL = b"NOT A PROJECT LICENSE."
 
 
 class GateError(RuntimeError):
     """Compliance validation failure."""
+
+
+def validate_project_license(
+    path: pathlib.Path, *, qualification_only: bool = False
+) -> None:
+    """Reject missing licenses and prevent the test fixture entering a release."""
+    if not path.is_file() or path.stat().st_size == 0:
+        raise ValueError(f"project license is missing or empty: {path}")
+    if QUALIFICATION_LICENSE_SENTINEL in path.read_bytes() and not qualification_only:
+        raise GateError(
+            "qualification project-license fixture requires qualification-only mode"
+        )
 
 
 def load_manifest(path: pathlib.Path = MANIFEST) -> dict:
@@ -125,9 +138,27 @@ def ends_with_any(names: Iterable[str], suffix: str) -> bool:
     return any(name.lower().replace("\\", "/").endswith(normalized) for name in names)
 
 
-def inspect_artifact(path: pathlib.Path, manifest: dict) -> None:
+def inspect_artifact(
+    path: pathlib.Path,
+    manifest: dict,
+    *,
+    allow_qualification: bool = False,
+    required_native_names: Iterable[str] = (),
+) -> None:
     entries = artifact_entries(path)
     names = list(entries)
+    qualification_marker = "QUALIFICATION_ONLY.txt"
+    if ends_with_any(names, qualification_marker) and not allow_qualification:
+        raise GateError(
+            "qualification-only artifact cannot pass the release compliance gate"
+        )
+    missing_native = sorted(
+        name for name in required_native_names if not ends_with_any(names, name)
+    )
+    if missing_native:
+        raise GateError(
+            f"artifact is missing required native libraries: {missing_native}"
+        )
     forbidden = [name for name in names if any(pattern.search(name) for pattern in FORBIDDEN_PACKAGE_NAMES)]
     if forbidden:
         raise GateError(f"vendor GPU runtime/driver must not be bundled: {forbidden}")

@@ -232,11 +232,14 @@ wheel/NuGetへ同梱せず、実行時version/source revisionを成果ととも�
 
 | ID | Test requirement | Level | Environment |
 |---|---|---|---|
-| `TEST-PKG-001` | wheel/NuGet/zipを展開しLICENSE/PATENTS/NOTICE/SBOMを確認 | release | packaging CI |
+| `TEST-PKG-001` | wheel/NuGet/zipを展開し、主Coreと全非system native依存、LICENSE/PATENTS/NOTICE/SBOMを確認し、隔離環境でbindingからloadする | release | packaging CI |
 | `TEST-PKG-002` | vendor driver、SDK sample/stub、禁止binaryが未収録 | release | packaging CI |
 | `TEST-PKG-003` | dependency version/source/license hashをallowlist照合 | release | packaging CI |
 | `TEST-PKG-004` | H.264/HEVC symbol/GUID/config混入scan | release | packaging CI |
 | `TEST-PKG-005` | endorsementを示唆するlogo/文言がない | review/scan | release CI |
+
+project license未決定時の実artifact試験はqualification-only marker付きでのみ許可する。
+同じartifactを通常のrelease inspectionへ渡した場合に拒否されることも検証する。
 
 ## 2. Test Data
 

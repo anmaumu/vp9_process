@@ -170,7 +170,7 @@ SDK 13.1由来sample/base classをどうしても使用する場合、そのNVID
 
 ### 4.1 OSS codec/container
 
-libvpx、libwebm、libyuv、libaom、SVT-AV1はpermissive licenseであるため、license/patent noticesを守る前提でstatic linkを許可する。
+libvpx、libwebm、libyuv、libjpeg-turbo、libaom、SVT-AV1はpermissive licenseであるため、license/patent noticesを守る前提でstatic linkを許可する。Windowsのshared libyuvがlibjpeg-turboへ動的依存する構成では、`jpeg62.dll`、libjpeg-turboのroll-up license、IJG原文をartifactへ収録し、binary配布向けattribution文も保持する。static化またはJPEG無効化により依存が消えた場合はSBOMのdistribution分類もbuild構成に合わせて更新する。
 
 利点:
 
