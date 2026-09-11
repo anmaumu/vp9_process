@@ -16,7 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Install build tools
-        run: sudo apt-get update && sudo apt-get install --yes clang ninja-build
+        run: sudo apt-get update && sudo apt-get install --yes clang nasm ninja-build
       - name: Bootstrap pinned vcpkg
         run: |
           git clone https://github.com/microsoft/vcpkg.git "$VCPKG_ROOT"
