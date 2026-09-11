@@ -14,10 +14,12 @@ try:
     from .compliance_gate import (
         inspect_artifact, load_manifest, validate_project_license, write_sbom,
     )
+    from .pe_dependencies import verify_pe_dependency_closure
 except ImportError:
     from compliance_gate import (
         inspect_artifact, load_manifest, validate_project_license, write_sbom,
     )
+    from pe_dependencies import verify_pe_dependency_closure
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
@@ -50,6 +52,8 @@ def build_nuget(
         if dependency.name.casefold() in native_names:
             raise ValueError(f"duplicate native library name: {dependency.name}")
         native_names.add(dependency.name.casefold())
+    if rid == "win-x64":
+        verify_pe_dependency_closure((native,), native_dependencies)
     if not (legal_dir / "sbom.spdx.json").is_file():
         write_sbom(legal_dir / "sbom.spdx.json", load_manifest())
     output_dir.mkdir(parents=True, exist_ok=True)

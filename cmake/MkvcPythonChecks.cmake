@@ -118,5 +118,5 @@ function(mkvc_add_repository_python_checks)
     mkvc_add_python_unittest(
         mkvc_compliance_unit tests/test_compliance_gate.py
         tests/test_collect_licenses.py tests/test_build_wheel.py
-        tests/test_build_nuget.py)
+        tests/test_build_nuget.py tests/test_pe_dependencies.py)
 endfunction()

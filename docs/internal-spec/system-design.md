@@ -379,7 +379,10 @@ Packaging builderは主Core、binding extension、動的linkされた非system n
 明示的な入力として受け、wheelではpackage directory、NuGetではRID別native directoryへ
 同居させる。qualification-only markerを検出したartifactは、明示的な検証overrideが
 ないrelease inspectionでfail closedとする。GPU vendor driver/runtimeは入力にも成果物にも
-許可しない。
+許可しない。Windows builderはstdlibだけでPE header、section table、import directory、
+delay-import directoryをboundedに解析する。basenameをcase-insensitiveに照合し、Windows/API
+set/Python runtime以外の未解決import、重複basename、rootから到達不能な指定依存、malformed PEを
+pack前に拒否する。driverを明示loadするbackend設計はPE import閉包とは別にartifact禁止名で検査する。
 
 ## 12. C ABI / Binding Rules
 

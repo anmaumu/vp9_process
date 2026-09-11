@@ -4,6 +4,7 @@ import pathlib
 import tempfile
 import unittest
 import zipfile
+from unittest import mock
 
 from tools import build_wheel, compliance_gate
 
@@ -85,10 +86,14 @@ class BuildWheelTests(unittest.TestCase):
                 "notices\n", encoding="utf-8"
             )
             compliance_gate.write_sbom(legal / "sbom.spdx.json", manifest)
-            wheel = build_wheel.build_wheel(
-                native, legal, project_license, root / "dist", "win_amd64",
-                qualification_only=True,
-            )
+            with mock.patch.object(
+                build_wheel, "verify_pe_dependency_closure"
+            ) as verify_closure:
+                wheel = build_wheel.build_wheel(
+                    native, legal, project_license, root / "dist", "win_amd64",
+                    qualification_only=True,
+                )
+            verify_closure.assert_called_once_with((native,), ())
             with self.assertRaisesRegex(
                 compliance_gate.GateError, "qualification-only"
             ):

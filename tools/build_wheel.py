@@ -17,10 +17,12 @@ try:
     from .compliance_gate import (
         inspect_artifact, load_manifest, validate_project_license, write_sbom,
     )
+    from .pe_dependencies import verify_pe_dependency_closure
 except ImportError:  # Direct script execution places tools/ on sys.path.
     from compliance_gate import (
         inspect_artifact, load_manifest, validate_project_license, write_sbom,
     )
+    from pe_dependencies import verify_pe_dependency_closure
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 NAME = "mkvcodec"
@@ -63,6 +65,9 @@ def build_wheel(
         if folded in native_names:
             raise ValueError(f"duplicate native library name: {dependency.name}")
         native_names.add(folded)
+    if platform_tag.casefold().startswith("win"):
+        roots = (native,) if dlpack_extension is None else (native, dlpack_extension)
+        verify_pe_dependency_closure(roots, native_dependencies)
 
     output_dir.mkdir(parents=True, exist_ok=True)
     python_tag, abi_tag = ("cp39", "abi3") if dlpack_extension else ("py3", "none")

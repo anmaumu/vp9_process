@@ -31,7 +31,7 @@ regression thresholdではない。
 | GPU strict mode | 共通GpuFrame lease、native handle、DLPack、`require_gpu_resident`、copy-path metrics | driver内部まで含む完全copy proofは環境別に継続 |
 | C++ | move-only RAII facade、CPU/GPU frame、pool、submission | Intel/NVIDIAのC++ hardware round-trip認定が残件 |
 | .NET | .NET 8 P/Invoke、SafeHandle、codec自動判別・動画情報probe、全8-bit CPU形式、native pool Submit＋cancellable `WaitAsync`、GPU surface API | managed GPU hardware round-tripが残件 |
-| Packaging | dependency manifest、legal payload collector、SPDX SBOM、wheel/NuGet builderとinspector、再帰的な非system native依存収録、qualification/release分離、Windows全backend実artifact load・CPU実行認定 | project LICENSE決定、実Intel/NVIDIA AV1 hardware認定、公開前legal reviewとrelease artifactが残件 |
+| Packaging | dependency manifest、legal payload collector、SPDX SBOM、wheel/NuGet builderとinspector、通常/delay-load PE importの再帰閉包検査、qualification/release分離、Windows全backend実artifact load・CPU実行認定 | project LICENSE決定、実Intel/NVIDIA AV1 hardware認定、公開前legal reviewとrelease artifactが残件 |
 
 H.264/HEVCは公開codec、暗黙fallback、配布対象のいずれにも含めない。
 GPU vendor driver/runtimeはwheel/NuGetへ同梱せず、実行環境側の責任とする。

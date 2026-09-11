@@ -58,10 +58,14 @@ class BuildNugetTests(unittest.TestCase):
                         archive.write(source, f"licenses/{source.name}")
 
             with mock.patch.object(build_nuget.subprocess, "run", fake_pack):
-                package = build_nuget.build_nuget(
-                    dotnet, native, legal, project_license, output, "win-x64",
-                    native_dependencies=(dependency,),
-                )
+                with mock.patch.object(
+                    build_nuget, "verify_pe_dependency_closure"
+                ) as verify_closure:
+                    package = build_nuget.build_nuget(
+                        dotnet, native, legal, project_license, output, "win-x64",
+                        native_dependencies=(dependency,),
+                    )
+            verify_closure.assert_called_once_with((native,), (dependency,))
             self.assertEqual(package.name, "MkvCodec.0.1.0.nupkg")
 
     def test_rejects_missing_project_license_before_pack(self):

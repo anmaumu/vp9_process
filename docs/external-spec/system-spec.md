@@ -417,7 +417,9 @@ Status: `CONFIRMED`
 wheel/NuGetはCoreだけでなく、Coreまたはbinding extensionが動的linkする非system
 native libraryも同一packageのruntime検索位置へ収録する。project license決定前に
 実施する組立・load試験用artifactにはqualification-only markerを必須とし、通常の
-release gateでは受理しない。
+release gateでは受理しない。Windows artifact生成時はCoreとnative bindingをrootに
+PE32/PE32+の通常importおよびdelay-load importを再帰走査し、全非system DLLがpackage内で
+解決すること、指定した依存DLLがいずれかのrootから到達可能であることを必須とする。
 
 ## 10. Acceptance Criteria
 
@@ -442,7 +444,7 @@ Status: `PROPOSED`
 | `AC-ERR-001` | 全失敗でexception leak、double free、resource leakがない | EXT-ERR-001..006 |
 | `AC-PERF-001` | bounded resource、pipeline並行性、GIL解放、baseline回帰gateを満たす | EXT-PERF-001..006 |
 | `AC-OBS-001` | backend別時間内訳とcopy pathを取得できる | EXT-OBS-001 |
-| `AC-PKG-001` | native依存を含むartifact内容検査、隔離環境load、license gateがPASSする。qualification-only artifactは明示的な試験modeだけで受理され、release gateでは拒否される | EXT-PKG-001..006 |
+| `AC-PKG-001` | Windowsでは通常/delay-load PE importの再帰閉包、全platformではnative依存を含むartifact内容検査、隔離環境load、license gateがPASSする。qualification-only artifactは明示的な試験modeだけで受理され、release gateでは拒否される | EXT-PKG-001..006 |
 
 詳細なtestとの対応は`../traceability.md`を正とする。
 

@@ -9,6 +9,23 @@
 [implementation-status.md](implementation-status.md)を使用する。この履歴には
 過去の判断、測定値、詳細なverification matrixを粒度を落とさず保持する。
 
+## 2026-09-11: Fail-closed Windows PE dependency closure
+
+Windows wheel and NuGet assembly now parses PE32/PE32+ normal and delay-load
+import directories before packaging. Starting from the native Core and each
+binding extension, it recursively resolves case-insensitive DLL basenames,
+admits only an explicit Windows/API-set/interpreter system set, and rejects
+malformed images, unresolved non-system imports, duplicate names and supplied
+dependencies unreachable from every root. The implementation uses only bounded
+standard-library binary parsing and therefore does not depend on `dumpbin` or a
+Visual Studio shell in release automation.
+
+Synthetic tests cover normal imports, delay imports, a recursive three-image
+closure, missing transitive libraries, unreachable extras and malformed PE.
+The real combined Windows artifact resolves `mkvcodec.dll` and `_dlpack.pyd`
+through all eight packaged dependency DLLs, including the previously discovered
+`jpeg62.dll` and `fastfeat.dll` leaves.
+
 ## 2026-09-11: Windows all-backend artifact qualification
 
 The simultaneous CPU VP9/AV1, Intel oneVPL and NVIDIA build now compiles and
@@ -35,9 +52,9 @@ does not replace Intel-Windows hardware qualification or positive AV1 NVENC
 qualification on a capable NVIDIA GPU.
 
 Qualification SHA-256 values were
-`73E29DC14F892B0331EAF0E3CCFEC8ECAC69F58721C49FB198E2DB8093C875A1` for
+`CCB7417B227C4917BC09A86977252194D1AF0BB5B895ECB0261F896CB48DE046` for
 the wheel and
-`47386A41469DC9539D53BC30C7D5D1CED8AE757DB889CBAA3A76E14CE3416775` for
+`FD5C9C58C911E8303E8757D92784B65F4B34C530FACDD89FA5EB055F4C46271C` for
 the NuGet package.
 
 ## 2026-09-11: Windows wheel and NuGet artifact qualification
