@@ -18,6 +18,7 @@ public sealed class MkvVideoCapture : IDisposable
 {
     private MkvDecoderHandle? handle;
     private MkvPipelineMetrics? finalMetrics;
+    private MkvPipelineStageMetrics? finalStageMetrics;
     private readonly uint conversionThreads;
 
     /// <summary>
@@ -244,6 +245,21 @@ public sealed class MkvVideoCapture : IDisposable
 
     public MkvPipelineMetrics Metrics => finalMetrics ?? ReadMetrics();
 
+    /// <summary>Exact backend operation timings split by caller and worker execution.</summary>
+    public MkvPipelineStageMetrics StageMetrics => finalStageMetrics ?? ReadStageMetrics();
+
+    private MkvPipelineStageMetrics ReadStageMetrics()
+    {
+        ObjectDisposedException.ThrowIf(handle is null || handle.IsClosed, this);
+        var metrics = new MkvPipelineStageMetrics {
+            StructSize = checked((uint)Marshal.SizeOf<MkvPipelineStageMetrics>()),
+            StructVersion = 1
+        };
+        MkvCodecInfo.ThrowIfFailed(NativeMethods.mkvc_decoder_get_stage_metrics(
+            handle!.DangerousGetHandle(), ref metrics));
+        return metrics;
+    }
+
     private MkvPipelineMetrics ReadMetrics()
     {
         ObjectDisposedException.ThrowIf(handle is null || handle.IsClosed, this);
@@ -262,7 +278,10 @@ public sealed class MkvVideoCapture : IDisposable
         if (!handle.IsClosed)
         {
             MkvResult result = NativeMethods.mkvc_decoder_close(handle.DangerousGetHandle());
-            try { finalMetrics = ReadMetrics(); }
+            try {
+                finalMetrics = ReadMetrics();
+                finalStageMetrics = ReadStageMetrics();
+            }
             finally
             {
                 handle.Dispose();

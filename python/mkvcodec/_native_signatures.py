@@ -51,6 +51,11 @@ def configure(lib: ct.CDLL, t: dict[str, Any]) -> None:
     lib.mkvc_decoder_get_info.restype = ct.c_int
     lib.mkvc_decoder_get_metrics.argtypes = [t["DecoderHandle"], ct.POINTER(t["PipelineMetrics"])]
     lib.mkvc_decoder_get_metrics.restype = ct.c_int
+    lib.mkvc_decoder_get_stage_metrics.argtypes = [
+        t["DecoderHandle"],
+        ct.POINTER(t["PipelineStageMetrics"]),
+    ]
+    lib.mkvc_decoder_get_stage_metrics.restype = ct.c_int
     lib.mkvc_decoder_read.argtypes = [t["DecoderHandle"], ct.POINTER(t["FrameHandle"])]
     lib.mkvc_decoder_read.restype = ct.c_int
     lib.mkvc_decoder_read_gpu.argtypes = [t["DecoderHandle"], ct.POINTER(t["GpuFrameHandle"])]
@@ -74,6 +79,11 @@ def configure(lib: ct.CDLL, t: dict[str, Any]) -> None:
     lib.mkvc_encoder_flush.restype = ct.c_int
     lib.mkvc_encoder_get_metrics.argtypes = [t["EncoderHandle"], ct.POINTER(t["PipelineMetrics"])]
     lib.mkvc_encoder_get_metrics.restype = ct.c_int
+    lib.mkvc_encoder_get_stage_metrics.argtypes = [
+        t["EncoderHandle"],
+        ct.POINTER(t["PipelineStageMetrics"]),
+    ]
+    lib.mkvc_encoder_get_stage_metrics.restype = ct.c_int
     lib.mkvc_encoder_set_copy_policy.argtypes = [t["EncoderHandle"], ct.POINTER(t["CopyPolicy"])]
     lib.mkvc_encoder_set_copy_policy.restype = ct.c_int
     lib.mkvc_encoder_submit_cpu_buffer.argtypes = [

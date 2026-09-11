@@ -134,6 +134,22 @@ class PipelineMetrics:
 
 
 @dataclass(frozen=True)
+class PipelineStageMetrics:
+    """Exact host timings split by public backend operation and execution path."""
+
+    frame_calls: int
+    frame_time_ns: int
+    flush_calls: int
+    flush_time_ns: int
+    close_calls: int
+    close_time_ns: int
+    sync_frame_calls: int
+    sync_frame_time_ns: int
+    worker_frame_calls: int
+    worker_frame_time_ns: int
+
+
+@dataclass(frozen=True)
 class GpuResourcePoolStats:
     """Snapshot of a fixed-capacity external GPU resource pool.
 

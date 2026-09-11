@@ -1,6 +1,7 @@
 #include "decoder/decoder_pipeline.hpp"
 
 #include <algorithm>
+#include <chrono>
 
 #include "backend_registry.hpp"
 #include "c_api_internal.hpp"
@@ -53,8 +54,17 @@ mkvc_result read_gpu(mkvc_decoder& decoder, mkvc_gpu_frame** frame, std::string&
 }
 
 mkvc_result close(mkvc_decoder& decoder, std::string& error) {
+    const auto started = std::chrono::steady_clock::now();
     stop_prefetch(decoder);
-    return close_backend(decoder, error);
+    const mkvc_result result = close_backend(decoder, error);
+    const auto elapsed = static_cast<uint64_t>(
+        std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::steady_clock::now() - started)
+            .count());
+    std::lock_guard<std::mutex> lock(decoder.mutex);
+    ++decoder.stage_metrics.close_calls;
+    decoder.stage_metrics.close_time_ns += elapsed;
+    return result;
 }
 
 }  // namespace mkvc::decoder

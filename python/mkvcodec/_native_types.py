@@ -272,6 +272,23 @@ class PipelineMetrics(ct.Structure):
     ]
 
 
+class PipelineStageMetrics(ct.Structure):
+    _fields_ = [
+        ("struct_size", ct.c_uint32),
+        ("struct_version", ct.c_uint32),
+        ("frame_calls", ct.c_uint64),
+        ("frame_time_ns", ct.c_uint64),
+        ("flush_calls", ct.c_uint64),
+        ("flush_time_ns", ct.c_uint64),
+        ("close_calls", ct.c_uint64),
+        ("close_time_ns", ct.c_uint64),
+        ("sync_frame_calls", ct.c_uint64),
+        ("sync_frame_time_ns", ct.c_uint64),
+        ("worker_frame_calls", ct.c_uint64),
+        ("worker_frame_time_ns", ct.c_uint64),
+    ]
+
+
 class Version(ct.Structure):
     _fields_ = [
         ("struct_size", ct.c_uint32),
@@ -383,6 +400,7 @@ __all__ = [
     "GpuResourceReservationDesc",
     "MutableFrameView",
     "PipelineMetrics",
+    "PipelineStageMetrics",
     "Version",
     "VideoInfo",
     "GpuExternalFrameConfig",

@@ -6,7 +6,7 @@ import ctypes as ct
 from fractions import Fraction
 
 from . import _native as native
-from ._types import PipelineMetrics, U8Plane
+from ._types import PipelineMetrics, PipelineStageMetrics, U8Plane
 
 
 def _read_metrics(handle: ct.c_void_p, function: object) -> PipelineMetrics:
@@ -26,6 +26,20 @@ def _read_metrics(handle: ct.c_void_p, function: object) -> PipelineMetrics:
         hardware_pending_peak=metrics.hardware_pending_peak,
         copy_path=paths.get(metrics.copy_path, f"unknown_{metrics.copy_path}"),
     )
+
+
+def _read_stage_metrics(handle: ct.c_void_p, function: object) -> PipelineStageMetrics:
+    metrics = native.PipelineStageMetrics()
+    metrics.struct_size = ct.sizeof(metrics)
+    metrics.struct_version = 1
+    native.check(function(handle, ct.byref(metrics)))
+    return PipelineStageMetrics(**{
+        name: int(getattr(metrics, name)) for name in (
+            "frame_calls", "frame_time_ns", "flush_calls", "flush_time_ns",
+            "close_calls", "close_time_ns", "sync_frame_calls",
+            "sync_frame_time_ns", "worker_frame_calls", "worker_frame_time_ns"
+        )
+    })
 
 
 def _fps_fraction(fps: float | int | tuple[int, int]) -> Fraction:

@@ -59,6 +59,8 @@ class EncoderSession {
     mkvc_result close(std::string& error);
     /** Snapshot cumulative queue/backend observations. */
     void get_metrics(mkvc_pipeline_metrics& metrics) const;
+    /** Snapshot mutually exclusive host-side backend operation timings. */
+    void get_stage_metrics(mkvc_pipeline_stage_metrics& metrics) const;
 
    private:
     explicit EncoderSession(std::unique_ptr<Impl> impl);

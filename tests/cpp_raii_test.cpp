@@ -73,6 +73,10 @@ int main(int argc, char** argv) {
     encoder.close();
     const auto metrics = encoder.metrics();
     assert(metrics.accepted_frames == 1 && metrics.completed_frames == 1);
+    const auto encoder_stages = encoder.stage_metrics();
+    assert(encoder_stages.frame_calls == 1);
+    assert(encoder_stages.worker_frame_calls == 1);
+    assert(encoder_stages.close_calls == 1);
     assert(std::filesystem::exists(output));
     assert(std::filesystem::file_size(output) > 0);
 
@@ -130,6 +134,10 @@ int main(int argc, char** argv) {
     assert(!decoder.read().has_value());
     decoder.close();
     assert(decoder.metrics().completed_frames == 1);
+    const auto decoder_stages = decoder.stage_metrics();
+    assert(decoder_stages.frame_calls >= 1);
+    assert(decoder_stages.sync_frame_calls == decoder_stages.frame_calls);
+    assert(decoder_stages.close_calls == 1);
 
     unsigned external_releases = 0;
     mkvc_gpu_external_frame_config external{};

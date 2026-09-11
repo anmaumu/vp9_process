@@ -10,7 +10,11 @@ backend.
 The `native_metrics` section is read from the C ABI after close and contains
 accepted/completed/rejected frame counts, host queue wait and backend time,
 configured/peak queue depth, hardware pending-operation peak and the copy path
-actually exercised. Timings are cumulative monotonic host-clock nanoseconds.
+actually exercised. Its `encoder_stages` and `decoder_stages` records split
+frame calls from flush/finalization and distinguish caller-thread work from
+queue/prefetch-worker work. Timings are cumulative monotonic host-clock
+nanoseconds. They describe host API boundaries and do not claim driver-kernel or
+device-event duration.
 
 Example:
 
@@ -24,11 +28,22 @@ python benchmarks/pipeline_benchmark.py \
 Run separate records for 1080p30, 1080p60, 4K30 and hardware-supported 4K60.
 Keep the native library, driver, CPU/GPU model, power policy and build type stable
 when comparing results. Absolute release thresholds remain unset until approved
-hardware-class baselines exist.
+hardware-class baselines exist. Once a result is approved, add
+`"performance_gate": {"max_regression_fraction": 0.10}` to that baseline and run:
 
-This runner records end-to-end host timings plus the current native aggregate
-queue/backend timings. Conversion, codec, mux and GPU-event timers are not yet
-separated and must not be reverse-engineered from the aggregate totals.
+```shell
+python tools/check_performance_baseline.py \
+  --baseline benchmark-results/approved.json \
+  --candidate benchmark-results/candidate.json
+```
+
+The gate fails closed for mismatched cases, missing/non-finite values, or a
+throughput/latency regression beyond the reviewed fraction. Baselines must be
+kept per hardware/driver/build class; the tool deliberately does not normalize
+results from unlike machines.
+
+The operation metrics do not separate conversion, codec, mux or GPU-event time;
+those values must not be reverse-engineered from host-boundary totals.
 
 ## Packed BGR qualification observation
 

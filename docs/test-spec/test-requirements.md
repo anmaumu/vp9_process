@@ -219,7 +219,7 @@ wheel/NuGetへ同梱せず、実行時version/source revisionを成果ととも�
 
 | ID | Test requirement | Level | Environment |
 |---|---|---|---|
-| `TEST-PERF-001` | 1080p30/60、4K30、対応時4K60 baseline | benchmark | CPU/Intel/NVIDIA |
+| `TEST-PERF-001` | 1080p30/60、4K30、対応時4K60 baseline。approved JSONとcandidateのcase一致を確認し、fps低下・p95/first-frame latency増加がreview済み割合を超えた場合にfail closedとなる | benchmark/release gate | CPU/Intel/NVIDIA |
 | `TEST-PERF-002` | prefetch/async depth別throughput/latency curve | benchmark | CPU/Intel/NVIDIA |
 | `TEST-PERF-003` | balanced pipelineにframe間overlapがある | trace | Intel/NVIDIA |
 | `TEST-PERF-004` | 30分以上と数百回open/closeでRAM/VRAM/handleが増加しない | soak | backend CI |

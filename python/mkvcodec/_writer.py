@@ -17,8 +17,8 @@ from ._frame_views import (
     make_packed_view,
 )
 from ._gpu import GpuFrame
-from ._io_common import _read_metrics
-from ._types import PipelineMetrics, U8Plane
+from ._io_common import _read_metrics, _read_stage_metrics
+from ._types import PipelineMetrics, PipelineStageMetrics, U8Plane
 
 
 class VideoWriter:
@@ -96,6 +96,7 @@ class VideoWriter:
         self._closed = False
         self._require_gpu_resident = bool(require_gpu_resident)
         self._last_metrics: PipelineMetrics | None = None
+        self._last_stage_metrics: PipelineStageMetrics | None = None
 
     @property
     def metrics(self) -> PipelineMetrics:
@@ -105,6 +106,15 @@ class VideoWriter:
                 raise RuntimeError("writer metrics are unavailable")
             return self._last_metrics
         return _read_metrics(self._handle, native.lib.mkvc_encoder_get_metrics)
+
+    @property
+    def stage_metrics(self) -> PipelineStageMetrics:
+        """Detailed frame, flush and close backend timing."""
+        if self._closed:
+            if self._last_stage_metrics is None:
+                raise RuntimeError("writer stage metrics are unavailable")
+            return self._last_stage_metrics
+        return _read_stage_metrics(self._handle, native.lib.mkvc_encoder_get_stage_metrics)
 
     def _submit(self, frame: native.FrameView, *, block: bool) -> bool:
         if self._require_gpu_resident:
@@ -342,6 +352,9 @@ class VideoWriter:
         try:
             self._last_metrics = _read_metrics(
                 self._handle, native.lib.mkvc_encoder_get_metrics
+            )
+            self._last_stage_metrics = _read_stage_metrics(
+                self._handle, native.lib.mkvc_encoder_get_stage_metrics
             )
         finally:
             native.lib.mkvc_encoder_destroy(self._handle)

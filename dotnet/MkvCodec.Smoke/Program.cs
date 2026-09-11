@@ -10,6 +10,8 @@ if (Marshal.SizeOf<MkvBackendCapability>() != 16)
     throw new InvalidOperationException("MkvBackendCapability ABI layout mismatch");
 if (Marshal.SizeOf<MkvPipelineMetrics>() != 64)
     throw new InvalidOperationException("MkvPipelineMetrics ABI layout mismatch");
+if (Marshal.SizeOf<MkvPipelineStageMetrics>() != 88)
+    throw new InvalidOperationException("MkvPipelineStageMetrics ABI layout mismatch");
 if (Marshal.SizeOf<MkvGpuFrameDescriptor>() != 136)
     throw new InvalidOperationException("MkvGpuFrameDescriptor ABI layout mismatch");
 if (Marshal.SizeOf<MkvGpuNativeHandleDescriptor>() != 64)

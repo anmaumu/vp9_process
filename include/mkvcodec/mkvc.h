@@ -250,6 +250,22 @@ typedef struct mkvc_pipeline_metrics {
     uint32_t copy_path;             /**< One mkvc_copy_path actually exercised. */
 } mkvc_pipeline_metrics;
 
+/** Detailed host-side operation timing; stages are mutually exclusive. */
+typedef struct mkvc_pipeline_stage_metrics {
+    uint32_t struct_size;          /**< Size of this struct. */
+    uint32_t struct_version;       /**< Must be 1. */
+    uint64_t frame_calls;          /**< Frame read/write backend calls. */
+    uint64_t frame_time_ns;        /**< Time inside frame backend calls. */
+    uint64_t flush_calls;          /**< Explicit or close-time drain calls. */
+    uint64_t flush_time_ns;        /**< Time inside backend drain calls. */
+    uint64_t close_calls;          /**< Backend finalization calls. */
+    uint64_t close_time_ns;        /**< Time inside backend finalization. */
+    uint64_t sync_frame_calls;     /**< Frame calls on the caller thread. */
+    uint64_t sync_frame_time_ns;   /**< Caller-thread frame backend time. */
+    uint64_t worker_frame_calls;   /**< Frame calls on a prefetch/queue worker. */
+    uint64_t worker_frame_time_ns; /**< Worker-thread frame backend time. */
+} mkvc_pipeline_stage_metrics;
+
 /** Runtime copy/fallback policy; set before the first frame operation. */
 typedef struct mkvc_copy_policy {
     uint32_t struct_size;          /**< Size of this struct. */
@@ -469,6 +485,9 @@ MKVC_API mkvc_result mkvc_encoder_close(mkvc_encoder* encoder);
 /** Snapshot cumulative encoder metrics without resetting them. */
 MKVC_API mkvc_result mkvc_encoder_get_metrics(const mkvc_encoder* encoder,
                                               mkvc_pipeline_metrics* out_metrics);
+/** Snapshot detailed encoder operation timing without resetting it. */
+MKVC_API mkvc_result mkvc_encoder_get_stage_metrics(
+    const mkvc_encoder* encoder, mkvc_pipeline_stage_metrics* out_metrics);
 /** Destroy an encoder handle; NULL is accepted. */
 MKVC_API void mkvc_encoder_destroy(mkvc_encoder* encoder);
 
@@ -542,6 +561,9 @@ MKVC_API mkvc_result mkvc_decoder_close(mkvc_decoder* decoder);
 /** Snapshot cumulative decoder metrics without resetting them. */
 MKVC_API mkvc_result mkvc_decoder_get_metrics(const mkvc_decoder* decoder,
                                               mkvc_pipeline_metrics* out_metrics);
+/** Snapshot detailed decoder operation timing without resetting it. */
+MKVC_API mkvc_result mkvc_decoder_get_stage_metrics(
+    const mkvc_decoder* decoder, mkvc_pipeline_stage_metrics* out_metrics);
 /** Return immutable video information resolved when the decoder was created. */
 MKVC_API mkvc_result mkvc_decoder_get_info(const mkvc_decoder* decoder, mkvc_video_info* out_info);
 /** Destroy a decoder handle; NULL is accepted. */

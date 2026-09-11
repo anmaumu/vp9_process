@@ -41,6 +41,13 @@ def main() -> None:
         assert decoder["completed_frames"] == 12
         assert decoder["queue_capacity"] == 2
         assert 0 < decoder["peak_queue_depth"] <= 2
+        encoder_stages = loaded["native_metrics"]["encoder_stages"]
+        decoder_stages = loaded["native_metrics"]["decoder_stages"]
+        assert encoder_stages["frame_calls"] == 12
+        assert encoder_stages["worker_frame_calls"] == 12
+        assert encoder_stages["close_calls"] == 1
+        assert decoder_stages["worker_frame_calls"] >= 12
+        assert decoder_stages["sync_frame_calls"] == 0
 
 
 if __name__ == "__main__":

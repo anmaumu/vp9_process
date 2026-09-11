@@ -340,7 +340,7 @@ pool slot lease -> producer submit -> producer completion
 Status: `PROPOSED`
 
 - `INT-OBS-001`: demux、decode、surface wait、queue wait、export、import dependency wait、upload/download、CPU convert、encode、muxを別metricにする。
-- `INT-OBS-002`: CPU timerとGPU event timerを区別する。
+- `INT-OBS-002`: CPU timerとGPU event timerを区別する。aggregateとは別のversioned stage metricsでframe、flush、closeのcall数・host時間とframe処理のcaller/worker内訳を公開し、各値をdevice kernel時間、codec単体時間、mux単体時間として扱わない。
 - `INT-OBS-003`: input/encoded fps、drop、peak queue、prefetch hit/miss、RAM/VRAM概算を公開する。
 - `INT-OBS-004`: copy path判定は実際に実行したoperationから設定し、requested pathから推測しない。
   Kernel観測はclear/migration/CPU faultを区別し、BO sizeを転送完了bytesと扱わない。
@@ -352,7 +352,7 @@ Status: `PROPOSED`
   区別する。instruction-code allocationを画像転送として数えず、別runのcount一致だけで
   同一resourceと結論しない。診断用logging依存物は製品へ同梱しない。
 - `INT-PERF-001`: benchmarkは1080p30/60、4K30、対応時4K60をbackend別に保存する。
-- `INT-PERF-002`: absolute target確定前は直近承認baselineに対する回帰でgateする。
+- `INT-PERF-002`: absolute target確定前は直近承認baselineに対する回帰でgateする。schema/caseの完全一致、有限正値、review済み相対閾値を必須とし、throughput低下とlatency増加をfail closedで拒否する。
 - `INT-PERF-003`: long-runでresource countが単調増加しないことをtraceする。
   Linux fdinfoではdriver/PCI/clientでduplicate fdを除外し、処理GPUのidentityとresident VRAM項目を照合する。別GPUの項目や欠落を0として扱わない。active/post-closeを分け、shared objectの重複計上可能性とsampling間隔を結果へ明記する。
 
@@ -372,7 +372,7 @@ Status: `PROPOSED`
 - `INT-SEC-002`: path、codec metadata、backend optionをcode/shellとして評価しない。
 - `INT-SEC-003`: untrusted bitstreamによるlibrary errorをC ABI errorへ閉じ込める。
 - `INT-SEC-004`: dynamic library searchはOSの安全な検索規則と検証済みlibrary名を使用する。
-- `INT-SEC-005`: fuzz test対象をdemux、C ABI struct validation、packet/frame validationとする。
+- `INT-SEC-005`: fuzz test対象をdemux、C ABI struct validation、packet/frame validationとする。EBML headerのfile非依存bounded parserをlibFuzzer入口として共有し、Linux Clang CIでASan/UBSan全testと時限fuzz campaignを実行する。
 - `INT-SEC-006`: dependency SBOMとsecurity update手順を維持する。
 
 Packaging builderは主Core、binding extension、動的linkされた非system native依存を

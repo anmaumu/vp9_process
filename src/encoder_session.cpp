@@ -180,6 +180,13 @@ void EncoderSession::get_metrics(mkvc_pipeline_metrics& metrics) const {
     metrics.copy_path = impl_->copy_path;
 }
 
+void EncoderSession::get_stage_metrics(mkvc_pipeline_stage_metrics& metrics) const {
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    metrics = impl_->stage_metrics;
+    metrics.struct_size = sizeof(metrics);
+    metrics.struct_version = 1;
+}
+
 mkvc_result EncoderSession::flush(std::string& error) {
     if (impl_->capacity == 0) {
         {

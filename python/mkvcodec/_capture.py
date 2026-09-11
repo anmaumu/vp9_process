@@ -12,9 +12,9 @@ from ._capabilities import _select_backend
 from ._cpu import BorrowedCpuFrame
 from ._frame_outputs import copy_i420, copy_nv12, copy_packed, get_frame_view
 from ._gpu import GpuFrame
-from ._io_common import _read_metrics
+from ._io_common import _read_metrics, _read_stage_metrics
 from ._processing_plan import build_process_config
-from ._types import CpuFrame, PipelineMetrics, U8Plane
+from ._types import CpuFrame, PipelineMetrics, PipelineStageMetrics, U8Plane
 from ._video_info import probe_video, read_decoder_info
 
 
@@ -134,6 +134,7 @@ class VideoCapture(Iterator[U8Plane]):
         self._require_gpu_resident = bool(require_gpu_resident)
         self._conversion_threads = int(conversion_threads)
         self._last_metrics: PipelineMetrics | None = None
+        self._last_stage_metrics: PipelineStageMetrics | None = None
         self.last_pts_ns: int | None = None
 
     @property
@@ -144,6 +145,15 @@ class VideoCapture(Iterator[U8Plane]):
                 raise RuntimeError("capture metrics are unavailable")
             return self._last_metrics
         return _read_metrics(self._handle, native.lib.mkvc_decoder_get_metrics)
+
+    @property
+    def stage_metrics(self) -> PipelineStageMetrics:
+        """Detailed frame-operation timing split by synchronous/worker execution."""
+        if self._closed:
+            if self._last_stage_metrics is None:
+                raise RuntimeError("capture stage metrics are unavailable")
+            return self._last_stage_metrics
+        return _read_stage_metrics(self._handle, native.lib.mkvc_decoder_get_stage_metrics)
 
     def _read_handle(self) -> native.FrameHandle | None:
         if self._require_gpu_resident:
@@ -377,6 +387,9 @@ class VideoCapture(Iterator[U8Plane]):
         try:
             self._last_metrics = _read_metrics(
                 self._handle, native.lib.mkvc_decoder_get_metrics
+            )
+            self._last_stage_metrics = _read_stage_metrics(
+                self._handle, native.lib.mkvc_decoder_get_stage_metrics
             )
         finally:
             native.lib.mkvc_decoder_destroy(self._handle)

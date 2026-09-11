@@ -399,7 +399,7 @@ Status: `PROPOSED`
 - `EXT-PERF-004`: zero-copy報告時、映像pixelのCPU round-tripがない。
 - `EXT-PERF-005`: Pythonの長時間処理・待機中はGILを解放する。
 - `EXT-PERF-006`: 1080p30/60、4K30、対応時4K60のbackend別baselineを記録し、理由のない重大回帰をrelease gateとする。
-- `EXT-OBS-001`: queue wait、upload、convert、codec、mux、fps、drop、peak queue、copy pathを観測できる。
+- `EXT-OBS-001`: queue wait、upload、convert、codec、mux、fps、drop、peak queue、copy pathを観測できる。C ABI/C++/Python/.NETからframe、flush、closeのhost境界時間と、同期/worker frame処理内訳をversioned snapshotとして取得できる。host境界値はdevice kernel時間やcodec/mux単体時間を意味しない。
 
 絶対fps目標は対象hardwareのbaseline採取後に確定する。それまでは性能数値に関するStatusを`PROPOSED`とする。
 

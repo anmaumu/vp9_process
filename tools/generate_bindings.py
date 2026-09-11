@@ -47,6 +47,7 @@ _PYTHON_TYPES = {
     "mkvc_gpu_resource_reservation_desc": "GpuResourceReservationDesc",
     "mkvc_mutable_frame_view": "MutableFrameView",
     "mkvc_pipeline_metrics": "PipelineMetrics",
+    "mkvc_pipeline_stage_metrics": "PipelineStageMetrics",
     "mkvc_submission": "SubmissionHandle",
     "mkvc_version": "Version",
     "mkvc_video_info": "VideoInfo",
@@ -95,6 +96,7 @@ _DOTNET_TYPES = {
     "mkvc_gpu_resource_reservation_desc": "MkvGpuResourceReservationDescriptor",
     "mkvc_mutable_frame_view": "NativeMutableFrameView",
     "mkvc_pipeline_metrics": "MkvPipelineMetrics",
+    "mkvc_pipeline_stage_metrics": "MkvPipelineStageMetrics",
     "mkvc_version": "MkvVersion",
     "mkvc_video_info": "MkvVideoInfo",
 }
@@ -155,7 +157,8 @@ _DOTNET_ENUMS = {
 _DOTNET_PUBLIC_STRUCTS = {
     "mkvc_backend_capability", "mkvc_cpu_buffer_desc", "mkvc_gpu_frame_desc",
     "mkvc_gpu_native_handle_desc", "mkvc_gpu_resource_pool_stats",
-    "mkvc_gpu_resource_reservation_desc", "mkvc_pipeline_metrics", "mkvc_version",
+    "mkvc_gpu_resource_reservation_desc", "mkvc_pipeline_metrics",
+    "mkvc_pipeline_stage_metrics", "mkvc_version",
     "mkvc_video_info",
 }
 _DOTNET_FIELD_TYPES = {
@@ -173,6 +176,11 @@ _DOTNET_FIELD_TYPES = {
 }
 _DOTNET_FIELD_NAMES = {
     "backend_time_ns": "BackendTimeNanoseconds",
+    "frame_time_ns": "FrameTimeNanoseconds",
+    "flush_time_ns": "FlushTimeNanoseconds",
+    "close_time_ns": "CloseTimeNanoseconds",
+    "sync_frame_time_ns": "SyncFrameTimeNanoseconds",
+    "worker_frame_time_ns": "WorkerFrameTimeNanoseconds",
     "queue_wait_ns": "QueueWaitNanoseconds",
     "wait_ns": "WaitNanoseconds",
     "duration_ns": "DurationNanoseconds",
@@ -191,8 +199,9 @@ _DOTNET_HANDLES = {
 _DOTNET_RAW_HANDLES = {
     "mkvc_cpu_buffer_release", "mkvc_cpu_frame_pool_destroy",
     "mkvc_decoder_close", "mkvc_decoder_destroy", "mkvc_decoder_get_info",
-    "mkvc_decoder_get_metrics",
+    "mkvc_decoder_get_metrics", "mkvc_decoder_get_stage_metrics",
     "mkvc_encoder_close", "mkvc_encoder_destroy", "mkvc_encoder_get_metrics",
+    "mkvc_encoder_get_stage_metrics",
     "mkvc_frame_release", "mkvc_gpu_frame_release",
     "mkvc_gpu_resource_pool_destroy", "mkvc_gpu_resource_reservation_release",
     "mkvc_submission_release",

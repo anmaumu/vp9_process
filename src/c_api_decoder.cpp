@@ -108,6 +108,18 @@ mkvc_result mkvc_decoder_get_metrics(const mkvc_decoder* decoder,
     });
 }
 
+mkvc_result mkvc_decoder_get_stage_metrics(const mkvc_decoder* decoder,
+                                           mkvc_pipeline_stage_metrics* out_metrics) {
+    last_error.clear();
+    if (decoder == nullptr || !mkvc::capi::valid_stage_metrics_output(out_metrics))
+        return fail(MKVC_ERROR_INVALID_ARGUMENT, "invalid decoder stage-metrics output");
+    std::lock_guard<std::mutex> lock(decoder->mutex);
+    *out_metrics = decoder->stage_metrics;
+    out_metrics->struct_size = sizeof(*out_metrics);
+    out_metrics->struct_version = 1;
+    return MKVC_OK;
+}
+
 mkvc_result mkvc_decoder_get_info(const mkvc_decoder* decoder, mkvc_video_info* out_info) {
     last_error.clear();
     if (decoder == nullptr || out_info == nullptr || out_info->struct_size < sizeof(*out_info) ||

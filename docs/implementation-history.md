@@ -9,6 +9,29 @@
 [implementation-status.md](implementation-status.md)を使用する。この履歴には
 過去の判断、測定値、詳細なverification matrixを粒度を落とさず保持する。
 
+## 2026-09-12: Stage metrics, performance gate, GPU SDK harnesses and fuzz CI
+
+Added a separate versioned stage-metrics ABI rather than extending the existing
+64-byte aggregate structure. C, C++, Python and .NET expose exact frame, flush
+and close host-call counts/times plus synchronous-versus-worker frame timing.
+The JSON benchmark records both aggregate and stage snapshots. A fail-closed
+relative-baseline gate rejects mismatched cases, invalid measurements and
+throughput/latency regression beyond the reviewed fraction.
+
+Native C++ and .NET strict GPU-resident transcode harnesses now share the CPU VP9
+fixture and validate frame count, zero-copy reporting and a nonempty output.
+The new C++ harness exposed an Intel crash: GPU input initially used an encoder
+session created on a different device context and the pending queue retained
+only a weak frame reference. GPU submission now recreates the encoder bound to
+the producer VA display/D3D11 device and holds a strong frame lease until its
+SyncPoint completes. Linux Arc passes both C++ and .NET GPU round trips; Windows
+correctly skips Intel and AV1 NVENC paths unavailable on the test hardware.
+
+The bounded in-memory EBML header parser is shared with a Clang libFuzzer target.
+Linux CI builds the project with ASan/UBSan, runs CTest, then executes a bounded
+fuzz campaign. A local Windows Clang ASan/UBSan qualification completed 10,000
+generated inputs without a finding.
+
 ## 2026-09-12: CPU VP9/AV1 luma SSIM acceptance
 
 CPU codec acceptance now complements the existing 28 dB Y-PSNR threshold with

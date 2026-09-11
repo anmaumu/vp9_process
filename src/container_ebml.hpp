@@ -21,6 +21,9 @@ struct HeaderInfo {
     std::string doc_type;
 };
 
+/** Parse one bounded in-memory EBML header prefix without file-system access. */
+bool parse_header_bytes(const std::vector<uint8_t>& bytes, HeaderInfo& info);
+
 /** Read and parse the bounded EBML header prefix from a container. */
 bool read_header(const char* path, std::vector<uint8_t>& bytes, HeaderInfo& info,
                  std::string& error);

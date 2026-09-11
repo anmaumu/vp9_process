@@ -168,6 +168,26 @@ function(mkvc_add_cpu_vp9_fixture_tests output_variable)
         add_test(NAME mkvc_cpu_vp9_encode COMMAND mkvc_cpu_vp9_encode_test "${output}")
         set_tests_properties(mkvc_cpu_vp9_encode PROPERTIES FIXTURES_SETUP cpu_vp9_sample)
 
+        if(MKVC_ENABLE_INTEL_ONEVPL OR MKVC_ENABLE_NVIDIA)
+            add_executable(mkvc_cpp_gpu_roundtrip_test tests/cpp_gpu_roundtrip_test.cpp)
+            target_compile_features(mkvc_cpp_gpu_roundtrip_test PRIVATE cxx_std_17)
+            target_link_libraries(mkvc_cpp_gpu_roundtrip_test PRIVATE mkvcodec)
+            if(MKVC_ENABLE_INTEL_ONEVPL)
+                add_test(NAME mkvc_cpp_intel_gpu_roundtrip
+                    COMMAND mkvc_cpp_gpu_roundtrip_test "${output}"
+                        "${CMAKE_CURRENT_BINARY_DIR}/cpp_intel_gpu.webm" 3 1)
+                set_tests_properties(mkvc_cpp_intel_gpu_roundtrip PROPERTIES
+                    FIXTURES_REQUIRED cpu_vp9_sample SKIP_RETURN_CODE 77 TIMEOUT 120)
+            endif()
+            if(MKVC_ENABLE_NVIDIA)
+                add_test(NAME mkvc_cpp_nvidia_gpu_roundtrip
+                    COMMAND mkvc_cpp_gpu_roundtrip_test "${output}"
+                        "${CMAKE_CURRENT_BINARY_DIR}/cpp_nvidia_gpu.webm" 2 2)
+                set_tests_properties(mkvc_cpp_nvidia_gpu_roundtrip PROPERTIES
+                    FIXTURES_REQUIRED cpu_vp9_sample SKIP_RETURN_CODE 77 TIMEOUT 120)
+            endif()
+        endif()
+
         if(MKVC_ENABLE_NVIDIA)
             mkvc_add_nvidia_vp9_fixture_tests("${output}")
         endif()
@@ -194,21 +214,57 @@ function(mkvc_add_cpu_vp9_fixture_tests output_variable)
     set(${output_variable} "${output}" PARENT_SCOPE)
 endfunction()
 
-function(mkvc_add_dotnet_tests)
+function(mkvc_add_dotnet_tests vp9_fixture)
     if(NOT MKVC_BUILD_DOTNET_TESTS)
         return()
     endif()
-    find_program(DOTNET_EXECUTABLE dotnet REQUIRED)
+    find_program(MKVC_DOTNET_EXECUTABLE NAMES dotnet
+        HINTS "${CMAKE_CURRENT_SOURCE_DIR}/build/dotnet-sdk" REQUIRED)
     add_test(NAME mkvc_dotnet_build
-        COMMAND "${DOTNET_EXECUTABLE}" build
+        COMMAND "${MKVC_DOTNET_EXECUTABLE}" build
             "${CMAKE_CURRENT_SOURCE_DIR}/dotnet/MkvCodec.Smoke/MkvCodec.Smoke.csproj"
             --configuration Release)
     add_test(NAME mkvc_dotnet_smoke
         COMMAND ${CMAKE_COMMAND} -E env
             "MKVC_LIBRARY_PATH=$<TARGET_FILE:mkvcodec>"
             "MKVC_TEST_ENCODER_DELAY_MS=100"
-            "${DOTNET_EXECUTABLE}" run
+            "${MKVC_DOTNET_EXECUTABLE}" run
             --project "${CMAKE_CURRENT_SOURCE_DIR}/dotnet/MkvCodec.Smoke/MkvCodec.Smoke.csproj"
             --configuration Release --no-build)
     set_tests_properties(mkvc_dotnet_smoke PROPERTIES DEPENDS mkvc_dotnet_build)
+
+    if(vp9_fixture AND (MKVC_ENABLE_INTEL_ONEVPL OR MKVC_ENABLE_NVIDIA))
+        add_test(NAME mkvc_dotnet_gpu_build
+            COMMAND "${MKVC_DOTNET_EXECUTABLE}" build
+                "${CMAKE_CURRENT_SOURCE_DIR}/dotnet/MkvCodec.GpuSmoke/MkvCodec.GpuSmoke.csproj"
+                --configuration Release)
+        set_tests_properties(mkvc_dotnet_gpu_build PROPERTIES
+            RESOURCE_LOCK dotnet_build)
+        if(MKVC_ENABLE_INTEL_ONEVPL)
+            add_test(NAME mkvc_dotnet_intel_gpu_roundtrip
+                COMMAND ${CMAKE_COMMAND} -E env
+                    "MKVC_LIBRARY_PATH=$<TARGET_FILE:mkvcodec>"
+                    "${MKVC_DOTNET_EXECUTABLE}" run
+                    --project "${CMAKE_CURRENT_SOURCE_DIR}/dotnet/MkvCodec.GpuSmoke/MkvCodec.GpuSmoke.csproj"
+                    --configuration Release --no-build --
+                    "${vp9_fixture}" "${CMAKE_CURRENT_BINARY_DIR}/dotnet_intel_gpu.webm"
+                    Intel Vp9)
+            set_tests_properties(mkvc_dotnet_intel_gpu_roundtrip PROPERTIES
+                DEPENDS mkvc_dotnet_gpu_build FIXTURES_REQUIRED cpu_vp9_sample
+                SKIP_RETURN_CODE 77 TIMEOUT 120 RESOURCE_LOCK dotnet_build)
+        endif()
+        if(MKVC_ENABLE_NVIDIA)
+            add_test(NAME mkvc_dotnet_nvidia_gpu_roundtrip
+                COMMAND ${CMAKE_COMMAND} -E env
+                    "MKVC_LIBRARY_PATH=$<TARGET_FILE:mkvcodec>"
+                    "${MKVC_DOTNET_EXECUTABLE}" run
+                    --project "${CMAKE_CURRENT_SOURCE_DIR}/dotnet/MkvCodec.GpuSmoke/MkvCodec.GpuSmoke.csproj"
+                    --configuration Release --no-build --
+                    "${vp9_fixture}" "${CMAKE_CURRENT_BINARY_DIR}/dotnet_nvidia_gpu.webm"
+                    Nvidia Av1)
+            set_tests_properties(mkvc_dotnet_nvidia_gpu_roundtrip PROPERTIES
+                DEPENDS mkvc_dotnet_gpu_build FIXTURES_REQUIRED cpu_vp9_sample
+                SKIP_RETURN_CODE 77 TIMEOUT 120 RESOURCE_LOCK dotnet_build)
+        endif()
+    endif()
 endfunction()

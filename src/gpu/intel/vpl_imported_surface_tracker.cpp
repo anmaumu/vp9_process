@@ -77,6 +77,9 @@ mkvc_result VplImportedSurfaceTracker::acquire(const std::shared_ptr<GpuFrameCor
         frame->producer_completion()->wait(std::numeric_limits<uint32_t>::max(), error);
     if (result != MKVC_OK) return result;
 
+    // oneVPL surfaces already carry their FrameInterface and can be submitted
+    // directly when both components use the same device. Keep the frame core
+    // alive in VplEncoderQueue until its SyncPoint completes.
     const auto resource = frame->backend_resource();
     if (resource.kind == BackendResourceKind::kIntelVplSurface && resource.object != nullptr) {
         surface = static_cast<mfxFrameSurface1*>(resource.object);

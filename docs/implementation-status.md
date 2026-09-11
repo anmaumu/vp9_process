@@ -10,8 +10,8 @@
 | Environment | Current suite | Result |
 |---|---:|---|
 | Windows x64 / NVIDIA-enabled build | 38 tests | pass、GPU capability不足による想定内skip 2 |
-| Windows x64 / CPU VP9+AV1、Intel、NVIDIA同時build | 25 native tests | pass、実hardware capability不足による想定内skip 4 |
-| Linux x64 / Intel GPU required | 46 tests | pass |
+| Windows x64 / CPU VP9+AV1、Intel、NVIDIA同時build | 33 tests | pass、実hardware capability不足による想定内skip 8 |
+| Linux x64 / Intel GPU required | 53 tests | pass、C++/.NET GPU round-tripを含む |
 | Linux x64 / CPU VP9 and AV1 | 32 tests | pass |
 
 各refactorではABI guard、Python/.NET binding generation、docgen、source
@@ -22,15 +22,16 @@ regression thresholdではない。
 
 | Area | Implemented | Current boundary |
 |---|---|---|
-| Container | libwebmによるWebM/Matroska mux・demux、拡張子とDocTypeの整合、VP9/AV1自動判別、decode不要の動画情報probe、共通入力上限、固定破損＋seeded mutation smoke | 最初の対応映像trackを選択。継続的なsanitizer/libFuzzer corpusは未完了 |
+| Container | libwebmによるWebM/Matroska mux・demux、拡張子とDocTypeの整合、VP9/AV1自動判別、decode不要の動画情報probe、共通入力上限、固定破損＋seeded mutation smoke、ASan/UBSan＋libFuzzer CI | 最初の対応映像trackを選択。長期corpus管理は継続課題 |
 | CPU codec | libvpx VP9 encode/decode、SVT-AV1 encode、libaom AV1 decode、PSNR＋block SSIM受け入れ | 現行は8-bit I420/NV12/packed入力。10-bitは将来範囲 |
 | CPU Python | OpenCV風Capture/Writer、owned/borrowed NumPy、native buffer pool、async submission | OS page-lock計測と詳細copy traceは任意残件 |
 | Intel Linux | oneVPL VP9/AV1、VA surface、OpenCL/Level Zero、device-USM DLPack、pool/backpressure | direct oneVPL USM consumptionと30分cross-context soakは残件 |
 | Intel Windows | D3D11 handle/fence契約と外部import実装 | 実GPUでのdecode→external processing→encode総合認定が残件 |
 | NVIDIA Windows | NVDEC VP9 CUDA surface、CUDA pointer/array/event interop、NVENC AV1実装 | RTX 2060はAV1 encode非対応。対応GPUでのpositive NVENC試験が必要 |
 | GPU strict mode | 共通GpuFrame lease、native handle、DLPack、`require_gpu_resident`、copy-path metrics | driver内部まで含む完全copy proofは環境別に継続 |
-| C++ | move-only RAII facade、CPU/GPU frame、pool、submission | Intel/NVIDIAのC++ hardware round-trip認定が残件 |
-| .NET | .NET 8 P/Invoke、SafeHandle、codec自動判別・動画情報probe、全8-bit CPU形式、native pool Submit＋cancellable `WaitAsync`、GPU surface API | managed GPU hardware round-tripが残件 |
+| C++ | move-only RAII facade、CPU/GPU frame、pool、submission、strict GPU transcode harness | Linux Intel round-trip認定済み。AV1対応NVIDIAでのpositive encode認定が残件 |
+| .NET | .NET 8 P/Invoke、SafeHandle、codec自動判別・動画情報probe、全8-bit CPU形式、native pool Submit＋cancellable `WaitAsync`、GPU surface API、strict GPU transcode harness | Linux Intel round-trip認定済み。Windows IntelとAV1対応NVIDIAでのpositive認定が残件 |
+| Observability | aggregate queue/backend/copy-path metrics、versioned frame/flush/close host timing、同期/worker内訳、JSON benchmark、相対baseline gate | conversion/codec/mux単体とGPU event timingは残件 |
 | Packaging | dependency manifest、legal payload collector、SPDX SBOM、wheel/NuGet builderとinspector、通常/delay-load PE importの再帰閉包検査、qualification/release分離、Windows全backend実artifact load・CPU実行認定 | project LICENSE決定、実Intel/NVIDIA AV1 hardware認定、公開前legal reviewとrelease artifactが残件 |
 
 H.264/HEVCは公開codec、暗黙fallback、配布対象のいずれにも含めない。

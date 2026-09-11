@@ -54,11 +54,14 @@ mkvc_result VplEncoderSequence::write_gpu(const std::shared_ptr<GpuFrameCore>& f
         error = "Intel encoder is closed";
         return MKVC_ERROR_INVALID_STATE;
     }
-    if (frame->backend_resource().kind == BackendResourceKind::kNone && !external_gpu_mode_) {
+    if (!external_gpu_mode_) {
         if (frames_in_sequence_ != 0) {
             error = "flush Intel writer before switching to external GPU input";
             return MKVC_ERROR_INVALID_STATE;
         }
+        // Bind the encode session to the producer frame's VA display/D3D11
+        // device before accepting any GPU input. A default CPU-input session
+        // may select a distinct device context even on the same adapter.
         auto adapter = IntelVplEncoder::create(config_.codec, config_.width, config_.height,
                                                config_.fps_num, config_.fps_den, config_.quality,
                                                config_.keyframe_interval_frames, error, 4, frame);

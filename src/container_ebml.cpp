@@ -30,7 +30,9 @@ bool read_vint(const std::vector<uint8_t>& data, size_t& position, bool keep_mar
     return true;
 }
 
-bool parse_header(const std::vector<uint8_t>& bytes, HeaderInfo& info) {
+}  // namespace
+
+bool parse_header_bytes(const std::vector<uint8_t>& bytes, HeaderInfo& info) {
     size_t position = 0;
     uint64_t id = 0;
     size_t width = 0;
@@ -63,8 +65,6 @@ bool parse_header(const std::vector<uint8_t>& bytes, HeaderInfo& info) {
     return false;
 }
 
-}  // namespace
-
 bool read_header(const char* path, std::vector<uint8_t>& bytes, HeaderInfo& info,
                  std::string& error) {
     std::ifstream input(path, std::ios::binary);
@@ -75,7 +75,7 @@ bool read_header(const char* path, std::vector<uint8_t>& bytes, HeaderInfo& info
     bytes.resize(4096);
     input.read(reinterpret_cast<char*>(bytes.data()), bytes.size());
     bytes.resize(static_cast<size_t>(input.gcount()));
-    if (!parse_header(bytes, info)) {
+    if (!parse_header_bytes(bytes, info)) {
         error = "invalid or unsupported EBML header";
         return false;
     }

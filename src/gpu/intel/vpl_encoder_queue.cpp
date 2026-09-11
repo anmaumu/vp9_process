@@ -22,7 +22,9 @@ struct VplEncoderQueue::Impl {
         std::vector<uint8_t> storage;
         mfxSyncPoint sync = nullptr;
         std::shared_ptr<ManualCompletion> input_completion;
-        std::weak_ptr<GpuFrameCore> input_frame;
+        // Keep the submitted frame and its native resource alive until the
+        // corresponding SyncPoint proves that oneVPL has stopped reading it.
+        std::shared_ptr<GpuFrameCore> input_frame;
     };
 
     mfxSession session = nullptr;
@@ -55,7 +57,7 @@ VplEncoderQueue::~VplEncoderQueue() { close(); }
 
 mkvc_result VplEncoderQueue::submit(mfxFrameSurface1* surface, std::string& error,
                                     std::shared_ptr<ManualCompletion> completion,
-                                    std::weak_ptr<GpuFrameCore> input_frame) {
+                                    std::shared_ptr<GpuFrameCore> input_frame) {
     if (impl_->closed) {
         error = "oneVPL encoder queue is closed";
         return MKVC_ERROR_INVALID_STATE;
@@ -90,7 +92,7 @@ mkvc_result VplEncoderQueue::submit(mfxFrameSurface1* surface, std::string& erro
         }
     } else if (pending->input_completion) {
         pending->input_completion->complete();
-        if (auto frame = pending->input_frame.lock()) frame->poll_recycle();
+        if (pending->input_frame) pending->input_frame->poll_recycle();
     }
     return MKVC_OK;
 }
@@ -127,7 +129,7 @@ mkvc_result VplEncoderQueue::collect_oldest(std::vector<IntelEncodedPacket>& pac
         return packet_result;
     }
     if (pending->input_completion) pending->input_completion->complete();
-    if (auto frame = pending->input_frame.lock()) frame->poll_recycle();
+    if (pending->input_frame) pending->input_frame->poll_recycle();
 #if defined(MKVC_ENABLE_TEST_HOOKS)
     ++impl_->collected_syncpoints;
 #endif

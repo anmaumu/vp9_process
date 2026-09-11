@@ -65,6 +65,15 @@ void run_encoder_worker(EncoderSession::Impl* impl) noexcept {
             {
                 std::lock_guard<std::mutex> lock(impl->mutex);
                 impl->backend_time_ns += backend_elapsed;
+                if (item.type == EncoderSession::Impl::ItemType::kFrame) {
+                    ++impl->stage_metrics.frame_calls;
+                    impl->stage_metrics.frame_time_ns += backend_elapsed;
+                    ++impl->stage_metrics.worker_frame_calls;
+                    impl->stage_metrics.worker_frame_time_ns += backend_elapsed;
+                } else {
+                    ++impl->stage_metrics.flush_calls;
+                    impl->stage_metrics.flush_time_ns += backend_elapsed;
+                }
                 impl->hardware_pending_peak =
                     std::max(impl->hardware_pending_peak, hardware_pending);
                 if (item.frame) {
@@ -102,6 +111,8 @@ void run_encoder_worker(EncoderSession::Impl* impl) noexcept {
         const uint32_t hardware_pending = backend_hardware_pending(*impl);
         std::lock_guard<std::mutex> lock(impl->mutex);
         impl->backend_time_ns += close_elapsed;
+        ++impl->stage_metrics.close_calls;
+        impl->stage_metrics.close_time_ns += close_elapsed;
         impl->hardware_pending_peak = std::max(impl->hardware_pending_peak, hardware_pending);
         if (!impl->failed && close_result != MKVC_OK) {
             impl->failed = true;

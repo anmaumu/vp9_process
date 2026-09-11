@@ -26,6 +26,10 @@ mkvc_result read_cpu_sync(mkvc_decoder& decoder, std::unique_ptr<DecodedFrame>& 
     {
         std::lock_guard<std::mutex> lock(decoder.mutex);
         decoder.backend_time_ns += backend_elapsed;
+        ++decoder.stage_metrics.frame_calls;
+        decoder.stage_metrics.frame_time_ns += backend_elapsed;
+        ++decoder.stage_metrics.sync_frame_calls;
+        decoder.stage_metrics.sync_frame_time_ns += backend_elapsed;
         decoder.hardware_pending_peak = std::max(decoder.hardware_pending_peak, pending);
         if (result == MKVC_OK) {
             ++decoder.accepted_frames;
@@ -42,7 +46,12 @@ mkvc_result read_gpu_sync(mkvc_decoder& decoder, mkvc_gpu_frame** frame, std::st
                                    : decoder.nvidia_implementation->read_gpu(frame, error);
     {
         std::lock_guard<std::mutex> lock(decoder.mutex);
-        decoder.backend_time_ns += elapsed_ns(started);
+        const uint64_t elapsed = elapsed_ns(started);
+        decoder.backend_time_ns += elapsed;
+        ++decoder.stage_metrics.frame_calls;
+        decoder.stage_metrics.frame_time_ns += elapsed;
+        ++decoder.stage_metrics.sync_frame_calls;
+        decoder.stage_metrics.sync_frame_time_ns += elapsed;
         if (result == MKVC_OK) {
             ++decoder.accepted_frames;
             ++decoder.completed_frames;

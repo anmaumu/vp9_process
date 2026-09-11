@@ -1,0 +1,51 @@
+name: Sanitizers and fuzzing
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  asan-ubsan-fuzz:
+    runs-on: ubuntu-latest
+    env:
+      VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install build tools
+        run: sudo apt-get update && sudo apt-get install --yes clang ninja-build
+      - name: Bootstrap pinned vcpkg
+        run: |
+          git clone https://github.com/microsoft/vcpkg.git "$VCPKG_ROOT"
+          git -C "$VCPKG_ROOT" checkout 114d9fe62faf35856b45cf55cb93b57028a45d63
+          "$VCPKG_ROOT/bootstrap-vcpkg.sh" -disableMetrics
+      - name: Configure ASan and UBSan build
+        run: >-
+          cmake -S . -B build/sanitizers -G Ninja
+          -DCMAKE_BUILD_TYPE=Debug
+          -DCMAKE_C_COMPILER=clang
+          -DCMAKE_CXX_COMPILER=clang++
+          -DCMAKE_TOOLCHAIN_FILE="$VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake"
+          -DMKVC_BUILD_TESTS=ON
+          -DMKVC_BUILD_FUZZERS=ON
+          -DMKVC_BUILD_PYTHON_DLPACK=OFF
+          -DMKVC_ENABLE_INTEL_ONEVPL=OFF
+          -DMKVC_ENABLE_NVIDIA=OFF
+          -DCMAKE_C_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer"
+          -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer"
+          -DCMAKE_SHARED_LINKER_FLAGS="-fsanitize=address,undefined"
+      - name: Build
+        run: cmake --build build/sanitizers --parallel 2
+      - name: Run sanitizer tests
+        env:
+          ASAN_OPTIONS: detect_leaks=1:strict_string_checks=1:check_initialization_order=1
+          UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+        run: ctest --test-dir build/sanitizers --output-on-failure
+      - name: Run bounded fuzz campaign
+        env:
+          ASAN_OPTIONS: detect_leaks=1
+          UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+        run: build/sanitizers/mkvc_fuzz_container_header -max_total_time=60 -timeout=5

@@ -20,4 +20,10 @@ inline bool valid_metrics_output(const mkvc_pipeline_metrics* metrics) noexcept 
            metrics->struct_version == 1;
 }
 
+/** Return whether a detailed timing destination is safe to overwrite. */
+inline bool valid_stage_metrics_output(const mkvc_pipeline_stage_metrics* metrics) noexcept {
+    return metrics != nullptr && metrics->struct_size >= sizeof(mkvc_pipeline_stage_metrics) &&
+           metrics->struct_version == 1;
+}
+
 }  // namespace mkvc::capi

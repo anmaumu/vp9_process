@@ -38,7 +38,7 @@ class VplEncoderQueue {
     /** Submit one surface, or nullptr while draining delayed encoder output. */
     mkvc_result submit(mfxFrameSurface1* surface, std::string& error,
                        std::shared_ptr<ManualCompletion> completion = {},
-                       std::weak_ptr<GpuFrameCore> input_frame = {});
+                       std::shared_ptr<GpuFrameCore> input_frame = {});
     /** Wait for and remove the oldest ordered submission. */
     mkvc_result collect_oldest(std::vector<IntelEncodedPacket>& packets, std::string& error);
     /** Submit drain markers and collect every remaining ordered packet. */

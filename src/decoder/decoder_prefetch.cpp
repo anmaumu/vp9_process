@@ -37,6 +37,10 @@ void worker(mkvc_decoder* decoder) noexcept {
             const uint32_t pending = hardware_pending(*decoder);
             std::lock_guard<std::mutex> lock(decoder->mutex);
             decoder->backend_time_ns += backend_elapsed;
+            ++decoder->stage_metrics.frame_calls;
+            decoder->stage_metrics.frame_time_ns += backend_elapsed;
+            ++decoder->stage_metrics.worker_frame_calls;
+            decoder->stage_metrics.worker_frame_time_ns += backend_elapsed;
             decoder->hardware_pending_peak = std::max(decoder->hardware_pending_peak, pending);
             if (decoder->stop_requested) return;
             if (result == MKVC_OK) {

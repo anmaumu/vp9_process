@@ -93,6 +93,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         writer.close()
     encode_seconds = time.perf_counter() - encode_started
     writer_metrics = writer.metrics
+    writer_stage_metrics = writer.stage_metrics
 
     decoded = 0
     first_frame_seconds: float | None = None
@@ -112,6 +113,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             decoded += 1
     decode_seconds = time.perf_counter() - decode_started
     capture_metrics = capture.metrics
+    capture_stage_metrics = capture.stage_metrics
     if decoded != args.frames:
         raise RuntimeError(f"decoded {decoded} frames, expected {args.frames}")
 
@@ -160,6 +162,8 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "native_metrics": {
             "encoder": asdict(writer_metrics),
             "decoder": asdict(capture_metrics),
+            "encoder_stages": asdict(writer_stage_metrics),
+            "decoder_stages": asdict(capture_stage_metrics),
         },
     }
     if temporary is not None:

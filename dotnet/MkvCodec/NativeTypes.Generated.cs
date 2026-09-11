@@ -310,6 +310,23 @@ public struct MkvPipelineMetrics
 }
 
 [StructLayout(LayoutKind.Sequential)]
+public struct MkvPipelineStageMetrics
+{
+    public uint StructSize;
+    public uint StructVersion;
+    public ulong FrameCalls;
+    public ulong FrameTimeNanoseconds;
+    public ulong FlushCalls;
+    public ulong FlushTimeNanoseconds;
+    public ulong CloseCalls;
+    public ulong CloseTimeNanoseconds;
+    public ulong SyncFrameCalls;
+    public ulong SyncFrameTimeNanoseconds;
+    public ulong WorkerFrameCalls;
+    public ulong WorkerFrameTimeNanoseconds;
+}
+
+[StructLayout(LayoutKind.Sequential)]
 public struct MkvVersion
 {
     public uint StructSize;

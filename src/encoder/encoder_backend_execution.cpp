@@ -39,7 +39,12 @@ mkvc_result write_cpu_sync(EncoderSession::Impl& impl, const mkvc_frame_view& fr
     const auto started = std::chrono::steady_clock::now();
     const mkvc_result result = backend_write(impl, frame, error);
     std::lock_guard<std::mutex> lock(impl.mutex);
-    impl.backend_time_ns += elapsed_ns(started);
+    const uint64_t elapsed = elapsed_ns(started);
+    impl.backend_time_ns += elapsed;
+    ++impl.stage_metrics.frame_calls;
+    impl.stage_metrics.frame_time_ns += elapsed;
+    ++impl.stage_metrics.sync_frame_calls;
+    impl.stage_metrics.sync_frame_time_ns += elapsed;
     impl.hardware_pending_peak =
         std::max(impl.hardware_pending_peak, backend_hardware_pending(impl));
     if (result == MKVC_OK) {
@@ -55,7 +60,12 @@ mkvc_result write_gpu_sync_locked(EncoderSession::Impl& impl,
                                   std::string& error) {
     const auto started = std::chrono::steady_clock::now();
     const mkvc_result result = impl.backend->write_gpu(frame, error);
-    impl.backend_time_ns += elapsed_ns(started);
+    const uint64_t elapsed = elapsed_ns(started);
+    impl.backend_time_ns += elapsed;
+    ++impl.stage_metrics.frame_calls;
+    impl.stage_metrics.frame_time_ns += elapsed;
+    ++impl.stage_metrics.sync_frame_calls;
+    impl.stage_metrics.sync_frame_time_ns += elapsed;
     impl.hardware_pending_peak =
         std::max(impl.hardware_pending_peak, backend_hardware_pending(impl));
     if (result == MKVC_OK) {
@@ -70,7 +80,10 @@ mkvc_result flush_sync(EncoderSession::Impl& impl, std::string& error) {
     const auto started = std::chrono::steady_clock::now();
     const mkvc_result result = backend_flush(impl, error);
     std::lock_guard<std::mutex> lock(impl.mutex);
-    impl.backend_time_ns += elapsed_ns(started);
+    const uint64_t elapsed = elapsed_ns(started);
+    impl.backend_time_ns += elapsed;
+    ++impl.stage_metrics.flush_calls;
+    impl.stage_metrics.flush_time_ns += elapsed;
     impl.hardware_pending_peak =
         std::max(impl.hardware_pending_peak, backend_hardware_pending(impl));
     return result;
@@ -80,7 +93,10 @@ mkvc_result close_sync(EncoderSession::Impl& impl, std::string& error) {
     const auto started = std::chrono::steady_clock::now();
     const mkvc_result result = backend_close(impl, error);
     std::lock_guard<std::mutex> lock(impl.mutex);
-    impl.backend_time_ns += elapsed_ns(started);
+    const uint64_t elapsed = elapsed_ns(started);
+    impl.backend_time_ns += elapsed;
+    ++impl.stage_metrics.close_calls;
+    impl.stage_metrics.close_time_ns += elapsed;
     impl.hardware_pending_peak =
         std::max(impl.hardware_pending_peak, backend_hardware_pending(impl));
     return result;
