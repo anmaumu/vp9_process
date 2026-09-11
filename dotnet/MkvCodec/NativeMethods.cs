@@ -22,6 +22,16 @@ internal static partial class NativeMethods
         return nint.Zero;
     }
 
+    [DllImport(LibraryName, EntryPoint = "mkvc_submission_query",
+        CallingConvention = CallingConvention.Cdecl)]
+    internal static extern MkvResult mkvc_submission_query_raw(
+        nint submission, out MkvSubmissionStatus status);
+
+    [DllImport(LibraryName, EntryPoint = "mkvc_submission_wait",
+        CallingConvention = CallingConvention.Cdecl)]
+    internal static extern MkvResult mkvc_submission_wait_raw(
+        nint submission, uint timeoutMilliseconds);
+
     // BEGIN MKVC GENERATED PINVOKE DECLARATIONS
     // END MKVC GENERATED PINVOKE DECLARATIONS
 }

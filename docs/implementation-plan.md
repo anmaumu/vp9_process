@@ -135,6 +135,7 @@
 - [x] fixed-capacity native input pool with backpressure, generation checks and Python NumPy views
 - [ ] optional OS page-locked/pinned allocation mode and pinning metrics
 - [x] .NET synchronous short pin and asynchronous unmanaged native-pool API
+- [x] .NET submission `WaitAsync` with timeout、cancellation、SafeHandle dispose-race protection
 - [ ] .NET optional OS page-locked pool mode and pin-duration/GC metrics
 - [ ] strict layout/stride/alignment validation and explicit copy-path fallback
 - [ ] GPU decode→NumPy download/conversion edge tracing
@@ -144,7 +145,8 @@
 
 - Python wheel
 - [x] .NET 8 P/Invoke ABI layout/load smoke and SafeHandle foundation
-- [ ] .NET high-level reader/writer/frame API and NuGet
+- [x] .NET high-level reader/writer/frame API
+- [ ] NuGet publication
 - [x] dependency manifest、SPDX SBOM generator、source/artifact compliance gate foundation
 - [x] hash-locked LICENSE/PATENTS collectorとTHIRD_PARTY_NOTICES生成
 - [x] wheel/NuGetへのnative/legal/SBOM収録と実artifact gate

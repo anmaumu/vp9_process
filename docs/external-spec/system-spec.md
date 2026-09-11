@@ -375,7 +375,7 @@ descriptor pitchはwidthと一致させる。実allocation形状の最終検証�
 
 - `EXT-CS-002`: handleは`SafeHandle`、reader/writer/frameは`IDisposable`で包む。
 - `EXT-CS-003`: CPU frame API後にD3D11 Texture連携を提供する。
-- `EXT-CS-004`: C++ Coreのsubmit/receiveを基に、将来`WriteAsync`等を提供できる設計とする。
+- `EXT-CS-004`: native poolの`Submit`は`MkvSubmission` completion leaseを返し、`WaitAsync(timeout, cancellationToken)`でmanaged worker threadを占有せず待機できる。timeout/cancellationはmanaged waitだけを終了し、native submissionを暗黙cancelしない。待機開始後のsubmission `Dispose`と競合してもSafeHandle参照を保持する。managed arrayを受ける将来の`WriteAsync`は長時間pinningを禁止する。
 
 .NETの同期CPU入力はP/Invoke中だけmanaged memoryをpinできる。`WriteAsync`はmanaged arrayを長時間pinせず、libraryのnative/pinned poolまたは明示的なunmanaged ownerを使用する。
 

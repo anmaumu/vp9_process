@@ -201,6 +201,7 @@ function(mkvc_add_dotnet_tests)
     add_test(NAME mkvc_dotnet_smoke
         COMMAND ${CMAKE_COMMAND} -E env
             "MKVC_LIBRARY_PATH=$<TARGET_FILE:mkvcodec>"
+            "MKVC_TEST_ENCODER_DELAY_MS=100"
             "${DOTNET_EXECUTABLE}" run
             --project "${CMAKE_CURRENT_SOURCE_DIR}/dotnet/MkvCodec.Smoke/MkvCodec.Smoke.csproj"
             --configuration Release --no-build)

@@ -153,16 +153,41 @@ try
             throw new InvalidOperationException("Native CPU pool exceeded capacity");
         using MkvSubmission submission = writer.Submit(buffer, pts: 0);
         buffer.Dispose();
-        submission.Wait(5000);
+        using (var cancelled = new CancellationTokenSource())
+        {
+            cancelled.Cancel();
+            try
+            {
+                await submission.WaitAsync(
+                    TimeSpan.FromSeconds(5), cancelled.Token);
+                throw new InvalidOperationException("Cancelled async wait completed");
+            }
+            catch (OperationCanceledException) { }
+        }
+        try
+        {
+            await submission.WaitAsync(TimeSpan.FromMilliseconds(1));
+            throw new InvalidOperationException("Async wait deadline was ignored");
+        }
+        catch (TimeoutException) { }
+        await submission.WaitAsync(TimeSpan.FromSeconds(5));
         if (submission.Status != MkvSubmissionStatus.Complete)
             throw new InvalidOperationException("Native CPU submission did not complete");
         using MkvCpuBuffer recycled = pool.Acquire(5000);
         if (recycled.Generation <= firstGeneration)
             throw new InvalidOperationException("Native CPU pool generation did not advance");
+        recycled.Dispose();
+        using MkvCpuBuffer concurrentBuffer = pool.Acquire(5000);
+        MkvSubmission concurrentSubmission = writer.Submit(concurrentBuffer, pts: 1);
+        concurrentBuffer.Dispose();
+        Task concurrentWait = concurrentSubmission.WaitAsync(TimeSpan.FromSeconds(5));
+        concurrentSubmission.Dispose();
+        await concurrentWait;
     }
     using var pooledCapture = new MkvVideoCapture(pooledPath, prefetch: 0);
     if (pooledCapture.ReadI420() is not { } pooledFrame ||
         pooledFrame.Width != width || pooledFrame.Height != height ||
+        pooledCapture.ReadI420() is not { } ||
         pooledCapture.ReadI420() is not null)
         throw new InvalidOperationException(".NET native-pool round-trip failed");
 

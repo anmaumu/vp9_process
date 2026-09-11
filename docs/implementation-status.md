@@ -29,7 +29,7 @@ regression thresholdではない。
 | NVIDIA Windows | NVDEC VP9 CUDA surface、CUDA pointer/array/event interop、NVENC AV1実装 | RTX 2060はAV1 encode非対応。対応GPUでのpositive NVENC試験が必要 |
 | GPU strict mode | 共通GpuFrame lease、native handle、DLPack、`require_gpu_resident`、copy-path metrics | driver内部まで含む完全copy proofは環境別に継続 |
 | C++ | move-only RAII facade、CPU/GPU frame、pool、submission | Intel/NVIDIAのC++ hardware round-trip認定が残件 |
-| .NET | .NET 8 P/Invoke、SafeHandle、codec自動判別・動画情報probe、I420/NV12/BGR/RGB/BGRA CPU round-trip、GPU surface API | managed GPU hardware round-trip、async Task APIが残件 |
+| .NET | .NET 8 P/Invoke、SafeHandle、codec自動判別・動画情報probe、全8-bit CPU形式、native pool Submit＋cancellable `WaitAsync`、GPU surface API | managed GPU hardware round-tripが残件 |
 | Packaging | dependency manifest、legal payload collector、SPDX SBOM、wheel/NuGet builderとinspector | project LICENSE決定、Windows実artifact、公開前legal reviewが残件 |
 
 H.264/HEVCは公開codec、暗黙fallback、配布対象のいずれにも含めない。

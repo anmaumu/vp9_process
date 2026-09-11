@@ -316,6 +316,14 @@ while (capture.ReadSurface() is { } surface)
 }
 ```
 
+native CPU poolの非同期投入はmanaged arrayを長時間pinせず、Taskとして完了待機できます。
+
+```csharp
+using MkvSubmission submission = writer.Submit(buffer, pts: 0);
+buffer.Dispose(); // native submissionがslot leaseを保持
+await submission.WaitAsync(TimeSpan.FromSeconds(5), cancellationToken);
+```
+
 ## Documentation generation
 
 ```shell

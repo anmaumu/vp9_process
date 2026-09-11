@@ -385,7 +385,7 @@ Status: `PROPOSED`
 - `INT-ABI-004`: compatible minor versionでは既存struct prefixを保持する。
 - `INT-ABI-005`: 公開C headerをbinding symbol schemaの正本とし、Python ctypesと.NET P/Invokeは全公開functionを宣言する。欠落symbolとheaderにない余分なsymbolはCIで拒否する。型・layout・calling conventionは各bindingのcompile/smokeおよびABI layout testで検証する。
 - `INT-PY-001`: pybind11 wrapperはNumPy dtype/shape/strideを検証し、native errorをPython exceptionへ変換する。
-- `INT-CS-001`: P/Invoke struct layoutを自動testし、handleをSafeHandleで所有する。
+- `INT-CS-001`: P/Invoke struct layoutを自動testし、handleをSafeHandleで所有する。非同期completion待機はSafeHandleへ`DangerousAddRef`したraw handleをnonblocking queryし、terminal時だけzero-time waitでnative結果とthread-local detailを回収する。timeout/cancellationを含む全経路で`DangerousRelease`する。
 
 ## 13. Test Requirements
 
