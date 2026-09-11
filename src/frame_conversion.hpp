@@ -16,6 +16,7 @@ namespace mkvc {
  * @param source Owned decoded I420 image.
  * @param destination Validated caller-owned output planes and format.
  * @param error Receives validation or conversion diagnostics.
+ * @param conversion_threads Total conversion threads, or zero for automatic selection.
  * @return MKVC_OK or a stable validation/conversion error.
  */
 mkvc_result copy_frame_to(const DecodedFrame& source, mkvc_mutable_frame_view& destination,
