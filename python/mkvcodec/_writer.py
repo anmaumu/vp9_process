@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ctypes as ct
+from collections.abc import Sequence
 from pathlib import Path
 
 from . import _native as native
@@ -222,6 +223,37 @@ class VideoWriter:
         return self._write_packed(
             frame, 3, native.MKVC_PIXEL_FORMAT_BGR24, pts=pts, block=False
         )
+
+    def write_batch(
+        self,
+        frames: Sequence[FrameInput],
+        *,
+        pts: Sequence[int] | None = None,
+    ) -> int:
+        """Submit a sequence of BGR or I420 frames in order.
+
+        Parameters
+        ----------
+        frames : sequence
+            Packed BGR arrays or ``(Y, U, V)`` I420 tuples.
+        pts : sequence of int, optional
+            Per-frame timestamps. When omitted, the encoder generates them.
+
+        Returns
+        -------
+        int
+            Number of frames submitted successfully.
+
+        Raises
+        ------
+        ValueError
+            If the timestamp count differs from the frame count.
+        """
+        if pts is not None and len(pts) != len(frames):
+            raise ValueError("pts length must match frames length")
+        for index, frame in enumerate(frames):
+            self.write(frame, pts=-1 if pts is None else pts[index])
+        return len(frames)
 
     def _make_borrowed_view(
         self,

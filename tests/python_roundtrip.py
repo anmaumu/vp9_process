@@ -62,6 +62,31 @@ def main() -> None:
             frame.pts_ns for frame in frames
         )
 
+        batch_path = os.path.join(directory, "batch.webm")
+        batch_input = [(frame.y, frame.u, frame.v) for frame in frames[:7]]
+        with mkvcodec.VideoWriter(
+            batch_path, fps=30, frame_size=(width, height), queue_size=2
+        ) as writer:
+            expect_value_error(
+                lambda: writer.write_batch(batch_input, pts=[0])
+            )
+            assert writer.write_batch(
+                batch_input,
+                pts=[frame.pts_ns for frame in frames[:7]],
+            ) == 7
+        with mkvcodec.VideoCapture(batch_path, prefetch=4) as capture:
+            expect_value_error(lambda: capture.read_batch(0))
+            expect_value_error(lambda: capture.read_batch(1, -1))
+            expect_value_error(lambda: capture.read_batch(1, format="gray"))
+            decoded_batch = capture.read_batch(3, timeout_ms=1, format="i420")
+            while more := capture.read_batch(3, format="i420"):
+                decoded_batch.extend(more)
+            assert capture.read_batch(3, format="i420") == []
+        assert len(decoded_batch) == 7
+        assert [frame.pts_ns for frame in decoded_batch] == sorted(
+            frame.pts_ns for frame in decoded_batch
+        )
+
         # Extension selects an actual EBML DocType; mismatches fail closed.
         matroska_path = os.path.join(directory, "python.mkv")
         with mkvcodec.VideoWriter(

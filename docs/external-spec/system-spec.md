@@ -100,7 +100,7 @@ Status: `CONFIRMED`
 
 - `EXT-DEC-001`: `VideoCapture`は`read`、iterator、context manager、idempotentな`close/release`を提供する。Python `VideoCapture`と.NET `MkvVideoCapture`はauto codecを既定とし、track情報と個別のcodec、width、height、fps、duration、frame count属性を公開する。明示codecがtrackと異なる場合は初期化時に拒否する。
 - `EXT-DEC-002`: `read_bgr`、`read_nv12`、`read_surface`を明示的に提供する。packed CPU出力はdecode用`threads`とは独立した`conversion_threads=0..4`を受け、0は自動、1は補助workerなし、2..4は呼出元を含む総変換thread数とする。
-- `EXT-DEC-003`: `read_batch(max_size, timeout_ms=0)`を提供する。
+- `EXT-DEC-003`: Pythonはowned CPU frameまたはleased GPU surfaceを順序保持して最大`max_size`件返す`read_batch(max_size, timeout_ms=0, format=...)`を提供する。0はdeadlineなし、正数はbatch全体のbudgetとして各backend read間で判定し、進行中のdecodeは中断しない。timeoutまたはEOSでは短いlistを、EOS到達後は空listを返す。
 - `EXT-DEC-004`: `prefetch=0`の同期動作と、正数のbounded先読みを提供する。
 - `EXT-DEC-005`: end-of-streamではPython APIの単発readは`None`、iteratorは`StopIteration`とする。
 - `EXT-DEC-006`: CPU backendはnative decode planeをread-only NumPy viewとしてleaseする`read_borrowed`を提供し、owned `read`と明示的に区別する。
@@ -115,7 +115,7 @@ VFR・frame countの扱いを定義した後に検討する。
 - `EXT-ENC-001`: `VideoWriter`は`write`、context manager、idempotentな`flush/close/release`を提供する。
 - `EXT-ENC-002`: BGR/RGB/BGRA、I420、NV12 CPU入力を受け付ける。
 - `EXT-ENC-003`: `write_surface`で互換GPU Surfaceを受け付ける。
-- `EXT-ENC-004`: `write_batch`を提供する。
+- `EXT-ENC-004`: PythonはBGR/I420 sequenceと任意の同数PTS sequenceを順序保持して投入する`write_batch`を提供し、PTS件数不一致は投入前に拒否する。
 - `EXT-ENC-005`: 初期releaseのNumPy入力はlibrary-owned bufferへ安全にcopyする。
 - `EXT-ENC-006`: queue満杯時の既定動作はblockとし、`try_write`は`False/WOULD_BLOCK`を返す。
 - `EXT-ENC-011`: 同期`write_borrowed`は呼出中だけCPU inputを借用し、codecが読み終えてから戻る。

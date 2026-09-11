@@ -21,6 +21,17 @@ and managed capture also defaults to automatic codec selection.
 VP9/AV1 tests cover detection, dimensions, nominal FPS, duration and frame
 count. Seek remains explicitly deferred.
 
+## 2026-09-11: Python batch I/O and managed format parity
+
+Python capture now reads bounded ordered batches in BGR/RGB/BGRA/I420/NV12 or
+GPU-surface form, with an optional batch budget checked between backend reads.
+Python writer accepts ordered BGR/I420 sequences and validates optional PTS
+cardinality before submission. The .NET facade now exposes BGR/RGB/BGRA/NV12
+writer inputs and matching capture outputs over the existing native copy and
+SIMD conversion paths; managed arrays are pinned only for each synchronous ABI
+call. Round-trip tests cover batch boundaries, EOS, validation, packed stride
+and all managed formats.
+
 ## Documentation tooling
 
 - `docgen check/generate/build` validates specification IDs and generates Markdown/HTML.

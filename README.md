@@ -95,6 +95,9 @@ with mkvcodec.VideoCapture(
     print(capture.info)                 # codec/size/fps/duration/frame count
     bgr_frame = capture.read()       # or read_bgr()
     pts_ns = capture.last_pts_ns
+
+with mkvcodec.VideoCapture("output.webm", prefetch=4) as capture:
+    frames = capture.read_batch(8, timeout_ms=10, format="bgr")
 ```
 
 CPU native I420をcopyせずNumPy viewとして借用する場合は`read_borrowed()`を使います。
@@ -275,6 +278,8 @@ Captureの既定`read()`とiteratorはBGR ndarrayを返します。`read_i420`�
 `2..4`は呼出元を含む変換thread総数です。decode用`threads`とは独立して指定します。
 Writerの`queue_size=0`は同期encode、正数（Python既定8）は入力をdeep copyして
 native workerへ渡します。通常の`write`はqueue空きを待ち、`try_write`は待機しません。
+Pythonの`write_batch`はBGR/I420 sequenceを順番に投入し、`read_batch`はBGR/RGB/
+BGRA/I420/NV12またはGPU surfaceを最大指定件数まで返します。
 CPU AV1 writerは`codec="av1"`で選択し、Captureは既定でVP9/AV1を自動判別します。Writer入力とCapture出力は
 VP9と同じBGR/RGB/BGRA/I420/NV12を使用できます。
 Intel Writerは`backend="intel"`で選択でき、VP9/AV1と同じ5種類の8-bit入力を

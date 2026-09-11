@@ -88,6 +88,68 @@ public sealed class MkvVideoWriter : IDisposable
         }
     }
 
+    /// <summary>Submit one NV12 frame after validating both managed planes.</summary>
+    public unsafe void WriteNv12(byte[] y, byte[] uv, long pts = -1)
+    {
+        ObjectDisposedException.ThrowIf(handle is null || handle.IsClosed, this);
+        int ySize = checked((int)(width * height));
+        int uvSize = checked(ySize / 2);
+        if (y.Length < ySize || uv.Length < uvSize)
+            throw new ArgumentException("NV12 plane is smaller than the configured frame");
+        fixed (byte* py = y)
+        fixed (byte* puv = uv)
+        {
+            var frame = new NativeFrameView {
+                StructSize = checked((uint)Marshal.SizeOf<NativeFrameView>()),
+                StructVersion = 1, PixelFormat = (uint)MkvPixelFormat.Nv12,
+                Width = width, Height = height, Plane0 = (nint)py,
+                Plane1 = (nint)puv, Stride0 = checked((int)width),
+                Stride1 = checked((int)width), Pts = pts
+            };
+            MkvCodecInfo.ThrowIfFailed(
+                NativeMethods.mkvc_encoder_write_frame(handle!, ref frame));
+        }
+    }
+
+    /// <summary>Submit one packed BGR frame using the supplied row stride.</summary>
+    public void WriteBgr(byte[] pixels, int stride = 0, long pts = -1) =>
+        WritePacked(pixels, MkvPixelFormat.Bgr24, 3, stride, pts);
+
+    /// <summary>Submit one packed RGB frame using the supplied row stride.</summary>
+    public void WriteRgb(byte[] pixels, int stride = 0, long pts = -1) =>
+        WritePacked(pixels, MkvPixelFormat.Rgb24, 3, stride, pts);
+
+    /// <summary>Submit one packed BGRA frame using the supplied row stride.</summary>
+    public void WriteBgra(byte[] pixels, int stride = 0, long pts = -1) =>
+        WritePacked(pixels, MkvPixelFormat.Bgra32, 4, stride, pts);
+
+    private unsafe void WritePacked(byte[] pixels, MkvPixelFormat format,
+        int channels, int stride, long pts)
+    {
+        ObjectDisposedException.ThrowIf(handle is null || handle.IsClosed, this);
+        ArgumentNullException.ThrowIfNull(pixels);
+        int rowBytes = checked((int)width * channels);
+        if (stride == 0) stride = rowBytes;
+        if (stride < rowBytes)
+            throw new ArgumentOutOfRangeException(nameof(stride),
+                "stride is smaller than one packed row");
+        int required = checked(stride * (checked((int)height) - 1) + rowBytes);
+        if (pixels.Length < required)
+            throw new ArgumentException(
+                "packed array is smaller than the configured frame", nameof(pixels));
+        fixed (byte* pointer = pixels)
+        {
+            var frame = new NativeFrameView {
+                StructSize = checked((uint)Marshal.SizeOf<NativeFrameView>()),
+                StructVersion = 1, PixelFormat = (uint)format,
+                Width = width, Height = height, Plane0 = (nint)pointer,
+                Stride0 = stride, Pts = pts
+            };
+            MkvCodecInfo.ThrowIfFailed(
+                NativeMethods.mkvc_encoder_write_frame(handle!, ref frame));
+        }
+    }
+
     /// <summary>
     /// Pins managed I420 arrays only for this synchronous native call. The
     /// codec has finished reading the input when this method returns.

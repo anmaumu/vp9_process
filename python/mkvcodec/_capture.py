@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ctypes as ct
+import time
 from pathlib import Path
 from typing import Iterator
 
@@ -310,6 +311,61 @@ class VideoCapture(Iterator[U8Plane]):
             return output
         finally:
             native.lib.mkvc_frame_release(handle)
+
+    def read_batch(
+        self,
+        max_size: int,
+        timeout_ms: int = 0,
+        *,
+        format: str = "bgr",
+    ) -> list[U8Plane | CpuFrame | tuple[U8Plane, U8Plane] | GpuFrame]:
+        """Read up to ``max_size`` owned frames in presentation order.
+
+        Parameters
+        ----------
+        max_size : int
+            Maximum number of frames; must be positive.
+        timeout_ms : int, default: 0
+            Total batch assembly budget in milliseconds. Zero has no deadline.
+            A positive deadline is checked between backend reads and does not
+            interrupt a decode operation already in progress.
+        format : {"bgr", "rgb", "bgra", "i420", "nv12", "surface"}
+            Output representation for every returned frame.
+
+        Returns
+        -------
+        list
+            Owned CPU frames or leased GPU surfaces. The final batch may be
+            shorter at timeout or end of stream; EOS returns an empty list.
+        """
+        if not isinstance(max_size, int) or max_size <= 0:
+            raise ValueError("max_size must be a positive integer")
+        if not isinstance(timeout_ms, int) or timeout_ms < 0:
+            raise ValueError("timeout_ms must be a non-negative integer")
+        readers = {
+            "bgr": self.read_bgr,
+            "rgb": self.read_rgb,
+            "bgra": self.read_bgra,
+            "i420": self.read_i420,
+            "nv12": self.read_nv12,
+            "surface": self.read_surface,
+        }
+        try:
+            reader = readers[format]
+        except KeyError as exc:
+            raise ValueError("unsupported batch format") from exc
+        deadline = (
+            time.monotonic() + timeout_ms / 1000.0 if timeout_ms > 0 else None
+        )
+        frames: list[U8Plane | CpuFrame | tuple[U8Plane, U8Plane] | GpuFrame] = []
+        while len(frames) < max_size:
+            if frames and deadline is not None and time.monotonic() >= deadline:
+                break
+            frame = reader()
+            if frame is None:
+                break
+            frames.append(frame)
+        return frames
 
     read = read_bgr
 

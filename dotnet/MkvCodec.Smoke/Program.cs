@@ -65,6 +65,8 @@ string borrowedPath = Path.Combine(
     Path.GetTempPath(), $"mkvcodec-dotnet-borrowed-{Guid.NewGuid():N}.webm");
 string pooledPath = Path.Combine(
     Path.GetTempPath(), $"mkvcodec-dotnet-pool-{Guid.NewGuid():N}.webm");
+string formatsPath = Path.Combine(
+    Path.GetTempPath(), $"mkvcodec-dotnet-formats-{Guid.NewGuid():N}.webm");
 try
 {
     const uint width = 64, height = 48;
@@ -164,6 +166,39 @@ try
         pooledCapture.ReadI420() is not null)
         throw new InvalidOperationException(".NET native-pool round-trip failed");
 
+    int bgrStride = checked((int)width * 3 + 4);
+    byte[] bgr = new byte[checked(bgrStride * (int)height)];
+    byte[] rgb = new byte[checked((int)(width * height * 3))];
+    byte[] bgra = new byte[checked((int)(width * height * 4))];
+    byte[] nv12Uv = new byte[checked((int)(width * height / 2))];
+    Array.Fill(bgr, (byte)64);
+    Array.Fill(rgb, (byte)96);
+    Array.Fill(bgra, (byte)128);
+    Array.Fill(nv12Uv, (byte)128);
+    using (var writer = new MkvVideoWriter(formatsPath, width, height))
+    {
+        try
+        {
+            writer.WriteBgr(bgr, checked((int)width * 3 - 1));
+            throw new InvalidOperationException("Invalid packed stride was accepted");
+        }
+        catch (ArgumentOutOfRangeException) { }
+        writer.WriteBgr(bgr, bgrStride);
+        writer.WriteRgb(rgb);
+        writer.WriteBgra(bgra);
+        writer.WriteNv12(y, nv12Uv);
+    }
+    using (var formatsCapture = new MkvVideoCapture(formatsPath))
+    {
+        if (formatsCapture.ReadBgr()?.Pixels.Length != width * height * 3 ||
+            formatsCapture.ReadRgb()?.Pixels.Length != width * height * 3 ||
+            formatsCapture.ReadBgra()?.Pixels.Length != width * height * 4 ||
+            formatsCapture.ReadNv12() is not { } nv12 ||
+            nv12.Y.Length != width * height || nv12.UV.Length != width * height / 2 ||
+            formatsCapture.ReadI420() is not null)
+            throw new InvalidOperationException(".NET packed/NV12 round-trip failed");
+    }
+
     int externalReleases = 0;
     var externalDescriptor = new MkvGpuFrameDescriptor {
         Backend = MkvBackend.Nvidia,
@@ -227,6 +262,7 @@ finally
     if (File.Exists(path)) File.Delete(path);
     if (File.Exists(borrowedPath)) File.Delete(borrowedPath);
     if (File.Exists(pooledPath)) File.Delete(pooledPath);
+    if (File.Exists(formatsPath)) File.Delete(formatsPath);
 }
 
 [StructLayout(LayoutKind.Sequential)]

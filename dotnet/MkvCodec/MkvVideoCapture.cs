@@ -6,6 +6,12 @@ public sealed record MkvI420Frame(uint Width, uint Height, long PtsNanoseconds,
     byte[] Y, byte[] U, byte[] V);
 public sealed record MkvBgrFrame(uint Width, uint Height, long PtsNanoseconds,
     byte[] Pixels, int Stride);
+public sealed record MkvRgbFrame(uint Width, uint Height, long PtsNanoseconds,
+    byte[] Pixels, int Stride);
+public sealed record MkvBgraFrame(uint Width, uint Height, long PtsNanoseconds,
+    byte[] Pixels, int Stride);
+public sealed record MkvNv12Frame(uint Width, uint Height, long PtsNanoseconds,
+    byte[] Y, byte[] UV);
 
 /// <summary>Managed IDisposable capture returning owned I420 or packed BGR arrays.</summary>
 public sealed class MkvVideoCapture : IDisposable
@@ -90,7 +96,34 @@ public sealed class MkvVideoCapture : IDisposable
     /// Read one owned packed BGR frame. Large color conversions use the capture's
     /// bounded conversionThreads setting independently of decoder concurrency.
     /// </summary>
-    public unsafe MkvBgrFrame? ReadBgr()
+    public MkvBgrFrame? ReadBgr()
+    {
+        var frame = ReadPacked(MkvPixelFormat.Bgr24, 3);
+        return frame is null ? null : new MkvBgrFrame(
+            frame.Value.Width, frame.Value.Height, frame.Value.Pts,
+            frame.Value.Pixels, frame.Value.Stride);
+    }
+
+    /// <summary>Read one owned packed RGB frame.</summary>
+    public MkvRgbFrame? ReadRgb()
+    {
+        var frame = ReadPacked(MkvPixelFormat.Rgb24, 3);
+        return frame is null ? null : new MkvRgbFrame(
+            frame.Value.Width, frame.Value.Height, frame.Value.Pts,
+            frame.Value.Pixels, frame.Value.Stride);
+    }
+
+    /// <summary>Read one owned packed BGRA frame.</summary>
+    public MkvBgraFrame? ReadBgra()
+    {
+        var frame = ReadPacked(MkvPixelFormat.Bgra32, 4);
+        return frame is null ? null : new MkvBgraFrame(
+            frame.Value.Width, frame.Value.Height, frame.Value.Pts,
+            frame.Value.Pixels, frame.Value.Stride);
+    }
+
+    private unsafe (uint Width, uint Height, long Pts, byte[] Pixels, int Stride)?
+        ReadPacked(MkvPixelFormat format, int channels)
     {
         ObjectDisposedException.ThrowIf(handle is null || handle.IsClosed, this);
         MkvResult result = NativeMethods.mkvc_decoder_read(handle!, out MkvFrameHandle frame);
@@ -103,14 +136,14 @@ public sealed class MkvVideoCapture : IDisposable
                 StructVersion = 1
             };
             MkvCodecInfo.ThrowIfFailed(NativeMethods.mkvc_frame_get_view(frame, ref source));
-            int stride = checked((int)source.Width * 3);
+            int stride = checked((int)source.Width * channels);
             byte[] pixels = new byte[checked(stride * (int)source.Height)];
             fixed (byte* pointer = pixels)
             {
                 var destination = new NativeMutableFrameView {
                     StructSize = checked((uint)Marshal.SizeOf<NativeMutableFrameView>()),
                     StructVersion = 1,
-                    PixelFormat = MkvPixelFormat.Bgr24,
+                    PixelFormat = format,
                     Width = source.Width,
                     Height = source.Height,
                     Plane0 = (nint)pointer,
@@ -123,8 +156,46 @@ public sealed class MkvVideoCapture : IDisposable
                 };
                 MkvCodecInfo.ThrowIfFailed(
                     NativeMethods.mkvc_frame_copy_to_ex(frame, ref destination, ref options));
-                return new MkvBgrFrame(source.Width, source.Height, destination.Pts,
-                    pixels, stride);
+                return (source.Width, source.Height, destination.Pts, pixels, stride);
+            }
+        }
+    }
+
+    /// <summary>Read one owned NV12 frame with separate luma and UV arrays.</summary>
+    public unsafe MkvNv12Frame? ReadNv12()
+    {
+        ObjectDisposedException.ThrowIf(handle is null || handle.IsClosed, this);
+        MkvResult result = NativeMethods.mkvc_decoder_read(handle!, out MkvFrameHandle frame);
+        if (result == MkvResult.EndOfStream) return null;
+        MkvCodecInfo.ThrowIfFailed(result);
+        using (frame)
+        {
+            var source = new NativeFrameView {
+                StructSize = checked((uint)Marshal.SizeOf<NativeFrameView>()),
+                StructVersion = 1
+            };
+            MkvCodecInfo.ThrowIfFailed(NativeMethods.mkvc_frame_get_view(frame, ref source));
+            byte[] y = new byte[checked((int)(source.Width * source.Height))];
+            byte[] uv = new byte[checked(y.Length / 2)];
+            fixed (byte* py = y)
+            fixed (byte* puv = uv)
+            {
+                var destination = new NativeMutableFrameView {
+                    StructSize = checked((uint)Marshal.SizeOf<NativeMutableFrameView>()),
+                    StructVersion = 1, PixelFormat = MkvPixelFormat.Nv12,
+                    Width = source.Width, Height = source.Height,
+                    Plane0 = (nint)py, Plane1 = (nint)puv,
+                    Stride0 = checked((int)source.Width),
+                    Stride1 = checked((int)source.Width)
+                };
+                var options = new NativeFrameCopyOptions {
+                    StructSize = checked((uint)Marshal.SizeOf<NativeFrameCopyOptions>()),
+                    StructVersion = 1, ConversionThreads = conversionThreads
+                };
+                MkvCodecInfo.ThrowIfFailed(
+                    NativeMethods.mkvc_frame_copy_to_ex(frame, ref destination, ref options));
+                return new MkvNv12Frame(source.Width, source.Height,
+                    destination.Pts, y, uv);
             }
         }
     }
