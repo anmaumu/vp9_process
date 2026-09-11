@@ -57,6 +57,15 @@ function(mkvc_add_python_integration_tests vp9_sample)
             "MKVC_LIBRARY_PATH=$<TARGET_FILE:mkvcodec>"
             "${Python3_EXECUTABLE}"
             "${CMAKE_CURRENT_SOURCE_DIR}/tests/python_benchmark_smoke.py")
+    if(MKVC_ENABLE_CPU_VP9)
+        add_test(NAME mkvc_python_malformed_input
+            COMMAND ${CMAKE_COMMAND} -E env
+                "PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}/python"
+                "MKVC_LIBRARY_PATH=$<TARGET_FILE:mkvcodec>"
+                "${Python3_EXECUTABLE}"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/python_malformed_input.py")
+        set_tests_properties(mkvc_python_malformed_input PROPERTIES TIMEOUT 60)
+    endif()
     if(MKVC_ENABLE_CPU_AV1 AND FFMPEG_EXECUTABLE AND FFPROBE_EXECUTABLE)
         add_test(NAME mkvc_python_av1_encode
             COMMAND ${CMAKE_COMMAND} -E env

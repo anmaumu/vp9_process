@@ -225,7 +225,7 @@ wheel/NuGetへ同梱せず、実行時version/source revisionを成果ととも�
 | `TEST-PERF-004` | 30分以上と数百回open/closeでRAM/VRAM/handleが増加しない | soak | backend CI |
 | `TEST-PERF-005` | queue capacityに従いpeak memoryがbounded | stress | all CI |
 | `TEST-PERF-006` | packed I420変換がruntime SIMDを使用し、large frameのchroma-aligned並列stripeが単一callと全byte一致し、padding/PTSを壊さない。classic MSVC x64のBGR/RGBはlibyuv 32-bit変換＋Highway packを使用し、端数幅、scalar tail、1/2/4 thread、BGR/RGB channel順をlibyuv 24-bit基準と全byte比較する。他環境はlibyuv一段変換を維持する | unit/benchmark | x86/Arm CPU CI |
-| `TEST-SEC-001` | malformed container/packet/size overflow fuzz | fuzz | sanitizer CI |
+| `TEST-SEC-001` | 空・非EBML・切断headerを必ず拒否し、seed固定のtruncate/bit-flip mutationをprobe→同期decodeへ通してcrash、hang、上限超過出力がないことを通常CIで確認する。track/dimension/pixel/packet境界をunit testし、継続的なlibFuzzer/sanitizer corpusも別途実行する | fuzz/unit | CPU CI、sanitizer CI |
 | `TEST-SEC-002` | dynamic library searchが許可名/安全pathに限定 | unit/integration | Windows/Linux |
 
 ### 1.8 Packaging / Compliance

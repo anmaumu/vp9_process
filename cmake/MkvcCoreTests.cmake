@@ -7,6 +7,11 @@ MkvcPythonChecks.cmake.
 ]]
 
 function(mkvc_add_core_tests)
+    add_executable(mkvc_input_video_limits_test tests/input_video_limits_test.cpp)
+    target_compile_features(mkvc_input_video_limits_test PRIVATE cxx_std_17)
+    target_include_directories(mkvc_input_video_limits_test PRIVATE src)
+    add_test(NAME mkvc_input_video_limits COMMAND mkvc_input_video_limits_test)
+
     add_executable(mkvc_c_api_tests tests/c_api_tests.cpp)
     target_compile_features(mkvc_c_api_tests PRIVATE cxx_std_17)
     target_link_libraries(mkvc_c_api_tests PRIVATE mkvcodec)

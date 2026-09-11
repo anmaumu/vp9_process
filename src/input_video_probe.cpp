@@ -10,6 +10,7 @@
 #include <numeric>
 
 #include "container_format.hpp"
+#include "input_video_limits.hpp"
 
 namespace mkvc {
 namespace {
@@ -112,6 +113,10 @@ mkvc_result probe_input_video(const char* path, mkvc_video_info& info, std::stri
         error = "input contains no tracks";
         return MKVC_ERROR_NOT_SUPPORTED;
     }
+    if (tracks->GetTracksCount() > input_limits::kMaxTracks) {
+        error = "input contains too many tracks";
+        return MKVC_ERROR_IO;
+    }
     const mkvparser::VideoTrack* selected = nullptr;
     for (unsigned long index = 0; index < tracks->GetTracksCount(); ++index) {
         const mkvparser::Track* track = tracks->GetTrackByIndex(index);
@@ -132,8 +137,7 @@ mkvc_result probe_input_video(const char* path, mkvc_video_info& info, std::stri
     }
     const long long width = selected->GetWidth();
     const long long height = selected->GetHeight();
-    if (width <= 0 || height <= 0 || width > std::numeric_limits<uint32_t>::max() ||
-        height > std::numeric_limits<uint32_t>::max()) {
+    if (!input_limits::valid_dimensions(width, height)) {
         error = "input video dimensions are invalid";
         return MKVC_ERROR_IO;
     }

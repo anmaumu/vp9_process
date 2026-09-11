@@ -22,7 +22,7 @@ regression thresholdではない。
 
 | Area | Implemented | Current boundary |
 |---|---|---|
-| Container | libwebmによるWebM/Matroska mux・demux、拡張子とDocTypeの整合、VP9/AV1自動判別、decode不要の動画情報probe | 最初の対応映像trackを選択。広範なmalformed-input fuzzingは未完了 |
+| Container | libwebmによるWebM/Matroska mux・demux、拡張子とDocTypeの整合、VP9/AV1自動判別、decode不要の動画情報probe、共通入力上限、固定破損＋seeded mutation smoke | 最初の対応映像trackを選択。継続的なsanitizer/libFuzzer corpusは未完了 |
 | CPU codec | libvpx VP9 encode/decode、SVT-AV1 encode、libaom AV1 decode | 8-bit I420/NV12/packed入力。SSIM acceptanceは未追加 |
 | CPU Python | OpenCV風Capture/Writer、owned/borrowed NumPy、native buffer pool、async submission | OS page-lock計測と詳細copy traceは任意残件 |
 | Intel Linux | oneVPL VP9/AV1、VA surface、OpenCL/Level Zero、device-USM DLPack、pool/backpressure | direct oneVPL USM consumptionと30分cross-context soakは残件 |

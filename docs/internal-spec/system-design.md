@@ -368,7 +368,7 @@ Status: `PROPOSED`
 
 Status: `PROPOSED`
 
-- `INT-SEC-001`: container size、track count、packet size、resolution、frame countに上限とoverflow checkを設ける。
+- `INT-SEC-001`: container size、track count、packet size、resolution、frame countに上限とoverflow checkを設ける。初期上限はtrack 1024、各辺32768、総画素268435456、圧縮packet 256 MiBとし、probeと全decode backendの共通packet readerで同じ判定を使う。
 - `INT-SEC-002`: path、codec metadata、backend optionをcode/shellとして評価しない。
 - `INT-SEC-003`: untrusted bitstreamによるlibrary errorをC ABI errorへ閉じ込める。
 - `INT-SEC-004`: dynamic library searchはOSの安全な検索規則と検証済みlibrary名を使用する。

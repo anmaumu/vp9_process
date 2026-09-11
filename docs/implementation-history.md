@@ -9,6 +9,22 @@
 [implementation-status.md](implementation-status.md)を使用する。この履歴には
 過去の判断、測定値、詳細なverification matrixを粒度を落とさず保持する。
 
+## 2026-09-12: Bounded malformed-container mutation smoke
+
+Input probe and every decoder using the shared packet reader now enforce one
+allocation envelope: at most 1,024 tracks, 32,768 pixels per dimension,
+268,435,456 total pixels and 256 MiB per compressed packet. Dimension arithmetic
+uses division before multiplication so hostile metadata cannot overflow the
+check. The same validation runs before CPU, Intel or NVIDIA codec allocation.
+
+`mkvc_input_video_limits` covers exact valid/invalid numeric boundaries.
+`mkvc_python_malformed_input` creates a valid VP9 fixture, requires rejection of
+ten empty/non-EBML/truncated-header cases, then runs 64 reproducible truncation
+and bit-flip mutations through public probe and synchronous decode. Accepted
+mutations remain bounded to the original frame count; rejected mutations remain
+typed Python failures. This is a deterministic normal-CI safety regression, not
+a replacement for a persistent sanitizer/libFuzzer corpus.
+
 ## 2026-09-11: Fail-closed Windows PE dependency closure
 
 Windows wheel and NuGet assembly now parses PE32/PE32+ normal and delay-load

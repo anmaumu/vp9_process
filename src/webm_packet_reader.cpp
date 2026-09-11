@@ -13,6 +13,7 @@
 #include <utility>
 
 #include "container_format.hpp"
+#include "input_video_limits.hpp"
 
 namespace mkvc {
 
@@ -71,11 +72,17 @@ std::unique_ptr<WebmPacketReader> WebmPacketReader::open(const char* path, uint3
         error = "input contains no tracks";
         return nullptr;
     }
+    if (tracks->GetTracksCount() > input_limits::kMaxTracks) {
+        error = "input contains too many tracks";
+        return nullptr;
+    }
+    const mkvparser::VideoTrack* selected = nullptr;
     for (unsigned long index = 0; index < tracks->GetTracksCount(); ++index) {
         const mkvparser::Track* track = tracks->GetTrackByIndex(index);
         if (track != nullptr && track->GetType() == mkvparser::Track::kVideo &&
             track->GetCodecId() != nullptr && std::strcmp(track->GetCodecId(), requested) == 0) {
             state.video_track = track->GetNumber();
+            selected = static_cast<const mkvparser::VideoTrack*>(track);
             break;
         }
     }
@@ -83,12 +90,15 @@ std::unique_ptr<WebmPacketReader> WebmPacketReader::open(const char* path, uint3
         error = "input has no requested VP9/AV1 video track";
         return nullptr;
     }
+    if (!input_limits::valid_dimensions(selected->GetWidth(), selected->GetHeight())) {
+        error = "input video dimensions are invalid";
+        return nullptr;
+    }
     state.cluster = state.segment->GetFirst();
     return result;
 }
 
 mkvc_result WebmPacketReader::read(EncodedPacket& packet, std::string& error) {
-    constexpr uint64_t kMaxPacketBytes = 256ULL * 1024 * 1024;
     Impl& state = *impl_;
     while (state.cluster != nullptr && !state.cluster->EOS()) {
         if (state.block_entry == nullptr) {
@@ -103,7 +113,8 @@ mkvc_result WebmPacketReader::read(EncodedPacket& packet, std::string& error) {
             if (block != nullptr && block->GetTrackNumber() == state.video_track) {
                 while (state.block_frame_index < block->GetFrameCount()) {
                     const auto& source = block->GetFrame(state.block_frame_index++);
-                    if (source.len <= 0 || static_cast<uint64_t>(source.len) > kMaxPacketBytes ||
+                    if (source.len <= 0 ||
+                        static_cast<uint64_t>(source.len) > input_limits::kMaxPacketBytes ||
                         static_cast<uint64_t>(source.len) > std::numeric_limits<size_t>::max()) {
                         error = "invalid encoded frame size";
                         return MKVC_ERROR_IO;
