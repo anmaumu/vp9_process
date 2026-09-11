@@ -31,15 +31,16 @@ bool valid_frame_view(const mkvc_frame_view* frame) noexcept {
 
 mkvc_result create_encoder_session(const mkvc_encoder_config& config,
                                    std::unique_ptr<EncoderSession>& session, std::string& error) {
-    if (config.backend == MKVC_BACKEND_NVIDIA) {
+    if (config.backend == MKVC_BACKEND_INTEL ||
+        config.backend == MKVC_BACKEND_NVIDIA) {
         const auto& capabilities = backend_capabilities();
         const bool available =
             std::any_of(capabilities.begin(), capabilities.end(), [&config](const auto& item) {
-                return item.backend == MKVC_BACKEND_NVIDIA && item.codec == config.codec &&
+                return item.backend == config.backend && item.codec == config.codec &&
                        item.can_encode != 0;
             });
         if (!available) {
-            error = "requested NVIDIA encode capability is unavailable";
+            error = "requested hardware encode capability is unavailable";
             return MKVC_ERROR_NOT_SUPPORTED;
         }
     }

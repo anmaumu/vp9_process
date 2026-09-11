@@ -53,6 +53,7 @@
 | libyuv | CPU色変換 | BSD-3-Clause系 | 低 | LICENSE/PATENTSが存在するreleaseでは両方同梱 |
 | libaom | AV1 CPU decode | BSD-2-Clause系 + AOM Patent License 1.0 | 中 | LICENSE/PATENTS同梱、AOM条件レビュー |
 | SVT-AV1 4.x | AV1 CPU encode | BSD-3-Clause-Clear + AOM Patent License 1.0 | 中 | LICENSE/PATENTS同梱、AOM条件レビュー |
+| fastfeat | SVT-AV1の動的runtime依存 | BSD-3-Clause | 低 | binary同梱時にLICENSE同梱、version固定 |
 | Intel libvpl | oneVPL API/Dispatcher | MIT | 低 | Dispatcherのみ同梱候補 |
 | Intel vpl-gpu-rt | Intel GPU runtime | MITだがdriver stack依存 | 低～中 | 原則system dependency、同梱しない |
 | nv-codec-headers | NVDEC/NVENC API header | 各headerにMIT形式の許諾 | 低～中 | SDK sampleを使わず、必要headerのみ使用 |
@@ -170,7 +171,7 @@ SDK 13.1由来sample/base classをどうしても使用する場合、そのNVID
 
 ### 4.1 OSS codec/container
 
-libvpx、libwebm、libyuv、libjpeg-turbo、libaom、SVT-AV1はpermissive licenseであるため、license/patent noticesを守る前提でstatic linkを許可する。Windowsのshared libyuvがlibjpeg-turboへ動的依存する構成では、`jpeg62.dll`、libjpeg-turboのroll-up license、IJG原文をartifactへ収録し、binary配布向けattribution文も保持する。static化またはJPEG無効化により依存が消えた場合はSBOMのdistribution分類もbuild構成に合わせて更新する。
+libvpx、libwebm、libyuv、libjpeg-turbo、libaom、SVT-AV1、fastfeatはpermissive licenseであるため、license/patent noticesを守る前提でstatic linkまたは動的同梱を許可する。Windowsのshared libyuvがlibjpeg-turboへ動的依存する構成では、`jpeg62.dll`、libjpeg-turboのroll-up license、IJG原文をartifactへ収録し、binary配布向けattribution文も保持する。Windowsのshared SVT-AV1がfastfeatへ動的依存する構成では、`fastfeat.dll`とfastfeatのBSD-3-Clause原文を収録する。static化や機能無効化により依存が消えた場合はSBOMのdistribution分類もbuild構成に合わせて更新する。
 
 利点:
 

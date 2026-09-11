@@ -40,7 +40,8 @@ endfunction()
 
 function(mkvc_add_intel_codec_integration_test)
     add_executable(mkvc_intel_vpl_encode_test
-        tests/intel_vpl_encode_test.cpp src/intel_vpl_encoder.cpp
+        tests/intel_vpl_encode_test.cpp tests/gpu_test_support.cpp
+        src/intel_vpl_encoder.cpp
         src/intel_vpl_decoder.cpp src/gpu/intel/vpl_bitstream.cpp
         src/encoder/cpu_frame_to_nv12.cpp
         src/gpu/intel/vpl_cpu_input.cpp
@@ -55,15 +56,34 @@ function(mkvc_add_intel_codec_integration_test)
         src/gpu/intel/vpl_encoder_sequence.cpp
         src/gpu/intel/vpl_encoder_runtime.cpp
         src/gpu/intel/vpl_encoder_queue.cpp
+        src/gpu/intel/vpl_gpu_submission.cpp
         src/gpu/intel/vpl_imported_surface_tracker.cpp
         src/gpu/intel/vpl_packet_muxer.cpp
-        src/gpu/intel/vpl_surface_import.cpp)
+        src/gpu/intel/vpl_surface_import.cpp
+        src/gpu/intel/intel_completion.cpp
+        src/gpu/intel/intel_native_handle.cpp
+        src/gpu/intel/intel_surface_factory.cpp
+        src/gpu/intel/va_completion.cpp
+        src/gpu/intel/d3d11_completion.cpp
+        src/gpu/intel/level_zero_completion.cpp
+        src/gpu/gpu_frame.cpp
+        src/gpu/gpu_frame_c_api.cpp
+        src/gpu/gpu_frame_pool.cpp
+        src/webm_muxer.cpp
+        src/container_format.cpp
+        src/container_ebml.cpp)
     target_compile_features(mkvc_intel_vpl_encode_test PRIVATE cxx_std_17)
-    target_include_directories(mkvc_intel_vpl_encode_test PRIVATE src include)
+    target_include_directories(mkvc_intel_vpl_encode_test PRIVATE
+        src include ${LIBWEBM_COMPAT_INCLUDE_DIR})
     target_compile_definitions(mkvc_intel_vpl_encode_test
-        PRIVATE MKVC_HAS_INTEL_ONEVPL=1 MKVC_ENABLE_TEST_HOOKS=1)
+        PRIVATE MKVC_HAS_INTEL_ONEVPL=1 MKVC_ENABLE_TEST_HOOKS=1
+                MKVC_BUILDING_LIBRARY ONEVPL_EXPERIMENTAL=1)
+    if(WIN32)
+        target_compile_definitions(mkvc_intel_vpl_encode_test PRIVATE NOMINMAX)
+    endif()
     target_link_libraries(mkvc_intel_vpl_encode_test PRIVATE
-        VPL::dispatcher unofficial::libvpx::libvpx AOM::aom yuv)
+        VPL::dispatcher unofficial::libvpx::libvpx
+        unofficial::libwebm::libwebm AOM::aom yuv)
     add_test(NAME mkvc_intel_vpl_encode COMMAND mkvc_intel_vpl_encode_test)
     set_tests_properties(mkvc_intel_vpl_encode PROPERTIES SKIP_RETURN_CODE 77)
 endfunction()

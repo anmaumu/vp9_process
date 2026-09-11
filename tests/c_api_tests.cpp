@@ -105,6 +105,24 @@ int main() {
     assert(mkvc_encoder_create(&unsupported_nvidia_vp9, &unsupported_encoder) ==
            MKVC_ERROR_NOT_SUPPORTED);
     assert(unsupported_encoder == nullptr);
+    bool has_intel_vp9_encode = false;
+    if (count > 0) {
+        std::vector<mkvc_backend_capability> capabilities(count);
+        size_t capacity = capabilities.size();
+        assert(mkvc_get_backend_capabilities(capabilities.data(), &capacity) == MKVC_OK);
+        for (const auto& capability : capabilities) {
+            has_intel_vp9_encode = has_intel_vp9_encode ||
+                (capability.backend == MKVC_BACKEND_INTEL &&
+                 capability.codec == MKVC_CODEC_VP9 && capability.can_encode != 0);
+        }
+    }
+    if (!has_intel_vp9_encode) {
+        auto unsupported_intel = unsupported_nvidia_vp9;
+        unsupported_intel.backend = MKVC_BACKEND_INTEL;
+        assert(mkvc_encoder_create(&unsupported_intel, &unsupported_encoder) ==
+               MKVC_ERROR_NOT_SUPPORTED);
+        assert(unsupported_encoder == nullptr);
+    }
     assert(std::strstr(mkvc_get_last_error(), "unavailable") != nullptr);
 
     mkvc_decoder_config decoder_config{};

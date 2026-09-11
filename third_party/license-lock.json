@@ -14,6 +14,7 @@
     {"output": "libaom-PATENTS.txt", "glob": "buildtrees/aom/src/*clean/PATENTS", "sha256": "661fb8e504744e95587b556b94a58343448300606a41bea8c7a9b97125696e61"},
     {"output": "SVT-AV1-LICENSE.txt", "glob": "buildtrees/svt-av1/src/*clean/LICENSE.md", "sha256": "0acc2fcb27472bdc9aaf8b71f37055bbdac4f54671b7d922f241bd7fcd0dd3e6"},
     {"output": "SVT-AV1-PATENTS.txt", "glob": "buildtrees/svt-av1/src/*clean/PATENTS.md", "sha256": "20678ab10402659106dc4c147c97b2a6e94b5c0695415e15a8f195ebc3547922"},
+    {"output": "fastfeat-LICENSE.txt", "glob": "buildtrees/fastfeat/src/*clean/LICENSE", "sha256": "043dcfd059386f9facd376351b2bd79325778744aa442177390cdfcca54babed"},
     {"output": "libvpl-LICENSE.txt", "glob": "buildtrees/libvpl/src/*clean/LICENSE", "sha256": "bf1cfac2e2792b6e1e995ce103d70796aecaf2ec7e4c5fe5474f7acec7b4a677"}
   ]
 }

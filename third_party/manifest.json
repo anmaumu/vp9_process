@@ -61,6 +61,14 @@
       "required_notices": ["SVT-AV1-LICENSE.txt", "SVT-AV1-PATENTS.txt"]
     },
     {
+      "name": "fastfeat",
+      "version": "391d5e9#4",
+      "license": "BSD-3-Clause",
+      "source": "https://github.com/edrosten/fast-C-src",
+      "distribution": "bundled",
+      "required_notices": ["fastfeat-LICENSE.txt"]
+    },
+    {
       "name": "libvpl",
       "version": "2.17.0",
       "license": "MIT",

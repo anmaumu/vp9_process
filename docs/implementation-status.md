@@ -10,6 +10,7 @@
 | Environment | Current suite | Result |
 |---|---:|---|
 | Windows x64 / NVIDIA-enabled build | 38 tests | pass、GPU capability不足による想定内skip 2 |
+| Windows x64 / CPU VP9+AV1、Intel、NVIDIA同時build | 25 native tests | pass、実hardware capability不足による想定内skip 4 |
 | Linux x64 / Intel GPU required | 46 tests | pass |
 | Linux x64 / CPU VP9 and AV1 | 32 tests | pass |
 
@@ -30,7 +31,7 @@ regression thresholdではない。
 | GPU strict mode | 共通GpuFrame lease、native handle、DLPack、`require_gpu_resident`、copy-path metrics | driver内部まで含む完全copy proofは環境別に継続 |
 | C++ | move-only RAII facade、CPU/GPU frame、pool、submission | Intel/NVIDIAのC++ hardware round-trip認定が残件 |
 | .NET | .NET 8 P/Invoke、SafeHandle、codec自動判別・動画情報probe、全8-bit CPU形式、native pool Submit＋cancellable `WaitAsync`、GPU surface API | managed GPU hardware round-tripが残件 |
-| Packaging | dependency manifest、legal payload collector、SPDX SBOM、wheel/NuGet builderとinspector、非system native依存収録、qualification/release分離、Windows実artifact load認定 | project LICENSE決定、全backend構成のrelease artifact、公開前legal reviewが残件 |
+| Packaging | dependency manifest、legal payload collector、SPDX SBOM、wheel/NuGet builderとinspector、再帰的な非system native依存収録、qualification/release分離、Windows全backend実artifact load・CPU実行認定 | project LICENSE決定、実Intel/NVIDIA AV1 hardware認定、公開前legal reviewとrelease artifactが残件 |
 
 H.264/HEVCは公開codec、暗黙fallback、配布対象のいずれにも含めない。
 GPU vendor driver/runtimeはwheel/NuGetへ同梱せず、実行環境側の責任とする。

@@ -12,21 +12,24 @@ namespace mkvc::decoder {
 
 mkvc_result create_backend(mkvc_decoder& decoder, const mkvc_decoder_config& config,
                            std::string& error) {
+    if (config.backend == MKVC_BACKEND_INTEL ||
+        config.backend == MKVC_BACKEND_NVIDIA) {
+        const auto& capabilities = backend_capabilities();
+        const bool available =
+            std::any_of(capabilities.begin(), capabilities.end(), [&config](const auto& item) {
+                return item.backend == config.backend && item.codec == config.codec &&
+                       item.can_decode != 0;
+            });
+        if (!available) {
+            error = "requested hardware decode capability is unavailable";
+            return MKVC_ERROR_NOT_SUPPORTED;
+        }
+    }
     if (config.backend == MKVC_BACKEND_INTEL) {
         decoder.intel_implementation = IntelWebmDecoder::create(config, error);
         return decoder.intel_implementation ? MKVC_OK : MKVC_ERROR_CODEC;
     }
     if (config.backend == MKVC_BACKEND_NVIDIA) {
-        const auto& capabilities = backend_capabilities();
-        const bool available =
-            std::any_of(capabilities.begin(), capabilities.end(), [&config](const auto& item) {
-                return item.backend == MKVC_BACKEND_NVIDIA && item.codec == config.codec &&
-                       item.can_decode != 0;
-            });
-        if (!available) {
-            error = "requested NVIDIA decode capability is unavailable";
-            return MKVC_ERROR_NOT_SUPPORTED;
-        }
         decoder.nvidia_implementation = NvidiaWebmDecoder::create(config, error);
         return decoder.nvidia_implementation ? MKVC_OK : MKVC_ERROR_CODEC;
     }

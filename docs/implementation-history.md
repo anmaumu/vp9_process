@@ -9,6 +9,37 @@
 [implementation-status.md](implementation-status.md)を使用する。この履歴には
 過去の判断、測定値、詳細なverification matrixを粒度を落とさず保持する。
 
+## 2026-09-11: Windows all-backend artifact qualification
+
+The simultaneous CPU VP9/AV1, Intel oneVPL and NVIDIA build now compiles and
+loads as one Windows distribution. Standalone Intel integration targets were
+updated to use the shared GPU test support and the implementation modules that
+were split out during refactoring. Explicit Intel/NVIDIA requests now return
+`MKVC_ERROR_NOT_SUPPORTED` before backend construction when the requested
+hardware codec capability is absent, matching the public capability query.
+
+Recursive PE dependency inspection found the complete non-system DLL closure:
+`mkvcodec`, `hwy`, `libvpl`, `aom`, `webm`, `libyuv`, `SvtAv1Enc`, `jpeg62` and
+`fastfeat`. fastfeat `391d5e9#4` was consequently added to the dependency
+manifest, hash-locked legal collection and SPDX SBOM. The qualification wheel
+and NuGet package contain this closure, all required legal texts and the
+qualification-only marker.
+
+The 25-test native all-backend suite passes with four expected hardware
+capability skips on this host. A clean wheel environment, with
+`MKVC_LIBRARY_PATH` unset, passed the Python VP9 and AV1 encode/decode suites,
+codec auto-detection and capability discovery. A clean NuGet cache passed the
+.NET native round-trip. The normal release gate rejects both qualification
+artifacts as required. This qualifies combined assembly and CPU execution; it
+does not replace Intel-Windows hardware qualification or positive AV1 NVENC
+qualification on a capable NVIDIA GPU.
+
+Qualification SHA-256 values were
+`73E29DC14F892B0331EAF0E3CCFEC8ECAC69F58721C49FB198E2DB8093C875A1` for
+the wheel and
+`47386A41469DC9539D53BC30C7D5D1CED8AE757DB889CBAA3A76E14CE3416775` for
+the NuGet package.
+
 ## 2026-09-11: Windows wheel and NuGet artifact qualification
 
 The Windows wheel and RID-specific NuGet package now include the complete
@@ -1722,6 +1753,7 @@ operation before releasing its bitstream/surface and closing the oneVPL session.
 - libwebm `1.0.0.32`
 - libyuv `1916`
 - libjpeg-turbo `3.2.0` (runtime dependency of the qualified Windows shared libyuv)
+- fastfeat `391d5e9#4` (runtime dependency of the qualified Windows shared SVT-AV1)
 - Highway `1.4.0` (classic MSVC x64 packed-output path only)
 - SVT-AV1 `4.1.0`
 - libaom `3.15.0`
