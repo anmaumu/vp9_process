@@ -9,6 +9,18 @@
 [implementation-status.md](implementation-status.md)を使用する。この履歴には
 過去の判断、測定値、詳細なverification matrixを粒度を落とさず保持する。
 
+## 2026-09-11: Input codec auto-detection and video information
+
+The C ABI now accepts `MKVC_CODEC_AUTO`, probes the first supported VP9/AV1
+video track through libwebm before backend creation, and exposes versioned
+`mkvc_video_info` through standalone and decoder-bound queries. Python
+`VideoCapture` defaults to `codec="auto"`, publishes OpenCV-style metadata
+attributes plus immutable `info`, and `probe_video()` provides the same data
+without decoding pixels. C++ and .NET expose the same probe/decoder information,
+and managed capture also defaults to automatic codec selection.
+VP9/AV1 tests cover detection, dimensions, nominal FPS, duration and frame
+count. Seek remains explicitly deferred.
+
 ## Documentation tooling
 
 - `docgen check/generate/build` validates specification IDs and generates Markdown/HTML.

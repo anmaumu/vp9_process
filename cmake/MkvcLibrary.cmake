@@ -14,6 +14,7 @@ add_library(mkvcodec SHARED
     src/decoder/decoder_c_api_support.cpp
     src/c_api_encoder.cpp
     src/c_api_frame.cpp
+    src/c_api_input_probe.cpp
     src/backend_registry.cpp
     src/container_format.cpp
     src/container_ebml.cpp
@@ -58,6 +59,7 @@ add_library(mkvcodec SHARED
     src/cpu_av1_decoder.cpp
     src/cpu_av1_decoder_runtime.cpp
     src/intel_vpl_probe.cpp
+    src/input_video_probe.cpp
     src/intel_vpl_encoder.cpp
     src/intel_vpl_decoder.cpp
     src/intel_webm_encoder.cpp

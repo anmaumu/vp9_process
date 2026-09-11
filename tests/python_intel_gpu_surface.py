@@ -26,7 +26,7 @@ def main(path: str) -> None:
     surface.close()
 
     with mkvcodec.VideoCapture(
-        path, codec="vp9", backend="auto", require_gpu_resident=True
+        path, backend="auto", require_gpu_resident=True
     ) as automatic:
         selected = automatic.read_surface()
         assert selected is not None

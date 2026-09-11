@@ -18,7 +18,7 @@ public sealed class MkvVideoCapture : IDisposable
     /// Open a decoder. prefetch controls bounded read-ahead, decodeThreads controls
     /// the codec, and conversionThreads independently controls large packed conversion.
     /// </summary>
-    public MkvVideoCapture(string path, MkvCodecKind codec = MkvCodecKind.Vp9,
+    public MkvVideoCapture(string path, MkvCodecKind codec = MkvCodecKind.Auto,
         MkvBackend backend = MkvBackend.Cpu, uint prefetch = 0,
         bool requireGpuResident = false, uint decodeThreads = 0,
         uint conversionThreads = 0)
@@ -43,29 +43,48 @@ public sealed class MkvVideoCapture : IDisposable
             };
             MkvCodecInfo.ThrowIfFailed(
                 NativeMethods.mkvc_decoder_create(ref config, out handle));
-            if (requireGpuResident)
+            try
             {
-                var policy = new NativeCopyPolicy {
-                    StructSize = checked((uint)Marshal.SizeOf<NativeCopyPolicy>()),
-                    StructVersion = 1, RequireGpuResident = 1,
-                    AllowGpuCopy = 1, AllowCpuCopy = 0
+                var info = new MkvVideoInfo {
+                    StructSize = checked((uint)Marshal.SizeOf<MkvVideoInfo>()),
+                    StructVersion = 1
                 };
-                try
+                MkvCodecInfo.ThrowIfFailed(NativeMethods.mkvc_decoder_get_info(
+                    handle!.DangerousGetHandle(), ref info));
+                Info = info;
+                if (requireGpuResident)
                 {
+                    var policy = new NativeCopyPolicy {
+                        StructSize = checked((uint)Marshal.SizeOf<NativeCopyPolicy>()),
+                        StructVersion = 1, RequireGpuResident = 1,
+                        AllowGpuCopy = 1, AllowCpuCopy = 0
+                    };
                     MkvCodecInfo.ThrowIfFailed(
                         NativeMethods.mkvc_decoder_set_copy_policy(handle!, ref policy));
                 }
-                catch
-                {
-                    handle?.Dispose();
-                    handle = null;
-                    throw;
-                }
+            }
+            catch
+            {
+                handle?.Dispose();
+                handle = null;
+                throw;
             }
         }
         finally { Marshal.FreeCoTaskMem(utf8); }
         this.conversionThreads = conversionThreads;
     }
+
+    /// <summary>Immutable metadata for the selected input video track.</summary>
+    public MkvVideoInfo Info { get; }
+
+    public MkvCodecKind Codec => Info.Codec;
+    public uint Width => Info.Width;
+    public uint Height => Info.Height;
+    public double? FramesPerSecond => Info.FpsKnown != 0 && Info.FpsDen != 0
+        ? (double)Info.FpsNum / Info.FpsDen : null;
+    public long? DurationNanoseconds => Info.DurationKnown != 0
+        ? Info.DurationNanoseconds : null;
+    public ulong? FrameCount => Info.FrameCountKnown != 0 ? Info.FrameCount : null;
 
     /// <summary>
     /// Read one owned packed BGR frame. Large color conversions use the capture's

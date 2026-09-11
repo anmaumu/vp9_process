@@ -32,7 +32,23 @@ def main() -> None:
                 writer.write((y, u, v))
             writer.flush()
 
+        info = mkvcodec.probe_video(path)
+        assert info.codec == "vp9"
+        assert (info.width, info.height) == (width, height)
+        assert info.fps is not None and abs(info.fps - 30.0) < 0.001
+        assert info.frame_count == 30
+        assert info.duration_ns is not None and info.duration_ns > 0
+        expect_value_error(
+            lambda: mkvcodec.VideoCapture(path, codec="av1", prefetch=0)
+        )
+
         with mkvcodec.VideoCapture(path, prefetch=0) as capture:
+            assert capture.info == info
+            assert capture.codec == "vp9"
+            assert (capture.width, capture.height) == (width, height)
+            assert capture.fps is not None and abs(capture.fps - 30.0) < 0.001
+            assert capture.frame_count == 30
+            assert capture.duration_ns == info.duration_ns
             frames = []
             while True:
                 frame = capture.read_i420()

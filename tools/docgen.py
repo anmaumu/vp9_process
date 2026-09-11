@@ -40,6 +40,7 @@ PYTHON_API_MODULES = (
     ROOT / "python" / "mkvcodec" / "_intel_usm_slot.py",
     ROOT / "python" / "mkvcodec" / "_writer.py",
     ROOT / "python" / "mkvcodec" / "_capture.py",
+    ROOT / "python" / "mkvcodec" / "_video_info.py",
     ROOT / "python" / "mkvcodec" / "_api.py",
 )
 

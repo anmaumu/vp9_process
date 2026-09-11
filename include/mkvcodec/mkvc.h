@@ -13,13 +13,13 @@
 #include <stdint.h>
 
 #if defined(_WIN32)
-#  if defined(MKVC_BUILDING_LIBRARY)
-#    define MKVC_API __declspec(dllexport)
-#  else
-#    define MKVC_API __declspec(dllimport)
-#  endif
+#if defined(MKVC_BUILDING_LIBRARY)
+#define MKVC_API __declspec(dllexport)
 #else
-#  define MKVC_API __attribute__((visibility("default")))
+#define MKVC_API __declspec(dllimport)
+#endif
+#else
+#define MKVC_API __attribute__((visibility("default")))
 #endif
 
 #ifdef __cplusplus
@@ -31,36 +31,37 @@ extern "C" {
 
 /** Stable result and stream-status values returned by the C ABI. */
 typedef enum mkvc_result {
-    MKVC_OK = 0,                       /**< Operation completed successfully. */
-    MKVC_ERROR_INVALID_ARGUMENT = 1,   /**< An argument or public struct is invalid. */
-    MKVC_ERROR_BUFFER_TOO_SMALL = 2,  /**< Caller-provided output capacity is insufficient. */
-    MKVC_ERROR_NOT_SUPPORTED = 3,     /**< Requested codec, format, or backend is unsupported. */
-    MKVC_ERROR_INTERNAL = 4,          /**< Unexpected implementation failure. */
-    MKVC_ERROR_INVALID_STATE = 5,     /**< Operation is invalid in the handle's current state. */
-    MKVC_ERROR_IO = 6,                /**< Container or filesystem I/O failed. */
-    MKVC_ERROR_CODEC = 7,             /**< Codec initialization or processing failed. */
-    MKVC_END_OF_STREAM = 8,           /**< Decoder reached a clean end of stream. */
-    MKVC_WOULD_BLOCK = 9,             /**< Nonblocking operation cannot complete yet. */
-    MKVC_ERROR_TIMEOUT = 10,          /**< A bounded wait expired. */
-    MKVC_ERROR_CANCELLED = 11         /**< Operation was explicitly cancelled. */
+    MKVC_OK = 0,                     /**< Operation completed successfully. */
+    MKVC_ERROR_INVALID_ARGUMENT = 1, /**< An argument or public struct is invalid. */
+    MKVC_ERROR_BUFFER_TOO_SMALL = 2, /**< Caller-provided output capacity is insufficient. */
+    MKVC_ERROR_NOT_SUPPORTED = 3,    /**< Requested codec, format, or backend is unsupported. */
+    MKVC_ERROR_INTERNAL = 4,         /**< Unexpected implementation failure. */
+    MKVC_ERROR_INVALID_STATE = 5,    /**< Operation is invalid in the handle's current state. */
+    MKVC_ERROR_IO = 6,               /**< Container or filesystem I/O failed. */
+    MKVC_ERROR_CODEC = 7,            /**< Codec initialization or processing failed. */
+    MKVC_END_OF_STREAM = 8,          /**< Decoder reached a clean end of stream. */
+    MKVC_WOULD_BLOCK = 9,            /**< Nonblocking operation cannot complete yet. */
+    MKVC_ERROR_TIMEOUT = 10,         /**< A bounded wait expired. */
+    MKVC_ERROR_CANCELLED = 11        /**< Operation was explicitly cancelled. */
 } mkvc_result;
 
 /** Backend families addressable through the common API. */
 typedef enum mkvc_backend {
-    MKVC_BACKEND_CPU = 1,     /**< Software codec backend. */
-    MKVC_BACKEND_NVIDIA = 2,  /**< NVIDIA NVDEC/NVENC backend. */
-    MKVC_BACKEND_INTEL = 3    /**< Intel oneVPL backend. */
+    MKVC_BACKEND_CPU = 1,    /**< Software codec backend. */
+    MKVC_BACKEND_NVIDIA = 2, /**< NVIDIA NVDEC/NVENC backend. */
+    MKVC_BACKEND_INTEL = 3   /**< Intel oneVPL backend. */
 } mkvc_backend;
 
 /** Video codecs allowed by the product policy. */
 typedef enum mkvc_codec {
-    MKVC_CODEC_VP9 = 1, /**< VP9. */
-    MKVC_CODEC_AV1 = 2  /**< AV1. */
+    MKVC_CODEC_AUTO = 0, /**< Detect VP9 or AV1 from the input video track. */
+    MKVC_CODEC_VP9 = 1,  /**< VP9. */
+    MKVC_CODEC_AV1 = 2   /**< AV1. */
 } mkvc_codec;
 
 /** Library and ABI version output. Initialize struct_size before use. */
 typedef struct mkvc_version {
-    uint32_t struct_size;  /**< Size of this struct supplied by the caller. */
+    uint32_t struct_size; /**< Size of this struct supplied by the caller. */
     uint32_t abi_version; /**< MKVC_ABI_VERSION used by the loaded library. */
     uint32_t major;       /**< Product major version. */
     uint32_t minor;       /**< Product minor version. */
@@ -70,12 +71,12 @@ typedef struct mkvc_version {
 /** A codec capability exposed by one initialized backend. */
 typedef struct mkvc_backend_capability {
     uint32_t struct_size; /**< Size of this struct. */
-    uint32_t backend;    /**< One mkvc_backend value. */
-    uint32_t codec;      /**< One mkvc_codec value. */
-    uint8_t can_decode;  /**< Nonzero when decode is available. */
-    uint8_t can_encode;  /**< Nonzero when encode is available. */
-    uint8_t is_hardware; /**< Nonzero for a hardware-accelerated backend. */
-    uint8_t reserved;    /**< Reserved; must be ignored. */
+    uint32_t backend;     /**< One mkvc_backend value. */
+    uint32_t codec;       /**< One mkvc_codec value. */
+    uint8_t can_decode;   /**< Nonzero when decode is available. */
+    uint8_t can_encode;   /**< Nonzero when encode is available. */
+    uint8_t is_hardware;  /**< Nonzero for a hardware-accelerated backend. */
+    uint8_t reserved;     /**< Reserved; must be ignored. */
 } mkvc_backend_capability;
 
 /** 8-bit CPU pixel formats accepted or returned by the current ABI. */
@@ -90,8 +91,8 @@ typedef enum mkvc_pixel_format {
 
 /** Pixel transfer path actually exercised by a pipeline. */
 typedef enum mkvc_copy_path {
-    MKVC_COPY_PATH_UNKNOWN = 0,  /**< No frame has completed yet. */
-    MKVC_COPY_PATH_CPU = 1,      /**< Pixels crossed caller-owned CPU memory. */
+    MKVC_COPY_PATH_UNKNOWN = 0,   /**< No frame has completed yet. */
+    MKVC_COPY_PATH_CPU = 1,       /**< Pixels crossed caller-owned CPU memory. */
     MKVC_COPY_PATH_ZERO_COPY = 2, /**< GPU surface remained device-resident. */
     MKVC_COPY_PATH_MIXED = 3      /**< Both CPU and GPU-resident inputs were used. */
 } mkvc_copy_path;
@@ -120,10 +121,10 @@ typedef struct mkvc_frame_process_config {
     uint32_t crop_y;
     uint32_t crop_width;
     uint32_t crop_height;
-    uint32_t output_width;   /**< Zero preserves the post-rotation width. */
-    uint32_t output_height;  /**< Zero preserves the post-rotation height. */
-    uint32_t fit;            /**< One mkvc_frame_fit value. */
-    uint32_t rotation;       /**< One mkvc_frame_rotation value. */
+    uint32_t output_width;  /**< Zero preserves the post-rotation width. */
+    uint32_t output_height; /**< Zero preserves the post-rotation height. */
+    uint32_t fit;           /**< One mkvc_frame_fit value. */
+    uint32_t rotation;      /**< One mkvc_frame_rotation value. */
     uint8_t flip_horizontal;
     uint8_t flip_vertical;
     uint8_t reserved[2];
@@ -203,8 +204,7 @@ typedef struct mkvc_gpu_native_handle_desc {
 } mkvc_gpu_native_handle_desc;
 
 /** Query an external GPU producer; set complete nonzero when pixels are ready. */
-typedef mkvc_result (*mkvc_gpu_external_query_callback)(
-    void* user_data, uint32_t* complete);
+typedef mkvc_result (*mkvc_gpu_external_query_callback)(void* user_data, uint32_t* complete);
 
 /** Release callback invoked exactly once after all GPU frame leases complete. */
 typedef void (*mkvc_gpu_external_release_callback)(void* user_data);
@@ -215,8 +215,8 @@ typedef void (*mkvc_gpu_external_release_callback)(void* user_data);
  * reset, or destroy either handle. Return MKVC_OK only after the dependency has
  * been submitted; exceptions must never cross the C boundary.
  */
-typedef mkvc_result (*mkvc_gpu_dependency_callback)(
-    void* user_data, uint64_t producer_event, uint64_t consumer_stream);
+typedef mkvc_result (*mkvc_gpu_dependency_callback)(void* user_data, uint64_t producer_event,
+                                                    uint64_t consumer_stream);
 
 /**
  * External GPU resource import contract. Descriptor generations must match.
@@ -266,7 +266,7 @@ typedef struct mkvc_cpu_frame_pool_config {
     uint32_t pixel_format;   /**< I420, NV12, BGR24, RGB24, or BGRA32. */
     uint32_t width;
     uint32_t height;
-    uint32_t capacity;       /**< Number of fixed native frame slots. */
+    uint32_t capacity; /**< Number of fixed native frame slots. */
 } mkvc_cpu_frame_pool_config;
 
 /** Fixed-capacity reservation pool for caller-allocated GPU resources. */
@@ -283,7 +283,7 @@ typedef struct mkvc_gpu_resource_reservation_desc {
     uint32_t struct_version; /**< Must be 1. */
     uint32_t slot_index;
     uint32_t reserved;
-    uint64_t generation;     /**< Increments whenever this slot is reacquired. */
+    uint64_t generation; /**< Increments whenever this slot is reacquired. */
 } mkvc_gpu_resource_reservation_desc;
 
 /** Current bounded external GPU resource-pool occupancy. */
@@ -324,7 +324,7 @@ typedef struct mkvc_encoder_config {
     uint32_t quality;                  /**< Quality from 0 (best) to 63 (worst). */
     uint32_t keyframe_interval_frames; /**< Zero selects the four-second default. */
     uint32_t threads;                  /**< Zero selects automatic thread count. */
-    uint32_t queue_size;               /**< Zero is synchronous; positive values enable a bounded worker queue. */
+    uint32_t queue_size; /**< Zero is synchronous; positive values enable a bounded worker queue. */
 } mkvc_encoder_config;
 
 /**
@@ -334,14 +334,14 @@ typedef struct mkvc_encoder_config {
  * Decoder output pointers remain valid while the owning mkvc_frame is retained.
  */
 typedef struct mkvc_frame_view {
-    uint32_t struct_size;       /**< Size of this struct. */
-    uint32_t struct_version;    /**< Must be 1 for this ABI. */
-    uint32_t pixel_format;      /**< One mkvc_pixel_format value. */
-    uint32_t width;             /**< Visible width in pixels. */
-    uint32_t height;            /**< Visible height in pixels. */
-    const uint8_t* planes[4];   /**< Format-dependent plane pointers. */
-    int32_t strides[4];         /**< Plane row strides in bytes. */
-    int64_t pts;                /**< Input timebase units or decoded nanoseconds. */
+    uint32_t struct_size;     /**< Size of this struct. */
+    uint32_t struct_version;  /**< Must be 1 for this ABI. */
+    uint32_t pixel_format;    /**< One mkvc_pixel_format value. */
+    uint32_t width;           /**< Visible width in pixels. */
+    uint32_t height;          /**< Visible height in pixels. */
+    const uint8_t* planes[4]; /**< Format-dependent plane pointers. */
+    int32_t strides[4];       /**< Plane row strides in bytes. */
+    int64_t pts;              /**< Input timebase units or decoded nanoseconds. */
 } mkvc_frame_view;
 
 /**
@@ -351,14 +351,14 @@ typedef struct mkvc_frame_view {
  * decoded source frame. Pointers are never retained after mkvc_frame_copy_to().
  */
 typedef struct mkvc_mutable_frame_view {
-    uint32_t struct_size;     /**< Size of this struct. */
-    uint32_t struct_version;  /**< Must be 1 for this ABI. */
-    uint32_t pixel_format;    /**< Requested mkvc_pixel_format. */
-    uint32_t width;           /**< Destination width in pixels. */
-    uint32_t height;          /**< Destination height in pixels. */
-    uint8_t* planes[4];       /**< Caller-owned destination planes. */
-    int32_t strides[4];       /**< Destination row strides in bytes. */
-    int64_t pts;              /**< Receives decoded PTS in nanoseconds. */
+    uint32_t struct_size;    /**< Size of this struct. */
+    uint32_t struct_version; /**< Must be 1 for this ABI. */
+    uint32_t pixel_format;   /**< Requested mkvc_pixel_format. */
+    uint32_t width;          /**< Destination width in pixels. */
+    uint32_t height;         /**< Destination height in pixels. */
+    uint8_t* planes[4];      /**< Caller-owned destination planes. */
+    int32_t strides[4];      /**< Destination row strides in bytes. */
+    int64_t pts;             /**< Receives decoded PTS in nanoseconds. */
 } mkvc_mutable_frame_view;
 
 /** Per-call CPU frame-copy controls; initialize size and version. */
@@ -390,38 +390,51 @@ typedef struct mkvc_gpu_resource_reservation mkvc_gpu_resource_reservation;
 
 /** Synchronous decoder creation parameters. */
 typedef struct mkvc_decoder_config {
-    uint32_t struct_size;         /**< Size of this struct. */
-    uint32_t struct_version;      /**< Must be 1 for this ABI. */
-    const char* input_path_utf8;  /**< Null-terminated input path. */
-    uint32_t codec;               /**< Requested mkvc_codec. */
-    uint32_t backend;             /**< Requested mkvc_backend. */
-    uint32_t threads;             /**< Zero selects codec default. */
-    uint32_t prefetch;            /**< Zero is synchronous; positive values bound the read-ahead queue. */
+    uint32_t struct_size;        /**< Size of this struct. */
+    uint32_t struct_version;     /**< Must be 1 for this ABI. */
+    const char* input_path_utf8; /**< Null-terminated input path. */
+    uint32_t codec;              /**< Requested mkvc_codec. */
+    uint32_t backend;            /**< Requested mkvc_backend. */
+    uint32_t threads;            /**< Zero selects codec default. */
+    uint32_t prefetch; /**< Zero is synchronous; positive values bound the read-ahead queue. */
 } mkvc_decoder_config;
+
+/** Immutable video-track information obtained without decoding pixels. */
+typedef struct mkvc_video_info {
+    uint32_t struct_size;       /**< Size of this struct. */
+    uint32_t struct_version;    /**< Must be 1. */
+    uint32_t codec;             /**< Detected mkvc_codec; never AUTO on success. */
+    uint32_t width;             /**< Coded width in pixels. */
+    uint32_t height;            /**< Coded height in pixels. */
+    uint32_t fps_num;           /**< Nominal frame-rate numerator when known. */
+    uint32_t fps_den;           /**< Nominal frame-rate denominator when known. */
+    uint32_t reserved;          /**< Must be zero. */
+    int64_t duration_ns;        /**< Container duration in nanoseconds when known. */
+    uint64_t frame_count;       /**< Video-frame count when known. */
+    uint32_t fps_known;         /**< Nonzero when fps_num/fps_den are meaningful. */
+    uint32_t duration_known;    /**< Nonzero when duration_ns is meaningful. */
+    uint32_t frame_count_known; /**< Nonzero when frame_count is meaningful. */
+    uint32_t reserved2;         /**< Must be zero. */
+} mkvc_video_info;
 
 /** Query the loaded library version. */
 MKVC_API mkvc_result mkvc_get_version(mkvc_version* out_version);
 
 /** Two-call capability query; pass NULL to obtain the required element count. */
-MKVC_API mkvc_result mkvc_get_backend_capabilities(
-    mkvc_backend_capability* capabilities,
-    size_t* inout_count);
+MKVC_API mkvc_result mkvc_get_backend_capabilities(mkvc_backend_capability* capabilities,
+                                                   size_t* inout_count);
 
 /** Return a static English name for a result code. */
 MKVC_API const char* mkvc_result_string(mkvc_result result);
 
 /** Create an encoder. queue_size selects synchronous or asynchronous operation. */
-MKVC_API mkvc_result mkvc_encoder_create(
-    const mkvc_encoder_config* config,
-    mkvc_encoder** out_encoder);
+MKVC_API mkvc_result mkvc_encoder_create(const mkvc_encoder_config* config,
+                                         mkvc_encoder** out_encoder);
 /** Set copy/fallback policy before the first encoder frame operation. */
-MKVC_API mkvc_result mkvc_encoder_set_copy_policy(
-    mkvc_encoder* encoder,
-    const mkvc_copy_policy* policy);
+MKVC_API mkvc_result mkvc_encoder_set_copy_policy(mkvc_encoder* encoder,
+                                                  const mkvc_copy_policy* policy);
 /** Copy and submit one CPU frame to an encoder. */
-MKVC_API mkvc_result mkvc_encoder_write_frame(
-    mkvc_encoder* encoder,
-    const mkvc_frame_view* frame);
+MKVC_API mkvc_result mkvc_encoder_write_frame(mkvc_encoder* encoder, const mkvc_frame_view* frame);
 /**
  * @brief Synchronously borrow and submit one CPU frame without an ABI-boundary copy.
  *
@@ -429,9 +442,8 @@ MKVC_API mkvc_result mkvc_encoder_write_frame(
  * function returns. The initial implementation requires encoder queue_size=0;
  * return means the codec backend has finished reading the input pixels.
  */
-MKVC_API mkvc_result mkvc_encoder_write_frame_borrowed(
-    mkvc_encoder* encoder,
-    const mkvc_frame_view* frame);
+MKVC_API mkvc_result mkvc_encoder_write_frame_borrowed(mkvc_encoder* encoder,
+                                                       const mkvc_frame_view* frame);
 /**
  * @brief Asynchronously borrow a CPU frame until the returned submission completes.
  *
@@ -439,18 +451,15 @@ MKVC_API mkvc_result mkvc_encoder_write_frame_borrowed(
  * free input pixels until completion. Releasing a pending submission blocks
  * until it reaches a terminal state, making the handle a lifetime lease.
  */
-MKVC_API mkvc_result mkvc_encoder_submit_frame_borrowed(
-    mkvc_encoder* encoder,
-    const mkvc_frame_view* frame,
-    mkvc_submission** out_submission);
+MKVC_API mkvc_result mkvc_encoder_submit_frame_borrowed(mkvc_encoder* encoder,
+                                                        const mkvc_frame_view* frame,
+                                                        mkvc_submission** out_submission);
 /** Submit a compatible GPU frame without copying its pixels to CPU memory. */
-MKVC_API mkvc_result mkvc_encoder_write_gpu_frame(
-    mkvc_encoder* encoder,
-    const mkvc_gpu_frame* frame);
+MKVC_API mkvc_result mkvc_encoder_write_gpu_frame(mkvc_encoder* encoder,
+                                                  const mkvc_gpu_frame* frame);
 /** Submit one frame without waiting for queue space; may return MKVC_WOULD_BLOCK. */
-MKVC_API mkvc_result mkvc_encoder_try_write_frame(
-    mkvc_encoder* encoder,
-    const mkvc_frame_view* frame);
+MKVC_API mkvc_result mkvc_encoder_try_write_frame(mkvc_encoder* encoder,
+                                                  const mkvc_frame_view* frame);
 /** Drain currently submitted encoder work without closing the handle. */
 MKVC_API mkvc_result mkvc_encoder_flush(mkvc_encoder* encoder);
 /** Stop accepting work, discard queued frames, and wake all blocked callers. */
@@ -458,20 +467,15 @@ MKVC_API mkvc_result mkvc_encoder_cancel(mkvc_encoder* encoder);
 /** Drain, finalize the container, and close the encoder idempotently. */
 MKVC_API mkvc_result mkvc_encoder_close(mkvc_encoder* encoder);
 /** Snapshot cumulative encoder metrics without resetting them. */
-MKVC_API mkvc_result mkvc_encoder_get_metrics(
-    const mkvc_encoder* encoder,
-    mkvc_pipeline_metrics* out_metrics);
+MKVC_API mkvc_result mkvc_encoder_get_metrics(const mkvc_encoder* encoder,
+                                              mkvc_pipeline_metrics* out_metrics);
 /** Destroy an encoder handle; NULL is accepted. */
 MKVC_API void mkvc_encoder_destroy(mkvc_encoder* encoder);
 
 /** Query asynchronous borrowed submission completion without blocking. */
-MKVC_API mkvc_result mkvc_submission_query(
-    const mkvc_submission* submission,
-    uint32_t* out_status);
+MKVC_API mkvc_result mkvc_submission_query(const mkvc_submission* submission, uint32_t* out_status);
 /** Wait for submission completion; UINT32_MAX means an unbounded wait. */
-MKVC_API mkvc_result mkvc_submission_wait(
-    const mkvc_submission* submission,
-    uint32_t timeout_ms);
+MKVC_API mkvc_result mkvc_submission_wait(const mkvc_submission* submission, uint32_t timeout_ms);
 /**
  * Release a submission lease; a pending submission is waited before release.
  * NULL is accepted.
@@ -479,37 +483,29 @@ MKVC_API mkvc_result mkvc_submission_wait(
 MKVC_API void mkvc_submission_release(mkvc_submission* submission);
 
 /** Create a fixed-capacity native CPU frame pool. */
-MKVC_API mkvc_result mkvc_cpu_frame_pool_create(
-    const mkvc_cpu_frame_pool_config* config,
-    mkvc_cpu_frame_pool** out_pool);
+MKVC_API mkvc_result mkvc_cpu_frame_pool_create(const mkvc_cpu_frame_pool_config* config,
+                                                mkvc_cpu_frame_pool** out_pool);
 /** Destroy a pool owner; outstanding buffer leases remain valid. */
 MKVC_API void mkvc_cpu_frame_pool_destroy(mkvc_cpu_frame_pool* pool);
 /** Acquire one native slot; zero timeout is nonblocking. */
-MKVC_API mkvc_result mkvc_cpu_frame_pool_acquire(
-    mkvc_cpu_frame_pool* pool,
-    uint32_t timeout_ms,
-    mkvc_cpu_buffer** out_buffer);
+MKVC_API mkvc_result mkvc_cpu_frame_pool_acquire(mkvc_cpu_frame_pool* pool, uint32_t timeout_ms,
+                                                 mkvc_cpu_buffer** out_buffer);
 /** Query a live native CPU buffer lease descriptor. */
-MKVC_API mkvc_result mkvc_cpu_buffer_get_desc(
-    const mkvc_cpu_buffer* buffer,
-    mkvc_cpu_buffer_desc* out_desc);
+MKVC_API mkvc_result mkvc_cpu_buffer_get_desc(const mkvc_cpu_buffer* buffer,
+                                              mkvc_cpu_buffer_desc* out_desc);
 /** Obtain writable plane pointers valid while the CPU buffer lease is retained. */
-MKVC_API mkvc_result mkvc_cpu_buffer_get_view(
-    const mkvc_cpu_buffer* buffer,
-    mkvc_mutable_frame_view* out_view);
+MKVC_API mkvc_result mkvc_cpu_buffer_get_view(const mkvc_cpu_buffer* buffer,
+                                              mkvc_mutable_frame_view* out_view);
 /** Release a native CPU buffer lease; NULL is accepted. */
 MKVC_API void mkvc_cpu_buffer_release(mkvc_cpu_buffer* buffer);
 /** Submit a native pool buffer and retain its slot until encoder completion. */
-MKVC_API mkvc_result mkvc_encoder_submit_cpu_buffer(
-    mkvc_encoder* encoder,
-    const mkvc_cpu_buffer* buffer,
-    int64_t pts,
-    mkvc_submission** out_submission);
+MKVC_API mkvc_result mkvc_encoder_submit_cpu_buffer(mkvc_encoder* encoder,
+                                                    const mkvc_cpu_buffer* buffer, int64_t pts,
+                                                    mkvc_submission** out_submission);
 
 /** Create a bounded reservation pool; callers preallocate and own each resource. */
-MKVC_API mkvc_result mkvc_gpu_resource_pool_create(
-    const mkvc_gpu_resource_pool_config* config,
-    mkvc_gpu_resource_pool** out_pool);
+MKVC_API mkvc_result mkvc_gpu_resource_pool_create(const mkvc_gpu_resource_pool_config* config,
+                                                   mkvc_gpu_resource_pool** out_pool);
 /** Destroy the pool owner; outstanding reservations remain valid. */
 MKVC_API void mkvc_gpu_resource_pool_destroy(mkvc_gpu_resource_pool* pool);
 /** Acquire one slot; zero timeout returns WOULD_BLOCK when the pool is full. */
@@ -518,41 +514,36 @@ MKVC_API mkvc_result mkvc_gpu_resource_pool_acquire(
     mkvc_gpu_resource_reservation** out_reservation);
 /** Query the slot and generation of a live reservation. */
 MKVC_API mkvc_result mkvc_gpu_resource_reservation_get_desc(
-    const mkvc_gpu_resource_reservation* reservation,
-    mkvc_gpu_resource_reservation_desc* out_desc);
+    const mkvc_gpu_resource_reservation* reservation, mkvc_gpu_resource_reservation_desc* out_desc);
 /** Release one reservation and wake one blocked acquirer. */
-MKVC_API void mkvc_gpu_resource_reservation_release(
-    mkvc_gpu_resource_reservation* reservation);
+MKVC_API void mkvc_gpu_resource_reservation_release(mkvc_gpu_resource_reservation* reservation);
 /** Snapshot capacity, current occupancy and peak occupancy. */
-MKVC_API mkvc_result mkvc_gpu_resource_pool_get_stats(
-    const mkvc_gpu_resource_pool* pool,
-    mkvc_gpu_resource_pool_stats* out_stats);
+MKVC_API mkvc_result mkvc_gpu_resource_pool_get_stats(const mkvc_gpu_resource_pool* pool,
+                                                      mkvc_gpu_resource_pool_stats* out_stats);
 
 /** Return thread-local error detail valid until the next API call on this thread. */
 MKVC_API const char* mkvc_get_last_error(void);
 
+/** Inspect the first supported VP9/AV1 video track without creating a decoder. */
+MKVC_API mkvc_result mkvc_probe_input(const char* input_path_utf8, mkvc_video_info* out_info);
+
 /** Create a synchronous decoder. The caller owns the returned handle. */
-MKVC_API mkvc_result mkvc_decoder_create(
-    const mkvc_decoder_config* config,
-    mkvc_decoder** out_decoder);
+MKVC_API mkvc_result mkvc_decoder_create(const mkvc_decoder_config* config,
+                                         mkvc_decoder** out_decoder);
 /** Set copy/fallback policy before the first decoder frame operation. */
-MKVC_API mkvc_result mkvc_decoder_set_copy_policy(
-    mkvc_decoder* decoder,
-    const mkvc_copy_policy* policy);
+MKVC_API mkvc_result mkvc_decoder_set_copy_policy(mkvc_decoder* decoder,
+                                                  const mkvc_copy_policy* policy);
 /** Read one decoded frame or return MKVC_END_OF_STREAM. */
-MKVC_API mkvc_result mkvc_decoder_read(
-    mkvc_decoder* decoder,
-    mkvc_frame** out_frame);
+MKVC_API mkvc_result mkvc_decoder_read(mkvc_decoder* decoder, mkvc_frame** out_frame);
 /** Read one GPU-resident frame; initially supported by synchronous Intel decode. */
-MKVC_API mkvc_result mkvc_decoder_read_gpu(
-    mkvc_decoder* decoder,
-    mkvc_gpu_frame** out_frame);
+MKVC_API mkvc_result mkvc_decoder_read_gpu(mkvc_decoder* decoder, mkvc_gpu_frame** out_frame);
 /** Close the decoder and release codec/container resources idempotently. */
 MKVC_API mkvc_result mkvc_decoder_close(mkvc_decoder* decoder);
 /** Snapshot cumulative decoder metrics without resetting them. */
-MKVC_API mkvc_result mkvc_decoder_get_metrics(
-    const mkvc_decoder* decoder,
-    mkvc_pipeline_metrics* out_metrics);
+MKVC_API mkvc_result mkvc_decoder_get_metrics(const mkvc_decoder* decoder,
+                                              mkvc_pipeline_metrics* out_metrics);
+/** Return immutable video information resolved when the decoder was created. */
+MKVC_API mkvc_result mkvc_decoder_get_info(const mkvc_decoder* decoder, mkvc_video_info* out_info);
 /** Destroy a decoder handle; NULL is accepted. */
 MKVC_API void mkvc_decoder_destroy(mkvc_decoder* decoder);
 
@@ -561,40 +552,34 @@ MKVC_API void mkvc_frame_retain(mkvc_frame* frame);
 /** Decrement a decoded frame's reference count and destroy it at zero. */
 MKVC_API void mkvc_frame_release(mkvc_frame* frame);
 /** Populate a borrowed view whose pointers are owned by frame. */
-MKVC_API mkvc_result mkvc_frame_get_view(
-    const mkvc_frame* frame,
-    mkvc_frame_view* out_view);
+MKVC_API mkvc_result mkvc_frame_get_view(const mkvc_frame* frame, mkvc_frame_view* out_view);
 /** Copy or convert a decoded I420 frame into caller-owned CPU memory. */
-MKVC_API mkvc_result mkvc_frame_copy_to(
-    const mkvc_frame* frame,
-    mkvc_mutable_frame_view* destination);
+MKVC_API mkvc_result mkvc_frame_copy_to(const mkvc_frame* frame,
+                                        mkvc_mutable_frame_view* destination);
 /** Copy or convert with an explicit bounded CPU conversion thread count. */
-MKVC_API mkvc_result mkvc_frame_copy_to_ex(
-    const mkvc_frame* frame,
-    mkvc_mutable_frame_view* destination,
-    const mkvc_frame_copy_options* options);
+MKVC_API mkvc_result mkvc_frame_copy_to_ex(const mkvc_frame* frame,
+                                           mkvc_mutable_frame_view* destination,
+                                           const mkvc_frame_copy_options* options);
 /** Apply an immutable processing plan and return a new retained frame. */
-MKVC_API mkvc_result mkvc_frame_process(
-    const mkvc_frame* frame,
-    const mkvc_frame_process_config* config,
-    mkvc_frame** out_frame);
+MKVC_API mkvc_result mkvc_frame_process(const mkvc_frame* frame,
+                                        const mkvc_frame_process_config* config,
+                                        mkvc_frame** out_frame);
 
 /** Retain an existing GPU frame lease. */
 MKVC_API mkvc_result mkvc_gpu_frame_retain(mkvc_gpu_frame* frame);
 /** Release a GPU frame lease; NULL is accepted. */
 MKVC_API void mkvc_gpu_frame_release(mkvc_gpu_frame* frame);
 /** Copy immutable backend-neutral metadata from a live GPU frame lease. */
-MKVC_API mkvc_result mkvc_gpu_frame_get_desc(
-    const mkvc_gpu_frame* frame, mkvc_gpu_frame_desc* out_desc);
+MKVC_API mkvc_result mkvc_gpu_frame_get_desc(const mkvc_gpu_frame* frame,
+                                             mkvc_gpu_frame_desc* out_desc);
 /** Query producer completion without blocking. */
-MKVC_API mkvc_result mkvc_gpu_frame_query_completion(
-    const mkvc_gpu_frame* frame, uint32_t* out_status);
+MKVC_API mkvc_result mkvc_gpu_frame_query_completion(const mkvc_gpu_frame* frame,
+                                                     uint32_t* out_status);
 /** Wait for producer completion; UINT32_MAX means an unbounded wait. */
-MKVC_API mkvc_result mkvc_gpu_frame_wait(
-    const mkvc_gpu_frame* frame, uint32_t timeout_ms);
+MKVC_API mkvc_result mkvc_gpu_frame_wait(const mkvc_gpu_frame* frame, uint32_t timeout_ms);
 /** Export a borrowed process-local native resource descriptor. */
-MKVC_API mkvc_result mkvc_gpu_frame_get_native_handle(
-    const mkvc_gpu_frame* frame, mkvc_gpu_native_handle_desc* out_handle);
+MKVC_API mkvc_result mkvc_gpu_frame_get_native_handle(const mkvc_gpu_frame* frame,
+                                                      mkvc_gpu_native_handle_desc* out_handle);
 
 /**
  * Import a process-local external GPU resource as a normal frame lease.
@@ -616,9 +601,8 @@ MKVC_API mkvc_result mkvc_gpu_frame_get_native_handle(
  * directly accepted by oneVPL encode; use an explicitly shared VA/D3D11 view
  * for the encode boundary and account for any materialization as a GPU copy.
  */
-MKVC_API mkvc_result mkvc_gpu_frame_import_external(
-    const mkvc_gpu_external_frame_config* config,
-    mkvc_gpu_frame** out_frame);
+MKVC_API mkvc_result mkvc_gpu_frame_import_external(const mkvc_gpu_external_frame_config* config,
+                                                    mkvc_gpu_frame** out_frame);
 
 /**
  * Import an Intel NV12 VA surface using nonblocking vaSyncSurface2 polling.
@@ -630,9 +614,8 @@ MKVC_API mkvc_result mkvc_gpu_frame_import_external(
  * The owner must keep display and surface valid through final release. Failure
  * does not transfer ownership or invoke the release callback.
  */
-MKVC_API mkvc_result mkvc_gpu_frame_import_va_surface(
-    const mkvc_gpu_external_frame_config* config,
-    mkvc_gpu_frame** out_frame);
+MKVC_API mkvc_result mkvc_gpu_frame_import_va_surface(const mkvc_gpu_external_frame_config* config,
+                                                      mkvc_gpu_frame** out_frame);
 
 /**
  * Import an Intel NV12 D3D11 texture with a native producer fence on Windows.
@@ -647,9 +630,8 @@ MKVC_API mkvc_result mkvc_gpu_frame_import_va_surface(
  * still governs the supplied owner. Failed imports do not acquire ownership.
  * Encoder support is separately gated by oneVPL capabilities.
  */
-MKVC_API mkvc_result mkvc_gpu_frame_import_d3d11_fence(
-    const mkvc_gpu_external_frame_config* config,
-    mkvc_gpu_frame** out_frame);
+MKVC_API mkvc_result mkvc_gpu_frame_import_d3d11_fence(const mkvc_gpu_external_frame_config* config,
+                                                       mkvc_gpu_frame** out_frame);
 
 /**
  * Import linear Intel device-USM with a borrowed Level Zero producer event.
@@ -660,8 +642,7 @@ MKVC_API mkvc_result mkvc_gpu_frame_import_d3d11_fence(
  * USM event so asynchronous dependency cannot be silently treated as complete.
  */
 MKVC_API mkvc_result mkvc_gpu_frame_import_level_zero_event(
-    const mkvc_gpu_external_frame_config* config,
-    mkvc_gpu_frame** out_frame);
+    const mkvc_gpu_external_frame_config* config, mkvc_gpu_frame** out_frame);
 
 /**
  * Import an NVIDIA CUDA-pointer frame whose producer dependency is represented
@@ -669,9 +650,8 @@ MKVC_API mkvc_result mkvc_gpu_frame_import_level_zero_event(
  * CUDA context without a device-wide synchronization. The event and context
  * must remain valid until the final frame lease is released.
  */
-MKVC_API mkvc_result mkvc_gpu_frame_import_cuda_event(
-    const mkvc_gpu_external_frame_config* config,
-    mkvc_gpu_frame** out_frame);
+MKVC_API mkvc_result mkvc_gpu_frame_import_cuda_event(const mkvc_gpu_external_frame_config* config,
+                                                      mkvc_gpu_frame** out_frame);
 
 /**
  * @brief Export one linear GPU plane as a standard DLPack DLManagedTensor.
@@ -684,9 +664,9 @@ MKVC_API mkvc_result mkvc_gpu_frame_import_cuda_event(
  * Linear Intel device-USM is exported as kDLOneAPI after producer completion;
  * no VA/D3D11 surface is ever represented as a false linear tensor.
  */
-MKVC_API mkvc_result mkvc_gpu_frame_export_dlpack(
-    mkvc_gpu_frame* frame, uint32_t plane_index,
-    uint64_t consumer_stream, void** out_managed_tensor);
+MKVC_API mkvc_result mkvc_gpu_frame_export_dlpack(mkvc_gpu_frame* frame, uint32_t plane_index,
+                                                  uint64_t consumer_stream,
+                                                  void** out_managed_tensor);
 
 /**
  * Export DLPack after a caller adapter inserts the producer dependency.
@@ -696,8 +676,7 @@ MKVC_API mkvc_result mkvc_gpu_frame_export_dlpack(
  */
 MKVC_API mkvc_result mkvc_gpu_frame_export_dlpack_with_dependency(
     mkvc_gpu_frame* frame, uint32_t plane_index, uint64_t consumer_stream,
-    mkvc_gpu_dependency_callback callback, void* user_data,
-    void** out_managed_tensor);
+    mkvc_gpu_dependency_callback callback, void* user_data, void** out_managed_tensor);
 
 /** Release an unconsumed DLManagedTensor returned by the export function. */
 MKVC_API void mkvc_dlpack_managed_tensor_release(void* managed_tensor);

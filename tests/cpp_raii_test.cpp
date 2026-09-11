@@ -1,5 +1,3 @@
-#include "mkvcodec/mkvcodec.hpp"
-
 #include <cassert>
 #include <cstdint>
 #include <filesystem>
@@ -7,11 +5,11 @@
 #include <utility>
 #include <vector>
 
+#include "mkvcodec/mkvcodec.hpp"
+
 namespace {
-void release_external(void* opaque) {
-    ++*static_cast<unsigned*>(opaque);
-}
-}
+void release_external(void* opaque) { ++*static_cast<unsigned*>(opaque); }
+}  // namespace
 
 int main(int argc, char** argv) {
     assert(argc == 2);
@@ -23,18 +21,15 @@ int main(int argc, char** argv) {
     auto gpu_slot_again = gpu_pool.try_acquire();
     assert(gpu_slot_again && gpu_slot_again->generation() == 2);
     auto gpu_stats = gpu_pool.stats();
-    assert(gpu_stats.capacity == 1 && gpu_stats.in_use == 1 &&
-           gpu_stats.peak_in_use == 1);
-    assert(gpu_stats.acquisitions == 2 &&
-           gpu_stats.rejected_acquisitions == 1);
+    assert(gpu_stats.capacity == 1 && gpu_stats.in_use == 1 && gpu_stats.peak_in_use == 1);
+    assert(gpu_stats.acquisitions == 2 && gpu_stats.rejected_acquisitions == 1);
     gpu_slot_again.reset();
     constexpr uint32_t width = 64;
     constexpr uint32_t height = 48;
     const std::string output = argv[1];
     std::filesystem::remove(output);
 
-    mkvcodec::CpuFramePool original_pool(
-        MKVC_PIXEL_FORMAT_I420, width, height, 1);
+    mkvcodec::CpuFramePool original_pool(MKVC_PIXEL_FORMAT_I420, width, height, 1);
     mkvcodec::CpuFramePool pool(std::move(original_pool));
     assert(!original_pool.native_handle());
     auto buffer = pool.acquire();
@@ -85,9 +80,16 @@ int main(int argc, char** argv) {
     decoder_config.struct_size = sizeof(decoder_config);
     decoder_config.struct_version = 1;
     decoder_config.input_path_utf8 = output.c_str();
-    decoder_config.codec = MKVC_CODEC_VP9;
+    decoder_config.codec = MKVC_CODEC_AUTO;
     decoder_config.backend = MKVC_BACKEND_CPU;
+    const auto probed = mkvcodec::probe_input(output.c_str());
+    assert(probed.codec == MKVC_CODEC_VP9);
+    assert(probed.width == width && probed.height == height);
+    assert(probed.frame_count_known != 0 && probed.frame_count == 1);
     mkvcodec::Decoder decoder(decoder_config);
+    const auto decoder_info = decoder.info();
+    assert(decoder_info.codec == MKVC_CODEC_VP9);
+    assert(decoder_info.width == width && decoder_info.height == height);
     auto decoded = decoder.read();
     assert(decoded.has_value());
     const auto decoded_view = decoded->view();
@@ -110,20 +112,20 @@ int main(int argc, char** argv) {
     invalid_copy_options.struct_size = sizeof(invalid_copy_options);
     invalid_copy_options.struct_version = 1;
     invalid_copy_options.struct_size -= 1;
-    assert(mkvc_frame_copy_to_ex(decoded->native_handle(), &bgr_view,
-                                 &invalid_copy_options) == MKVC_ERROR_INVALID_ARGUMENT);
+    assert(mkvc_frame_copy_to_ex(decoded->native_handle(), &bgr_view, &invalid_copy_options) ==
+           MKVC_ERROR_INVALID_ARGUMENT);
     invalid_copy_options.struct_size = sizeof(invalid_copy_options);
     invalid_copy_options.struct_version = 0;
-    assert(mkvc_frame_copy_to_ex(decoded->native_handle(), &bgr_view,
-                                 &invalid_copy_options) == MKVC_ERROR_INVALID_ARGUMENT);
+    assert(mkvc_frame_copy_to_ex(decoded->native_handle(), &bgr_view, &invalid_copy_options) ==
+           MKVC_ERROR_INVALID_ARGUMENT);
     invalid_copy_options.struct_version = 1;
     invalid_copy_options.conversion_threads = 5;
-    assert(mkvc_frame_copy_to_ex(decoded->native_handle(), &bgr_view,
-                                 &invalid_copy_options) == MKVC_ERROR_INVALID_ARGUMENT);
+    assert(mkvc_frame_copy_to_ex(decoded->native_handle(), &bgr_view, &invalid_copy_options) ==
+           MKVC_ERROR_INVALID_ARGUMENT);
     invalid_copy_options.conversion_threads = 1;
     invalid_copy_options.reserved = 1;
-    assert(mkvc_frame_copy_to_ex(decoded->native_handle(), &bgr_view,
-                                 &invalid_copy_options) == MKVC_ERROR_INVALID_ARGUMENT);
+    assert(mkvc_frame_copy_to_ex(decoded->native_handle(), &bgr_view, &invalid_copy_options) ==
+           MKVC_ERROR_INVALID_ARGUMENT);
     decoded.reset();
     assert(!decoder.read().has_value());
     decoder.close();

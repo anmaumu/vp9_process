@@ -54,7 +54,17 @@ def main() -> None:
         sample_count = 0
         pts_values: list[int] = []
         rows, columns = np.indices((height, width))
-        with mkvcodec.VideoCapture(path, codec="av1", prefetch=0) as capture:
+        info = mkvcodec.probe_video(path)
+        assert info.codec == "av1"
+        assert (info.width, info.height) == (width, height)
+        assert info.fps is not None and abs(info.fps - 30.0) < 0.001
+        assert info.frame_count == 30
+        assert info.duration_ns is not None and info.duration_ns > 0
+
+        # The default capture codec is inferred from the selected video track.
+        with mkvcodec.VideoCapture(path, prefetch=0) as capture:
+            assert capture.info == info
+            assert capture.codec == "av1"
             while True:
                 decoded = capture.read_i420()
                 if decoded is None:

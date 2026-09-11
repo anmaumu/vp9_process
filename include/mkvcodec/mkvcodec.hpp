@@ -5,24 +5,24 @@
  * @brief Header-only C++17 RAII facade over the stable MKVCodec C ABI.
  */
 
-#include "mkvcodec/mkvc.h"
-
 #include <cstdint>
 #include <optional>
 #include <stdexcept>
 #include <string>
 #include <utility>
 
+#include "mkvcodec/mkvc.h"
+
 namespace mkvcodec {
 
 /** C ABI failure copied into a normal C++ exception at the wrapper boundary. */
 class ResultError : public std::runtime_error {
- public:
+   public:
     ResultError(mkvc_result result, std::string message)
         : std::runtime_error(std::move(message)), result_(result) {}
     mkvc_result result() const noexcept { return result_; }
 
- private:
+   private:
     mkvc_result result_;
 };
 
@@ -31,20 +31,27 @@ inline void check(mkvc_result result) {
     if (result == MKVC_OK) return;
     const char* detail = mkvc_get_last_error();
     throw ResultError(result,
-        detail != nullptr && detail[0] != '\0' ? detail
-                                                : mkvc_result_string(result));
+                      detail != nullptr && detail[0] != '\0' ? detail : mkvc_result_string(result));
+}
+
+/** Inspect the first supported VP9/AV1 video track without decoding pixels. */
+inline mkvc_video_info probe_input(const char* input_path_utf8) {
+    mkvc_video_info value{};
+    value.struct_size = sizeof(value);
+    value.struct_version = 1;
+    check(mkvc_probe_input(input_path_utf8, &value));
+    return value;
 }
 
 /** Move-only completion lease for an asynchronous CPU submission. */
 class Submission {
- public:
+   public:
     Submission() noexcept = default;
     explicit Submission(mkvc_submission* handle) noexcept : handle_(handle) {}
     ~Submission() { reset(); }
     Submission(const Submission&) = delete;
     Submission& operator=(const Submission&) = delete;
-    Submission(Submission&& other) noexcept
-        : handle_(std::exchange(other.handle_, nullptr)) {}
+    Submission(Submission&& other) noexcept : handle_(std::exchange(other.handle_, nullptr)) {}
     Submission& operator=(Submission&& other) noexcept {
         if (this != &other) {
             reset();
@@ -72,7 +79,7 @@ class Submission {
     }
     mkvc_submission* native_handle() const noexcept { return handle_; }
 
- private:
+   private:
     void ensure_open() const {
         if (handle_ == nullptr) {
             throw std::logic_error("MKVCodec submission is closed");
@@ -83,13 +90,12 @@ class Submission {
 
 /** Move-only writable lease over one native CPU frame-pool slot. */
 class CpuBuffer {
- public:
+   public:
     CpuBuffer() noexcept = default;
     ~CpuBuffer() { reset(); }
     CpuBuffer(const CpuBuffer&) = delete;
     CpuBuffer& operator=(const CpuBuffer&) = delete;
-    CpuBuffer(CpuBuffer&& other) noexcept
-        : handle_(std::exchange(other.handle_, nullptr)) {}
+    CpuBuffer(CpuBuffer&& other) noexcept : handle_(std::exchange(other.handle_, nullptr)) {}
     CpuBuffer& operator=(CpuBuffer&& other) noexcept {
         if (this != &other) {
             reset();
@@ -123,7 +129,7 @@ class CpuBuffer {
     }
     mkvc_cpu_buffer* native_handle() const noexcept { return handle_; }
 
- private:
+   private:
     friend class CpuFramePool;
     explicit CpuBuffer(mkvc_cpu_buffer* handle) noexcept : handle_(handle) {}
     void ensure_open() const {
@@ -136,12 +142,11 @@ class CpuBuffer {
 
 /** Fixed-capacity native CPU frame pool with generation-safe buffer leases. */
 class CpuFramePool {
- public:
+   public:
     explicit CpuFramePool(const mkvc_cpu_frame_pool_config& config) {
         check(mkvc_cpu_frame_pool_create(&config, &handle_));
     }
-    CpuFramePool(uint32_t pixel_format, uint32_t width, uint32_t height,
-                 uint32_t capacity) {
+    CpuFramePool(uint32_t pixel_format, uint32_t width, uint32_t height, uint32_t capacity) {
         mkvc_cpu_frame_pool_config config{};
         config.struct_size = sizeof(config);
         config.struct_version = 1;
@@ -154,8 +159,7 @@ class CpuFramePool {
     ~CpuFramePool() { reset(); }
     CpuFramePool(const CpuFramePool&) = delete;
     CpuFramePool& operator=(const CpuFramePool&) = delete;
-    CpuFramePool(CpuFramePool&& other) noexcept
-        : handle_(std::exchange(other.handle_, nullptr)) {}
+    CpuFramePool(CpuFramePool&& other) noexcept : handle_(std::exchange(other.handle_, nullptr)) {}
     CpuFramePool& operator=(CpuFramePool&& other) noexcept {
         if (this != &other) {
             reset();
@@ -173,8 +177,7 @@ class CpuFramePool {
     std::optional<CpuBuffer> try_acquire() {
         ensure_open();
         mkvc_cpu_buffer* buffer = nullptr;
-        const mkvc_result result =
-            mkvc_cpu_frame_pool_acquire(handle_, 0, &buffer);
+        const mkvc_result result = mkvc_cpu_frame_pool_acquire(handle_, 0, &buffer);
         if (result == MKVC_WOULD_BLOCK) return std::nullopt;
         check(result);
         return CpuBuffer(buffer);
@@ -187,7 +190,7 @@ class CpuFramePool {
     }
     mkvc_cpu_frame_pool* native_handle() const noexcept { return handle_; }
 
- private:
+   private:
     void ensure_open() const {
         if (handle_ == nullptr) {
             throw std::logic_error("MKVCodec CPU frame pool is closed");
@@ -198,17 +201,15 @@ class CpuFramePool {
 
 /** Move-only reservation for one caller-allocated external GPU resource. */
 class GpuResourceReservation {
- public:
+   public:
     GpuResourceReservation() = default;
-    explicit GpuResourceReservation(mkvc_gpu_resource_reservation* handle)
-        : handle_(handle) {
+    explicit GpuResourceReservation(mkvc_gpu_resource_reservation* handle) : handle_(handle) {
         desc_.struct_size = sizeof(desc_);
         desc_.struct_version = 1;
         try {
             check(mkvc_gpu_resource_reservation_get_desc(handle_, &desc_));
         } catch (...) {
-            mkvc_gpu_resource_reservation_release(
-                std::exchange(handle_, nullptr));
+            mkvc_gpu_resource_reservation_release(std::exchange(handle_, nullptr));
             throw;
         }
     }
@@ -229,18 +230,17 @@ class GpuResourceReservation {
     uint64_t generation() const noexcept { return desc_.generation; }
     explicit operator bool() const noexcept { return handle_ != nullptr; }
     void reset() noexcept {
-        if (handle_) mkvc_gpu_resource_reservation_release(
-            std::exchange(handle_, nullptr));
+        if (handle_) mkvc_gpu_resource_reservation_release(std::exchange(handle_, nullptr));
     }
 
- private:
+   private:
     mkvc_gpu_resource_reservation* handle_ = nullptr;
     mkvc_gpu_resource_reservation_desc desc_{};
 };
 
 /** Fixed-capacity backpressure gate for preallocated external GPU resources. */
 class GpuResourcePool {
- public:
+   public:
     explicit GpuResourcePool(uint32_t capacity) {
         mkvc_gpu_resource_pool_config config{};
         config.struct_size = sizeof(config);
@@ -283,11 +283,10 @@ class GpuResourcePool {
         return value;
     }
     void reset() noexcept {
-        if (handle_) mkvc_gpu_resource_pool_destroy(
-            std::exchange(handle_, nullptr));
+        if (handle_) mkvc_gpu_resource_pool_destroy(std::exchange(handle_, nullptr));
     }
 
- private:
+   private:
     void require_open() const {
         if (!handle_) throw std::logic_error("MKVCodec GPU resource pool is closed");
     }
@@ -296,13 +295,12 @@ class GpuResourcePool {
 
 /** Move-only retained CPU decoder output. Borrowed views live with this owner. */
 class Frame {
- public:
+   public:
     Frame() noexcept = default;
     ~Frame() { reset(); }
     Frame(const Frame&) = delete;
     Frame& operator=(const Frame&) = delete;
-    Frame(Frame&& other) noexcept
-        : handle_(std::exchange(other.handle_, nullptr)) {}
+    Frame(Frame&& other) noexcept : handle_(std::exchange(other.handle_, nullptr)) {}
     Frame& operator=(Frame&& other) noexcept {
         if (this != &other) {
             reset();
@@ -320,8 +318,7 @@ class Frame {
         return value;
     }
     /** Copy or convert into caller memory with bounded packed-conversion concurrency. */
-    void copy_to(mkvc_mutable_frame_view& destination,
-                 uint32_t conversion_threads = 0) const {
+    void copy_to(mkvc_mutable_frame_view& destination, uint32_t conversion_threads = 0) const {
         ensure_open();
         mkvc_frame_copy_options options{};
         options.struct_size = sizeof(options);
@@ -343,7 +340,7 @@ class Frame {
     }
     mkvc_frame* native_handle() const noexcept { return handle_; }
 
- private:
+   private:
     friend class Decoder;
     explicit Frame(mkvc_frame* handle) noexcept : handle_(handle) {}
     void ensure_open() const {
@@ -354,38 +351,33 @@ class Frame {
 
 /** Move-only GPU frame lease suitable for native-handle interop. */
 class GpuFrame {
- public:
+   public:
     GpuFrame() noexcept = default;
-    static GpuFrame import_external(
-        const mkvc_gpu_external_frame_config& config) {
+    static GpuFrame import_external(const mkvc_gpu_external_frame_config& config) {
         mkvc_gpu_frame* frame = nullptr;
         check(mkvc_gpu_frame_import_external(&config, &frame));
         return GpuFrame(frame);
     }
 
-    static GpuFrame import_cuda_event(
-        const mkvc_gpu_external_frame_config& config) {
+    static GpuFrame import_cuda_event(const mkvc_gpu_external_frame_config& config) {
         mkvc_gpu_frame* frame = nullptr;
         check(mkvc_gpu_frame_import_cuda_event(&config, &frame));
         return GpuFrame(frame);
     }
     /** Import an Intel VA surface with native per-surface completion polling. */
-    static GpuFrame import_va_surface(
-        const mkvc_gpu_external_frame_config& config) {
+    static GpuFrame import_va_surface(const mkvc_gpu_external_frame_config& config) {
         mkvc_gpu_frame* frame = nullptr;
         check(mkvc_gpu_frame_import_va_surface(&config, &frame));
         return GpuFrame(frame);
     }
     /** Import a Windows D3D11 NV12 texture with a native producer fence. */
-    static GpuFrame import_d3d11_fence(
-        const mkvc_gpu_external_frame_config& config) {
+    static GpuFrame import_d3d11_fence(const mkvc_gpu_external_frame_config& config) {
         mkvc_gpu_frame* frame = nullptr;
         check(mkvc_gpu_frame_import_d3d11_fence(&config, &frame));
         return GpuFrame(frame);
     }
     /** Import linear Intel device-USM with a borrowed Level Zero event. */
-    static GpuFrame import_level_zero_event(
-        const mkvc_gpu_external_frame_config& config) {
+    static GpuFrame import_level_zero_event(const mkvc_gpu_external_frame_config& config) {
         mkvc_gpu_frame* frame = nullptr;
         check(mkvc_gpu_frame_import_level_zero_event(&config, &frame));
         return GpuFrame(frame);
@@ -393,8 +385,7 @@ class GpuFrame {
     ~GpuFrame() { reset(); }
     GpuFrame(const GpuFrame&) = delete;
     GpuFrame& operator=(const GpuFrame&) = delete;
-    GpuFrame(GpuFrame&& other) noexcept
-        : handle_(std::exchange(other.handle_, nullptr)) {}
+    GpuFrame(GpuFrame&& other) noexcept : handle_(std::exchange(other.handle_, nullptr)) {}
     GpuFrame& operator=(GpuFrame&& other) noexcept {
         if (this != &other) {
             reset();
@@ -437,7 +428,7 @@ class GpuFrame {
     }
     mkvc_gpu_frame* native_handle() const noexcept { return handle_; }
 
- private:
+   private:
     friend class Decoder;
     explicit GpuFrame(mkvc_gpu_frame* handle) noexcept : handle_(handle) {}
     void ensure_open() const {
@@ -450,7 +441,7 @@ class GpuFrame {
 
 /** Move-only decoder facade returning retained CPU or GPU frame leases. */
 class Decoder {
- public:
+   public:
     explicit Decoder(const mkvc_decoder_config& config) {
         check(mkvc_decoder_create(&config, &handle_));
     }
@@ -496,6 +487,15 @@ class Decoder {
         check(mkvc_decoder_get_metrics(handle_, &value));
         return value;
     }
+    /** Return immutable video information resolved when this decoder opened. */
+    mkvc_video_info info() const {
+        ensure_open();
+        mkvc_video_info value{};
+        value.struct_size = sizeof(value);
+        value.struct_version = 1;
+        check(mkvc_decoder_get_info(handle_, &value));
+        return value;
+    }
     void close() {
         ensure_open();
         if (closed_) return;
@@ -513,7 +513,7 @@ class Decoder {
     }
     mkvc_decoder* native_handle() const noexcept { return handle_; }
 
- private:
+   private:
     void ensure_open() const {
         if (handle_ == nullptr) {
             throw std::logic_error("MKVCodec decoder is closed");
@@ -525,7 +525,7 @@ class Decoder {
 
 /** Move-only encoder facade retaining the stable C handle underneath. */
 class Encoder {
- public:
+   public:
     explicit Encoder(const mkvc_encoder_config& config) {
         check(mkvc_encoder_create(&config, &handle_));
     }
@@ -568,12 +568,17 @@ class Encoder {
         ensure_open();
         if (!buffer) throw std::logic_error("MKVCodec CPU buffer is closed");
         mkvc_submission* submission = nullptr;
-        check(mkvc_encoder_submit_cpu_buffer(
-            handle_, buffer.native_handle(), pts, &submission));
+        check(mkvc_encoder_submit_cpu_buffer(handle_, buffer.native_handle(), pts, &submission));
         return Submission(submission);
     }
-    void flush() { ensure_open(); check(mkvc_encoder_flush(handle_)); }
-    void cancel() { ensure_open(); check(mkvc_encoder_cancel(handle_)); }
+    void flush() {
+        ensure_open();
+        check(mkvc_encoder_flush(handle_));
+    }
+    void cancel() {
+        ensure_open();
+        check(mkvc_encoder_cancel(handle_));
+    }
     void close() {
         ensure_open();
         if (closed_) return;
@@ -599,7 +604,7 @@ class Encoder {
     }
     mkvc_encoder* native_handle() const noexcept { return handle_; }
 
- private:
+   private:
     void ensure_open() const {
         if (handle_ == nullptr) {
             throw std::logic_error("MKVCodec encoder is closed");

@@ -49,6 +49,7 @@ _PYTHON_TYPES = {
     "mkvc_pipeline_metrics": "PipelineMetrics",
     "mkvc_submission": "SubmissionHandle",
     "mkvc_version": "Version",
+    "mkvc_video_info": "VideoInfo",
 }
 _CTYPES = {
     "int64_t": "ct.c_int64",
@@ -95,6 +96,7 @@ _DOTNET_TYPES = {
     "mkvc_mutable_frame_view": "NativeMutableFrameView",
     "mkvc_pipeline_metrics": "MkvPipelineMetrics",
     "mkvc_version": "MkvVersion",
+    "mkvc_video_info": "MkvVideoInfo",
 }
 _DOTNET_ENUMS = {
     "mkvc_result": ("MkvResult", {
@@ -117,6 +119,7 @@ _DOTNET_ENUMS = {
         "MKVC_BACKEND_INTEL": "Intel",
     }),
     "mkvc_codec": ("MkvCodecKind", {
+        "MKVC_CODEC_AUTO": "Auto",
         "MKVC_CODEC_VP9": "Vp9",
         "MKVC_CODEC_AV1": "Av1",
     }),
@@ -153,6 +156,7 @@ _DOTNET_PUBLIC_STRUCTS = {
     "mkvc_backend_capability", "mkvc_cpu_buffer_desc", "mkvc_gpu_frame_desc",
     "mkvc_gpu_native_handle_desc", "mkvc_gpu_resource_pool_stats",
     "mkvc_gpu_resource_reservation_desc", "mkvc_pipeline_metrics", "mkvc_version",
+    "mkvc_video_info",
 }
 _DOTNET_FIELD_TYPES = {
     ("mkvc_backend_capability", "backend"): "MkvBackend",
@@ -165,11 +169,13 @@ _DOTNET_FIELD_TYPES = {
     ("mkvc_gpu_frame_desc", "pixel_format"): "MkvPixelFormat",
     ("mkvc_gpu_native_handle_desc", "type"): "MkvGpuNativeHandleType",
     ("mkvc_mutable_frame_view", "pixel_format"): "MkvPixelFormat",
+    ("mkvc_video_info", "codec"): "MkvCodecKind",
 }
 _DOTNET_FIELD_NAMES = {
     "backend_time_ns": "BackendTimeNanoseconds",
     "queue_wait_ns": "QueueWaitNanoseconds",
     "wait_ns": "WaitNanoseconds",
+    "duration_ns": "DurationNanoseconds",
 }
 _DOTNET_HANDLES = {
     "mkvc_cpu_buffer": "MkvCpuBufferHandle",
@@ -184,7 +190,8 @@ _DOTNET_HANDLES = {
 }
 _DOTNET_RAW_HANDLES = {
     "mkvc_cpu_buffer_release", "mkvc_cpu_frame_pool_destroy",
-    "mkvc_decoder_close", "mkvc_decoder_destroy", "mkvc_decoder_get_metrics",
+    "mkvc_decoder_close", "mkvc_decoder_destroy", "mkvc_decoder_get_info",
+    "mkvc_decoder_get_metrics",
     "mkvc_encoder_close", "mkvc_encoder_destroy", "mkvc_encoder_get_metrics",
     "mkvc_frame_release", "mkvc_gpu_frame_release",
     "mkvc_gpu_resource_pool_destroy", "mkvc_gpu_resource_reservation_release",
@@ -497,6 +504,8 @@ def _dotnet_argument(function: str, c_type: str, name: str) -> str:
         if function == "mkvc_submission_query":
             return f"out MkvSubmissionStatus {name}"
         return f"out uint {name}"
+    if base == "char" and pointer_depth == 1:
+        return f"nint {name}"
     scalars = {
         "int64_t": "long", "mkvc_gpu_dependency_callback": "nint",
         "mkvc_result": "MkvResult", "uint32_t": "uint", "uint64_t": "ulong",

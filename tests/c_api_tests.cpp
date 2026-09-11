@@ -6,6 +6,8 @@
 #include "mkvcodec/mkvc.h"
 
 int main() {
+    static_assert(sizeof(mkvc_video_info) == 64);
+    assert(MKVC_CODEC_AUTO == 0);
     mkvc_version version{};
     version.struct_size = sizeof(version);
     assert(mkvc_get_version(&version) == MKVC_OK);
@@ -136,6 +138,15 @@ int main() {
     invalid_decoder_config = decoder_config;
     invalid_decoder_config.backend = 999;
     expect_invalid_decoder_config(invalid_decoder_config);
+
+    mkvc_video_info video_info{};
+    video_info.struct_size = sizeof(video_info);
+    video_info.struct_version = 1;
+    assert(mkvc_probe_input(nullptr, &video_info) == MKVC_ERROR_INVALID_ARGUMENT);
+    assert(mkvc_probe_input("missing-input.webm", nullptr) == MKVC_ERROR_INVALID_ARGUMENT);
+    assert(mkvc_decoder_get_info(nullptr, &video_info) == MKVC_ERROR_INVALID_ARGUMENT);
+    video_info.struct_size -= 1;
+    assert(mkvc_probe_input("missing-input.webm", &video_info) == MKVC_ERROR_INVALID_ARGUMENT);
 
     mkvc_pipeline_metrics metrics{};
     metrics.struct_size = sizeof(metrics);

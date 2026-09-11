@@ -19,6 +19,7 @@
 - synchronous C ABI
 - Python NumPy copy API
 - WebM VP9 round-trip integration test
+- [x] VP9/AV1 input codec auto-detection and decode-free video information API
 
 ## Phase 1B: CPU AV1 vertical slice
 

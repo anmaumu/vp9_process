@@ -108,6 +108,16 @@ mkvc_result mkvc_decoder_get_metrics(const mkvc_decoder* decoder,
     });
 }
 
+mkvc_result mkvc_decoder_get_info(const mkvc_decoder* decoder, mkvc_video_info* out_info) {
+    last_error.clear();
+    if (decoder == nullptr || out_info == nullptr || out_info->struct_size < sizeof(*out_info) ||
+        out_info->struct_version != 1) {
+        return fail(MKVC_ERROR_INVALID_ARGUMENT, "invalid decoder video-info output");
+    }
+    *out_info = decoder->video_info;
+    return MKVC_OK;
+}
+
 void mkvc_decoder_destroy(mkvc_decoder* decoder) {
     try {
         if (decoder != nullptr) {

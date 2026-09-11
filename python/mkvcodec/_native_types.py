@@ -8,6 +8,7 @@ MKVC_ABI_VERSION = 1
 MKVC_BACKEND_CPU = 1
 MKVC_BACKEND_NVIDIA = 2
 MKVC_BACKEND_INTEL = 3
+MKVC_CODEC_AUTO = 0
 MKVC_CODEC_VP9 = 1
 MKVC_CODEC_AV1 = 2
 MKVC_COPY_PATH_UNKNOWN = 0
@@ -281,6 +282,25 @@ class Version(ct.Structure):
     ]
 
 
+class VideoInfo(ct.Structure):
+    _fields_ = [
+        ("struct_size", ct.c_uint32),
+        ("struct_version", ct.c_uint32),
+        ("codec", ct.c_uint32),
+        ("width", ct.c_uint32),
+        ("height", ct.c_uint32),
+        ("fps_num", ct.c_uint32),
+        ("fps_den", ct.c_uint32),
+        ("reserved", ct.c_uint32),
+        ("duration_ns", ct.c_int64),
+        ("frame_count", ct.c_uint64),
+        ("fps_known", ct.c_uint32),
+        ("duration_known", ct.c_uint32),
+        ("frame_count_known", ct.c_uint32),
+        ("reserved2", ct.c_uint32),
+    ]
+
+
 class GpuExternalFrameConfig(ct.Structure):
     _fields_ = [
         ("struct_size", ct.c_uint32),
@@ -298,6 +318,7 @@ __all__ = [
     "MKVC_BACKEND_CPU",
     "MKVC_BACKEND_NVIDIA",
     "MKVC_BACKEND_INTEL",
+    "MKVC_CODEC_AUTO",
     "MKVC_CODEC_VP9",
     "MKVC_CODEC_AV1",
     "MKVC_COPY_PATH_UNKNOWN",
@@ -363,5 +384,6 @@ __all__ = [
     "MutableFrameView",
     "PipelineMetrics",
     "Version",
+    "VideoInfo",
     "GpuExternalFrameConfig",
 ]

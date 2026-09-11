@@ -53,6 +53,7 @@ struct mkvc_decoder {
     bool require_gpu_resident = false;
     bool allow_gpu_copy = true;
     bool allow_cpu_copy = true;
+    mkvc_video_info video_info{};
 };
 
 /** @brief Reference-counted decoded CPU frame exposed through the C ABI. */

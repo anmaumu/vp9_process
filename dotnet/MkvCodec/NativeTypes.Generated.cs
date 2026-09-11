@@ -28,6 +28,7 @@ public enum MkvBackend : uint
 
 public enum MkvCodecKind : uint
 {
+    Auto = 0,
     Vp9 = 1,
     Av1 = 2,
 }
@@ -316,4 +317,23 @@ public struct MkvVersion
     public uint Major;
     public uint Minor;
     public uint Patch;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct MkvVideoInfo
+{
+    public uint StructSize;
+    public uint StructVersion;
+    public MkvCodecKind Codec;
+    public uint Width;
+    public uint Height;
+    public uint FpsNum;
+    public uint FpsDen;
+    public uint Reserved;
+    public long DurationNanoseconds;
+    public ulong FrameCount;
+    public uint FpsKnown;
+    public uint DurationKnown;
+    public uint FrameCountKnown;
+    public uint Reserved2;
 }

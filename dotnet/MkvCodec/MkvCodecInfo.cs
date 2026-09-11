@@ -4,6 +4,23 @@ namespace MkvCodec;
 
 public static class MkvCodecInfo
 {
+    /// <summary>Inspect the first supported VP9/AV1 track without decoding pixels.</summary>
+    public static MkvVideoInfo ProbeVideo(string path)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(path);
+        nint utf8 = Marshal.StringToCoTaskMemUTF8(path);
+        try
+        {
+            var info = new MkvVideoInfo {
+                StructSize = checked((uint)Marshal.SizeOf<MkvVideoInfo>()),
+                StructVersion = 1
+            };
+            ThrowIfFailed(NativeMethods.mkvc_probe_input(utf8, ref info));
+            return info;
+        }
+        finally { Marshal.FreeCoTaskMem(utf8); }
+    }
+
     public static MkvVersion Version
     {
         get

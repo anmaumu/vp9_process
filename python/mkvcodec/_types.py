@@ -28,6 +28,32 @@ class CpuFrame:
 
 
 @dataclass(frozen=True)
+class VideoInfo:
+    """Immutable metadata for the first supported video track.
+
+    Attributes
+    ----------
+    codec:
+        ``"vp9"`` or ``"av1"``.
+    width, height:
+        Coded dimensions in pixels.
+    fps:
+        Nominal frame rate, or ``None`` when absent from the container.
+    duration_ns:
+        Container duration in nanoseconds, or ``None`` when unknown.
+    frame_count:
+        Number of frames in the selected track, or ``None`` when unknown.
+    """
+
+    codec: str
+    width: int
+    height: int
+    fps: float | None
+    duration_ns: int | None
+    frame_count: int | None
+
+
+@dataclass(frozen=True)
 class BackendCapability:
     """One runtime-supported codec direction.
 

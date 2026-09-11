@@ -12,5 +12,7 @@ from ._types import (
     GpuInteropInfo,
     GpuResourcePoolStats,
     PipelineMetrics,
+    VideoInfo,
     U8Plane,
 )
+from ._video_info import probe_video

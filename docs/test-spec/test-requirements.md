@@ -14,7 +14,7 @@ profile: test-spec@1.0
 | ID | Test requirement | Level | Environment |
 |---|---|---|---|
 | `TEST-SYS-001` | Windows x64/Linux x64でCPU build、load、version query | integration | Windows/Linux CI |
-| `TEST-CONT-001` | VP9/AV1 MKV/WebMを独立toolでprobe/decodeしmetadataを照合 | integration | CPU CI |
+| `TEST-CONT-001` | VP9/AV1 MKV/WebMを独立toolでprobe/decodeし、C ABI/Pythonの自動codec判別、明示codec不一致拒否、codec/解像度/fps/frame数/durationとknown状態を照合 | integration | CPU CI |
 | `TEST-CONT-002` | DocType、extension/container矛盾、WebM subset違反を検証 | unit/integration | CPU CI |
 | `TEST-CONT-003` | PTS、duration、keyframe、長時間timestamp、display orderを検証 | integration | CPU/GPU CI |
 | `TEST-CODEC-001` | libvpx VP9 encode→decode round-tripとPSNR/SSIM | integration | CPU CI |
@@ -26,7 +26,7 @@ profile: test-spec@1.0
 
 | ID | Test requirement | Level | Environment |
 |---|---|---|---|
-| `TEST-DEC-001` | read/read_bgr/read_nv12/read_surfaceの形式とEOS、conversion_threads 0/1/2/4の画素一致と範囲外拒否 | integration | backend CI |
+| `TEST-DEC-001` | Python/.NET Capture既定autoと動画情報属性、read/read_bgr/read_nv12/read_surfaceの形式とEOS、conversion_threads 0/1/2/4の画素一致と範囲外拒否 | integration | backend CI |
 | `TEST-DEC-002` | iterator、context manager、idempotent close/release | integration | CPU CI |
 | `TEST-DEC-003` | read_batchのsize、timeout、EOS | unit/integration | CPU CI |
 | `TEST-DEC-004` | prefetch 0/1/4/16、queue上限、hit/miss | performance | CPU/GPU CI |

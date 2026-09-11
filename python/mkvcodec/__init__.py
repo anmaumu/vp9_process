@@ -2,7 +2,7 @@ from ._api import (
     BackendCapability, BorrowedCpuFrame, CpuBuffer, CpuFrame, CpuFramePool,
     GpuFrame, GpuInteropInfo, GpuPlane, GpuResourcePoolStats,
     IntelUsmFramePool, IntelUsmPoolSlot, backend_capabilities, select_backend,
-    PipelineMetrics, Submission,
+    PipelineMetrics, Submission, VideoInfo, probe_video,
     VideoCapture, VideoWriter,
 )
 
@@ -10,6 +10,7 @@ __all__ = [
     "BackendCapability", "BorrowedCpuFrame", "CpuBuffer", "CpuFrame", "CpuFramePool",
     "GpuFrame", "GpuInteropInfo", "GpuPlane", "GpuResourcePoolStats",
     "IntelUsmFramePool", "IntelUsmPoolSlot", "backend_capabilities", "select_backend",
-    "PipelineMetrics", "Submission", "VideoCapture", "VideoWriter",
+    "PipelineMetrics", "Submission", "VideoInfo", "probe_video",
+    "VideoCapture", "VideoWriter",
 ]
 __version__ = "0.1.0"

@@ -232,7 +232,7 @@ Status: `PROPOSED`
 
 ### 9.1 Container
 
-- `INT-CONT-001`: libwebmをIDemuxer/IMuxer adapterで包む。
+- `INT-CONT-001`: libwebmをIDemuxer/IMuxer adapterで包む。共通input probeはpixel decodeを行わず、対応trackのCodecID、VideoTrack metadata、Segment duration、Cluster内Block frame数を走査する。decoder createはprobe結果を保持し、`AUTO`を具体codecへ解決してからbackendを生成する。
 - `INT-CONT-002`: `.webm`はDocType `webm`、`.mkv`は`matroska`とする。
 - `INT-CONT-003`: VP9/AV1 CodecID、codec configuration、keyframe、PTS/durationを正しく設定する。
 - `INT-CONT-004`: closeでは全codec packet回収後にSegmentをfinalizeする。

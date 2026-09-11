@@ -28,7 +28,7 @@ Status: `CONFIRMED`
 ### 2.1 Scope
 
 - `EXT-SYS-001`: Windows x64とLinux x64を対象とする。
-- `EXT-CONT-001`: `.mkv`と`.webm`の映像1trackをread/writeできる。
+- `EXT-CONT-001`: `.mkv`と`.webm`の映像1trackをread/writeできる。入力時は最初の対応映像trackからVP9/AV1を自動判別し、decoder生成を伴わないprobe APIでcodec、coded width/height、nominal fps、duration、frame countを取得できる。不明な値は既定値で偽装せず、known flagまたは`None`で表す。正確なframe count取得はpixel decodeを行わないが、対象trackのBlock metadataを末尾まで走査する。
 - `EXT-CODEC-001`: VP9をdecode/encodeできる。
 - `EXT-CODEC-002`: AV1をdecode/encodeできる。
 - `EXT-PY-001`: Python 3.12向けAPIを提供する。
@@ -98,7 +98,7 @@ Status: `CONFIRMED`
 
 ### 5.2 Decode
 
-- `EXT-DEC-001`: `VideoCapture`は`read`、iterator、context manager、idempotentな`close/release`を提供する。
+- `EXT-DEC-001`: `VideoCapture`は`read`、iterator、context manager、idempotentな`close/release`を提供する。Python `VideoCapture`と.NET `MkvVideoCapture`はauto codecを既定とし、track情報と個別のcodec、width、height、fps、duration、frame count属性を公開する。明示codecがtrackと異なる場合は初期化時に拒否する。
 - `EXT-DEC-002`: `read_bgr`、`read_nv12`、`read_surface`を明示的に提供する。packed CPU出力はdecode用`threads`とは独立した`conversion_threads=0..4`を受け、0は自動、1は補助workerなし、2..4は呼出元を含む総変換thread数とする。
 - `EXT-DEC-003`: `read_batch(max_size, timeout_ms=0)`を提供する。
 - `EXT-DEC-004`: `prefetch=0`の同期動作と、正数のbounded先読みを提供する。
@@ -421,11 +421,11 @@ Status: `PROPOSED`
 | ID | Acceptance criterion | Related EXT |
 |---|---|---|
 | `AC-SYS-001` | Windows x64/Linux x64でCPU Coreをbuild/loadでき、共通interop境界を列挙できる | EXT-SYS-001..002, EXT-BACK-006 |
-| `AC-CONT-001` | 生成MKV/WebMを独立toolで最後までdecodeでき、codec/解像度/fps/frame数/durationが一致する | EXT-CONT-001..003 |
+| `AC-CONT-001` | 生成MKV/WebMを独立toolで最後までdecodeでき、独立probe、decoder保持情報、Python属性のcodec/解像度/fps/frame数/durationが一致する | EXT-CONT-001..003 |
 | `AC-CODEC-001` | VP9 CPU round-tripが成立する | EXT-CODEC-001 |
 | `AC-CODEC-002` | AV1の各対応backendでround-tripが成立する | EXT-CODEC-002 |
 | `AC-CODEC-003` | H.264/HEVCが列挙・受理・fallbackされない | EXT-CODEC-003 |
-| `AC-DEC-001` | read各形式、iterator、batch、EOS、prefetch、borrowed readが契約通り動作する | EXT-DEC-001..006 |
+| `AC-DEC-001` | codec自動判別、動画情報、read各形式、iterator、batch、EOS、prefetch、borrowed readが契約通り動作する | EXT-DEC-001..006 |
 | `AC-ENC-001` | 各CPU入力、borrowed/async submission、batch、flush、close、try_writeが契約通り動作する | EXT-ENC-001..013 |
 | `AC-BACK-001` | device/capability/auto selectionが実機能力と一致する | EXT-BACK-001..006 |
 | `AC-FRAME-001` | Surface lease中の再利用がなく、release後accessを拒否する | EXT-FRAME-001..005 |

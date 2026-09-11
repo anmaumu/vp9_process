@@ -39,6 +39,8 @@ decode結果をNumPy/OpenCV、CuPy/DLPack、D3D11、VA-API等へexportし、外�
 
 CPU VP9のWebM encode/decode、CPU AV1のSVT-AV1 encode/libaom decode、C ABI、
 NumPy用Python API、bounded非同期Writer、bounded decode prefetchまで実装済みです。
+CaptureはコンテナtrackからVP9/AV1を自動判別し、codec、解像度、fps、duration、
+frame countをPython/C++/.NET共通のC ABIから取得できます。
 Intel oneVPLによるVP9/AV1 WebM encode/decodeはC ABIとPython Writer/Captureから
 選択でき、Linux Intel GPU実機で検証済みです。NVIDIA NVDEC Captureは
 C ABI/Pythonから選択でき、Windows RTX 2060でVP9を検証済みです。
@@ -90,6 +92,7 @@ with mkvcodec.VideoWriter(
 with mkvcodec.VideoCapture(
     "output.webm", prefetch=4, conversion_threads=2
 ) as capture:
+    print(capture.info)                 # codec/size/fps/duration/frame count
     bgr_frame = capture.read()       # or read_bgr()
     pts_ns = capture.last_pts_ns
 ```
@@ -272,7 +275,7 @@ Captureの既定`read()`とiteratorはBGR ndarrayを返します。`read_i420`�
 `2..4`は呼出元を含む変換thread総数です。decode用`threads`とは独立して指定します。
 Writerの`queue_size=0`は同期encode、正数（Python既定8）は入力をdeep copyして
 native workerへ渡します。通常の`write`はqueue空きを待ち、`try_write`は待機しません。
-CPU AV1 writer/captureは`codec="av1"`で選択します。Writer入力とCapture出力は
+CPU AV1 writerは`codec="av1"`で選択し、Captureは既定でVP9/AV1を自動判別します。Writer入力とCapture出力は
 VP9と同じBGR/RGB/BGRA/I420/NV12を使用できます。
 Intel Writerは`backend="intel"`で選択でき、VP9/AV1と同じ5種類の8-bit入力を
 内部でNV12へ変換します。Intel Captureも`backend="intel"`で選択でき、同期readと

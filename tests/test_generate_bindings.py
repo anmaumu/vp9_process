@@ -70,7 +70,7 @@ class GenerateBindingsTests(unittest.TestCase):
     def test_new_dotnet_enum_member_fails_closed(self) -> None:
         source = generate_bindings.abi_guard.HEADER.read_text(encoding="utf-8")
         source = source.replace(
-            "MKVC_CODEC_AV1 = 2  /**< AV1. */",
+            "MKVC_CODEC_AV1 = 2   /**< AV1. */",
             "MKVC_CODEC_AV1 = 2, /**< AV1. */\n"
             "    MKVC_CODEC_FUTURE = 3 /**< deliberately unmapped */",
             1,

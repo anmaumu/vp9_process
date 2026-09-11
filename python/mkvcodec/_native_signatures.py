@@ -47,6 +47,8 @@ def configure(lib: ct.CDLL, t: dict[str, Any]) -> None:
     lib.mkvc_decoder_create.restype = ct.c_int
     lib.mkvc_decoder_destroy.argtypes = [t["DecoderHandle"]]
     lib.mkvc_decoder_destroy.restype = None
+    lib.mkvc_decoder_get_info.argtypes = [t["DecoderHandle"], ct.POINTER(t["VideoInfo"])]
+    lib.mkvc_decoder_get_info.restype = ct.c_int
     lib.mkvc_decoder_get_metrics.argtypes = [t["DecoderHandle"], ct.POINTER(t["PipelineMetrics"])]
     lib.mkvc_decoder_get_metrics.restype = ct.c_int
     lib.mkvc_decoder_read.argtypes = [t["DecoderHandle"], ct.POINTER(t["FrameHandle"])]
@@ -208,6 +210,8 @@ def configure(lib: ct.CDLL, t: dict[str, Any]) -> None:
     lib.mkvc_gpu_resource_reservation_get_desc.restype = ct.c_int
     lib.mkvc_gpu_resource_reservation_release.argtypes = [t["GpuResourceReservationHandle"]]
     lib.mkvc_gpu_resource_reservation_release.restype = None
+    lib.mkvc_probe_input.argtypes = [ct.c_char_p, ct.POINTER(t["VideoInfo"])]
+    lib.mkvc_probe_input.restype = ct.c_int
     lib.mkvc_result_string.argtypes = [ct.c_int]
     lib.mkvc_result_string.restype = ct.c_char_p
     lib.mkvc_submission_query.argtypes = [t["SubmissionHandle"], ct.POINTER(ct.c_uint32)]

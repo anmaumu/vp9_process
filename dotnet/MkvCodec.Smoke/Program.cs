@@ -83,6 +83,18 @@ try
         writer.Flush();
     }
     using var capture = new MkvVideoCapture(path, prefetch: 2);
+    var probed = MkvCodecInfo.ProbeVideo(path);
+    if (probed.Codec != MkvCodecKind.Vp9)
+        throw new InvalidOperationException("probe codec mismatch");
+    if (capture.Codec != MkvCodecKind.Vp9)
+        throw new InvalidOperationException("capture auto codec mismatch");
+    if (capture.Width != width || capture.Height != height)
+        throw new InvalidOperationException("capture metadata dimensions mismatch");
+    if (capture.FrameCount != 10)
+        throw new InvalidOperationException("capture frame count mismatch");
+    if (capture.FramesPerSecond is not { } fps || Math.Abs(fps - 30.0) >= 0.001 ||
+        capture.DurationNanoseconds is not > 0)
+        throw new InvalidOperationException("capture timing metadata mismatch");
     int count = 0;
     long previousPts = -1;
     while (capture.ReadI420() is { } frame)

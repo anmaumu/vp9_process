@@ -14,6 +14,7 @@ from ._gpu import GpuFrame
 from ._io_common import _read_metrics
 from ._processing_plan import build_process_config
 from ._types import CpuFrame, PipelineMetrics, U8Plane
+from ._video_info import probe_video, read_decoder_info
 
 
 class VideoCapture(Iterator[U8Plane]):
@@ -23,8 +24,8 @@ class VideoCapture(Iterator[U8Plane]):
     ----------
     path : str or pathlib.Path
         Input container path.
-    codec : {"vp9", "av1"}, default: "vp9"
-        Expected video codec.
+    codec : {"auto", "vp9", "av1"}, default: "auto"
+        Video codec. ``"auto"`` detects it from the container track.
     backend : {"auto", "cpu", "intel", "nvidia"}, default: "cpu"
         Decoder implementation. ``"auto"`` selects a compatible backend.
     threads : int, default: 0
@@ -40,6 +41,18 @@ class VideoCapture(Iterator[U8Plane]):
 
     Attributes
     ----------
+    info : VideoInfo
+        Immutable codec, dimensions and available timing/count metadata.
+    codec : str
+        Detected ``"vp9"`` or ``"av1"`` codec.
+    width, height : int
+        Coded frame dimensions.
+    fps : float or None
+        Nominal container frame rate when known.
+    duration_ns : int or None
+        Container duration in nanoseconds when known.
+    frame_count : int or None
+        Selected-track frame count when known.
     backend : str
         Selected backend name.
     last_pts_ns : int or None
@@ -49,16 +62,18 @@ class VideoCapture(Iterator[U8Plane]):
         self,
         path: str | Path,
         *,
-        codec: str = "vp9",
+        codec: str = "auto",
         backend: str = "cpu",
         threads: int = 0,
         prefetch: int | None = None,
         require_gpu_resident: bool = False,
         conversion_threads: int = 0,
     ) -> None:
-        if codec not in ("vp9", "av1") or backend not in ("auto", "cpu", "intel", "nvidia"):
+        if codec not in ("auto", "vp9", "av1") or backend not in ("auto", "cpu", "intel", "nvidia"):
             raise ValueError("the Python capture supports VP9/AV1 on CPU, Intel, or NVIDIA")
         if backend == "auto":
+            if codec == "auto":
+                codec = probe_video(path).codec
             backend = _select_backend(codec, "decode", require_gpu_resident)
         if prefetch is None:
             prefetch = 0 if require_gpu_resident else 4
@@ -75,8 +90,11 @@ class VideoCapture(Iterator[U8Plane]):
         config.struct_size = ct.sizeof(config)
         config.struct_version = 1
         config.input_path_utf8 = encoded_path
-        config.codec = (native.MKVC_CODEC_VP9 if codec == "vp9" else
-                        native.MKVC_CODEC_AV1)
+        config.codec = {
+            "auto": native.MKVC_CODEC_AUTO,
+            "vp9": native.MKVC_CODEC_VP9,
+            "av1": native.MKVC_CODEC_AV1,
+        }[codec]
         config.backend = ({"cpu": native.MKVC_BACKEND_CPU,
                            "intel": native.MKVC_BACKEND_INTEL,
                            "nvidia": native.MKVC_BACKEND_NVIDIA}[backend])
@@ -88,22 +106,30 @@ class VideoCapture(Iterator[U8Plane]):
         config.prefetch = prefetch
         self._handle = native.DecoderHandle()
         native.check(native.lib.mkvc_decoder_create(ct.byref(config), ct.byref(self._handle)))
-        if require_gpu_resident:
-            policy = native.CopyPolicy()
-            policy.struct_size = ct.sizeof(policy)
-            policy.struct_version = 1
-            policy.require_gpu_resident = 1
-            policy.allow_gpu_copy = 1
-            policy.allow_cpu_copy = 0
-            result = native.lib.mkvc_decoder_set_copy_policy(
-                self._handle, ct.byref(policy)
-            )
-            if result != native.MKVC_OK:
-                native.lib.mkvc_decoder_destroy(self._handle)
-                self._handle = native.DecoderHandle()
-                native.check(result)
+        try:
+            self.info = read_decoder_info(self._handle)
+            if require_gpu_resident:
+                policy = native.CopyPolicy()
+                policy.struct_size = ct.sizeof(policy)
+                policy.struct_version = 1
+                policy.require_gpu_resident = 1
+                policy.allow_gpu_copy = 1
+                policy.allow_cpu_copy = 0
+                native.check(native.lib.mkvc_decoder_set_copy_policy(
+                    self._handle, ct.byref(policy)
+                ))
+        except Exception:
+            native.lib.mkvc_decoder_destroy(self._handle)
+            self._handle = native.DecoderHandle()
+            raise
         self._closed = False
         self.backend = backend
+        self.codec = self.info.codec
+        self.width = self.info.width
+        self.height = self.info.height
+        self.fps = self.info.fps
+        self.duration_ns = self.info.duration_ns
+        self.frame_count = self.info.frame_count
         self._require_gpu_resident = bool(require_gpu_resident)
         self._conversion_threads = int(conversion_threads)
         self._last_metrics: PipelineMetrics | None = None

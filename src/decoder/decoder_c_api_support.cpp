@@ -5,6 +5,7 @@
 #include "c_api_internal.hpp"
 #include "decoder/decoder_pipeline.hpp"
 #include "decoder/decoder_prefetch.hpp"
+#include "input_video_probe.hpp"
 
 namespace mkvc::decoder::capi {
 
@@ -12,7 +13,8 @@ bool valid_decoder_config(const mkvc_decoder_config* config) noexcept {
     return config != nullptr && config->struct_size >= sizeof(mkvc_decoder_config) &&
            config->struct_version == 1 && config->input_path_utf8 != nullptr &&
            config->input_path_utf8[0] != '\0' &&
-           (config->codec == MKVC_CODEC_VP9 || config->codec == MKVC_CODEC_AV1) &&
+           (config->codec == MKVC_CODEC_AUTO || config->codec == MKVC_CODEC_VP9 ||
+            config->codec == MKVC_CODEC_AV1) &&
            (config->backend == MKVC_BACKEND_CPU || config->backend == MKVC_BACKEND_INTEL ||
             config->backend == MKVC_BACKEND_NVIDIA);
 }
@@ -20,7 +22,16 @@ bool valid_decoder_config(const mkvc_decoder_config* config) noexcept {
 mkvc_result create_decoder(const mkvc_decoder_config& config,
                            std::unique_ptr<mkvc_decoder>& decoder, std::string& error) {
     auto handle = std::make_unique<mkvc_decoder>();
-    const mkvc_result result = create_backend(*handle, config, error);
+    const mkvc_result probe_result =
+        probe_input_video(config.input_path_utf8, handle->video_info, error);
+    if (probe_result != MKVC_OK) return probe_result;
+    if (config.codec != MKVC_CODEC_AUTO && config.codec != handle->video_info.codec) {
+        error = "input video codec does not match decoder configuration";
+        return MKVC_ERROR_INVALID_ARGUMENT;
+    }
+    mkvc_decoder_config resolved = config;
+    resolved.codec = handle->video_info.codec;
+    const mkvc_result result = create_backend(*handle, resolved, error);
     if (result != MKVC_OK) return result;
     handle->capacity = config.prefetch;
     start_prefetch(*handle);
