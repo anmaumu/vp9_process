@@ -1,11 +1,14 @@
 #include "decoder/decoder_backend_io.hpp"
 
 #include "c_api_internal.hpp"
+#include "pipeline_component_metrics.hpp"
 
 namespace mkvc::decoder {
 
 mkvc_result read_backend(mkvc_decoder& decoder, std::unique_ptr<DecodedFrame>& frame,
                          std::string& error) {
+    ActiveComponentMetrics active(*decoder.component_metrics);
+    ScopedComponentTimer timer(PipelineComponent::kCodec);
     if (decoder.intel_implementation) return decoder.intel_implementation->read(frame, error);
     if (decoder.nvidia_implementation) return decoder.nvidia_implementation->read(frame, error);
     return decoder.implementation ? decoder.implementation->read(frame, error)
@@ -13,6 +16,8 @@ mkvc_result read_backend(mkvc_decoder& decoder, std::unique_ptr<DecodedFrame>& f
 }
 
 mkvc_result close_backend(mkvc_decoder& decoder, std::string& error) {
+    ActiveComponentMetrics active(*decoder.component_metrics);
+    ScopedComponentTimer timer(PipelineComponent::kCodec);
     if (decoder.intel_implementation) return decoder.intel_implementation->close(error);
     if (decoder.nvidia_implementation) return decoder.nvidia_implementation->close(error);
     return decoder.implementation ? decoder.implementation->close(error)

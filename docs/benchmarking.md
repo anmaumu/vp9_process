@@ -16,6 +16,16 @@ queue/prefetch-worker work. Timings are cumulative monotonic host-clock
 nanoseconds. They describe host API boundaries and do not claim driver-kernel or
 device-event duration.
 
+`encoder_components` and `decoder_components` additionally report exclusive
+host time for pixel conversion, codec/backend work, container mux/demux, and GPU
+completion waits. Nested component timers pause their parent, so these component
+times do not double-count one another. Codec time is the remainder of a backend
+call after instrumented conversion, container, and GPU waits; GPU-wait time is
+host blocking time observed inside the session pipeline, not device-kernel
+duration or an independently invoked frame wait. A decoded frame retains its
+metrics owner, so a later native `copy_to`/Python BGR conversion is still attributed
+even when the decoder handle has already closed.
+
 Example:
 
 ```shell
@@ -42,8 +52,8 @@ throughput/latency regression beyond the reviewed fraction. Baselines must be
 kept per hardware/driver/build class; the tool deliberately does not normalize
 results from unlike machines.
 
-The operation metrics do not separate conversion, codec, mux or GPU-event time;
-those values must not be reverse-engineered from host-boundary totals.
+Device kernel/event duration and driver-internal transfers still require vendor
+profilers or OS tracing and must not be inferred from these host measurements.
 
 ## Packed BGR qualification observation
 

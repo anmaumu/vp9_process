@@ -77,6 +77,16 @@ int main(int argc, char** argv) {
     assert(encoder_stages.frame_calls == 1);
     assert(encoder_stages.worker_frame_calls == 1);
     assert(encoder_stages.close_calls == 1);
+    const auto encoder_components = encoder.component_metrics();
+    assert(encoder_components.conversion_calls == 1);
+    assert(encoder_components.codec_calls >= 1);
+    assert(encoder_components.container_calls >= 1);
+    mkvc_pipeline_component_metrics invalid_encoder_components{};
+    invalid_encoder_components.struct_size = sizeof(invalid_encoder_components) - 1;
+    invalid_encoder_components.struct_version = 1;
+    assert(
+        mkvc_encoder_get_component_metrics(encoder.native_handle(), &invalid_encoder_components) ==
+        MKVC_ERROR_INVALID_ARGUMENT);
     assert(std::filesystem::exists(output));
     assert(std::filesystem::file_size(output) > 0);
 
@@ -138,6 +148,16 @@ int main(int argc, char** argv) {
     assert(decoder_stages.frame_calls >= 1);
     assert(decoder_stages.sync_frame_calls == decoder_stages.frame_calls);
     assert(decoder_stages.close_calls == 1);
+    const auto decoder_components = decoder.component_metrics();
+    assert(decoder_components.conversion_calls >= 1);
+    assert(decoder_components.codec_calls >= 1);
+    assert(decoder_components.container_calls >= 1);
+    mkvc_pipeline_component_metrics invalid_decoder_components{};
+    invalid_decoder_components.struct_size = sizeof(invalid_decoder_components);
+    invalid_decoder_components.struct_version = 0;
+    assert(
+        mkvc_decoder_get_component_metrics(decoder.native_handle(), &invalid_decoder_components) ==
+        MKVC_ERROR_INVALID_ARGUMENT);
 
     unsigned external_releases = 0;
     mkvc_gpu_external_frame_config external{};

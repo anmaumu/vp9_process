@@ -339,8 +339,8 @@ pool slot lease -> producer submit -> producer completion
 
 Status: `PROPOSED`
 
-- `INT-OBS-001`: demux、decode、surface wait、queue wait、export、import dependency wait、upload/download、CPU convert、encode、muxを別metricにする。
-- `INT-OBS-002`: CPU timerとGPU event timerを区別する。aggregateとは別のversioned stage metricsでframe、flush、closeのcall数・host時間とframe処理のcaller/worker内訳を公開し、各値をdevice kernel時間、codec単体時間、mux単体時間として扱わない。
+- `INT-OBS-001`: aggregateとは別のversioned component metricsでconversion、codec/backend、container、GPU completion waitのcall数と排他的host時間を公開する。decoded CPU frameはmetrics ownerを共有保持し、decoder close後のcopy/convertも元sessionへ帰属させる。より細かなdemux/decode/export/import/upload/downloadのedge分類はcopy traceで補う。
+- `INT-OBS-002`: CPU host timerとGPU device event timerを区別する。versioned stage metricsはframe、flush、closeのcall数・host時間とframe処理のcaller/worker内訳を公開する。component timerはnested child実行中にparentを停止して二重計上を避ける。codec/backend時間はinstrument済みconversion/container/GPU waitを除いたbackend call残余であり、GPU waitはsession pipeline内のhost blocking時間であるため、いずれもdevice kernel/event実行時間として扱わない。session外から独立に呼ぶframe waitはsessionへ帰属させない。
 - `INT-OBS-003`: input/encoded fps、drop、peak queue、prefetch hit/miss、RAM/VRAM概算を公開する。
 - `INT-OBS-004`: copy path判定は実際に実行したoperationから設定し、requested pathから推測しない。
   Kernel観測はclear/migration/CPU faultを区別し、BO sizeを転送完了bytesと扱わない。

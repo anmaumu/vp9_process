@@ -111,9 +111,10 @@ int main() {
         size_t capacity = capabilities.size();
         assert(mkvc_get_backend_capabilities(capabilities.data(), &capacity) == MKVC_OK);
         for (const auto& capability : capabilities) {
-            has_intel_vp9_encode = has_intel_vp9_encode ||
-                (capability.backend == MKVC_BACKEND_INTEL &&
-                 capability.codec == MKVC_CODEC_VP9 && capability.can_encode != 0);
+            has_intel_vp9_encode =
+                has_intel_vp9_encode ||
+                (capability.backend == MKVC_BACKEND_INTEL && capability.codec == MKVC_CODEC_VP9 &&
+                 capability.can_encode != 0);
         }
     }
     if (!has_intel_vp9_encode) {
@@ -173,6 +174,20 @@ int main() {
     assert(mkvc_decoder_get_metrics(nullptr, &metrics) == MKVC_ERROR_INVALID_ARGUMENT);
     metrics.struct_size = sizeof(metrics) - 1;
     assert(mkvc_encoder_get_metrics(nullptr, &metrics) == MKVC_ERROR_INVALID_ARGUMENT);
+    mkvc_pipeline_component_metrics component_metrics{};
+    component_metrics.struct_size = sizeof(component_metrics);
+    component_metrics.struct_version = 1;
+    assert(mkvc_encoder_get_component_metrics(nullptr, &component_metrics) ==
+           MKVC_ERROR_INVALID_ARGUMENT);
+    assert(mkvc_decoder_get_component_metrics(nullptr, &component_metrics) ==
+           MKVC_ERROR_INVALID_ARGUMENT);
+    component_metrics.struct_size = sizeof(component_metrics) - 1;
+    assert(mkvc_encoder_get_component_metrics(nullptr, &component_metrics) ==
+           MKVC_ERROR_INVALID_ARGUMENT);
+    component_metrics.struct_size = sizeof(component_metrics);
+    component_metrics.struct_version = 0;
+    assert(mkvc_decoder_get_component_metrics(nullptr, &component_metrics) ==
+           MKVC_ERROR_INVALID_ARGUMENT);
 
     assert(std::strcmp(mkvc_result_string(MKVC_OK), "ok") == 0);
     assert(std::strcmp(mkvc_result_string(MKVC_WOULD_BLOCK), "would block") == 0);

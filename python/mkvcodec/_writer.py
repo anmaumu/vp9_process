@@ -17,8 +17,10 @@ from ._frame_views import (
     make_packed_view,
 )
 from ._gpu import GpuFrame
-from ._io_common import _read_metrics, _read_stage_metrics
-from ._types import PipelineMetrics, PipelineStageMetrics, U8Plane
+from ._io_common import _read_component_metrics, _read_metrics, _read_stage_metrics
+from ._types import (
+    PipelineComponentMetrics, PipelineMetrics, PipelineStageMetrics, U8Plane,
+)
 
 
 class VideoWriter:
@@ -97,6 +99,7 @@ class VideoWriter:
         self._require_gpu_resident = bool(require_gpu_resident)
         self._last_metrics: PipelineMetrics | None = None
         self._last_stage_metrics: PipelineStageMetrics | None = None
+        self._last_component_metrics: PipelineComponentMetrics | None = None
 
     @property
     def metrics(self) -> PipelineMetrics:
@@ -115,6 +118,17 @@ class VideoWriter:
                 raise RuntimeError("writer stage metrics are unavailable")
             return self._last_stage_metrics
         return _read_stage_metrics(self._handle, native.lib.mkvc_encoder_get_stage_metrics)
+
+    @property
+    def component_metrics(self) -> PipelineComponentMetrics:
+        """Exclusive conversion, codec, container and GPU-wait host timings."""
+        if self._closed:
+            if self._last_component_metrics is None:
+                raise RuntimeError("writer component metrics are unavailable")
+            return self._last_component_metrics
+        return _read_component_metrics(
+            self._handle, native.lib.mkvc_encoder_get_component_metrics
+        )
 
     def _submit(self, frame: native.FrameView, *, block: bool) -> bool:
         if self._require_gpu_resident:
@@ -355,6 +369,9 @@ class VideoWriter:
             )
             self._last_stage_metrics = _read_stage_metrics(
                 self._handle, native.lib.mkvc_encoder_get_stage_metrics
+            )
+            self._last_component_metrics = _read_component_metrics(
+                self._handle, native.lib.mkvc_encoder_get_component_metrics
             )
         finally:
             native.lib.mkvc_encoder_destroy(self._handle)

@@ -12,6 +12,7 @@
 #include "../encoder_session.hpp"
 #include "cpu_frame_copy.hpp"
 #include "encoder_backend.hpp"
+#include "pipeline_component_metrics.hpp"
 
 namespace mkvc {
 
@@ -55,6 +56,7 @@ struct EncoderSession::Impl {
     uint64_t queue_wait_ns = 0;
     uint64_t backend_time_ns = 0;
     mkvc_pipeline_stage_metrics stage_metrics{};
+    ComponentMetricsAccumulator component_metrics;
     uint32_t peak_queue_depth = 0;
     uint32_t hardware_pending_peak = 0;
     uint32_t copy_path = MKVC_COPY_PATH_UNKNOWN;

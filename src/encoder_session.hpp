@@ -61,6 +61,8 @@ class EncoderSession {
     void get_metrics(mkvc_pipeline_metrics& metrics) const;
     /** Snapshot mutually exclusive host-side backend operation timings. */
     void get_stage_metrics(mkvc_pipeline_stage_metrics& metrics) const;
+    /** Snapshot exclusive implementation-component timings. */
+    void get_component_metrics(mkvc_pipeline_component_metrics& metrics) const;
 
    private:
     explicit EncoderSession(std::unique_ptr<Impl> impl);

@@ -12,6 +12,7 @@ from ._types import (
     GpuInteropInfo,
     GpuResourcePoolStats,
     PipelineMetrics,
+    PipelineComponentMetrics,
     PipelineStageMetrics,
     VideoInfo,
     U8Plane,

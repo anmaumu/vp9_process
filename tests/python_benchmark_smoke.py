@@ -48,6 +48,14 @@ def main() -> None:
         assert encoder_stages["close_calls"] == 1
         assert decoder_stages["worker_frame_calls"] >= 12
         assert decoder_stages["sync_frame_calls"] == 0
+        encoder_components = loaded["native_metrics"]["encoder_components"]
+        decoder_components = loaded["native_metrics"]["decoder_components"]
+        assert encoder_components["conversion_calls"] == 12
+        assert encoder_components["codec_calls"] >= 12
+        assert encoder_components["container_calls"] >= 12
+        assert decoder_components["conversion_calls"] >= 12
+        assert decoder_components["codec_calls"] >= 12
+        assert decoder_components["container_calls"] >= 12
 
 
 if __name__ == "__main__":

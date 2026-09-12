@@ -11,6 +11,7 @@ public sealed class MkvVideoWriter : IDisposable
     private readonly uint queueSize;
     private MkvPipelineMetrics? finalMetrics;
     private MkvPipelineStageMetrics? finalStageMetrics;
+    private MkvPipelineComponentMetrics? finalComponentMetrics;
 
     public MkvVideoWriter(string path, uint width, uint height,
         uint fpsNumerator = 30, uint fpsDenominator = 1,
@@ -226,6 +227,22 @@ public sealed class MkvVideoWriter : IDisposable
     /// <summary>Exact frame, flush and close backend operation timings.</summary>
     public MkvPipelineStageMetrics StageMetrics => finalStageMetrics ?? ReadStageMetrics();
 
+    /// <summary>Exclusive conversion, codec, container and GPU-wait host timings.</summary>
+    public MkvPipelineComponentMetrics ComponentMetrics =>
+        finalComponentMetrics ?? ReadComponentMetrics();
+
+    private MkvPipelineComponentMetrics ReadComponentMetrics()
+    {
+        ObjectDisposedException.ThrowIf(handle is null || handle.IsClosed, this);
+        var metrics = new MkvPipelineComponentMetrics {
+            StructSize = checked((uint)Marshal.SizeOf<MkvPipelineComponentMetrics>()),
+            StructVersion = 1
+        };
+        MkvCodecInfo.ThrowIfFailed(NativeMethods.mkvc_encoder_get_component_metrics(
+            handle!.DangerousGetHandle(), ref metrics));
+        return metrics;
+    }
+
     private MkvPipelineStageMetrics ReadStageMetrics()
     {
         ObjectDisposedException.ThrowIf(handle is null || handle.IsClosed, this);
@@ -259,6 +276,7 @@ public sealed class MkvVideoWriter : IDisposable
             try {
                 finalMetrics = ReadMetrics();
                 finalStageMetrics = ReadStageMetrics();
+                finalComponentMetrics = ReadComponentMetrics();
             }
             finally
             {

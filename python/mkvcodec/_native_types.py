@@ -256,6 +256,21 @@ class MutableFrameView(ct.Structure):
     ]
 
 
+class PipelineComponentMetrics(ct.Structure):
+    _fields_ = [
+        ("struct_size", ct.c_uint32),
+        ("struct_version", ct.c_uint32),
+        ("conversion_calls", ct.c_uint64),
+        ("conversion_time_ns", ct.c_uint64),
+        ("codec_calls", ct.c_uint64),
+        ("codec_time_ns", ct.c_uint64),
+        ("container_calls", ct.c_uint64),
+        ("container_time_ns", ct.c_uint64),
+        ("gpu_wait_calls", ct.c_uint64),
+        ("gpu_wait_time_ns", ct.c_uint64),
+    ]
+
+
 class PipelineMetrics(ct.Structure):
     _fields_ = [
         ("struct_size", ct.c_uint32),
@@ -399,6 +414,7 @@ __all__ = [
     "GpuResourcePoolStats",
     "GpuResourceReservationDesc",
     "MutableFrameView",
+    "PipelineComponentMetrics",
     "PipelineMetrics",
     "PipelineStageMetrics",
     "Version",

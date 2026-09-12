@@ -2,13 +2,14 @@
  * @file gpu_frame.cpp
  * @brief Backend-neutral GPU completion and frame-lease domain state.
  */
-#include "gpu_frame_handle.hpp"
-
 #include <chrono>
 #include <limits>
 #include <stdexcept>
 #include <thread>
 #include <utility>
+
+#include "gpu_frame_handle.hpp"
+#include "pipeline_component_metrics.hpp"
 
 namespace mkvc::gpu {
 
@@ -19,6 +20,7 @@ mkvc_gpu_completion_status ManualCompletion::query(std::string& error) const {
 }
 
 mkvc_result ManualCompletion::wait(uint32_t timeout_ms, std::string& error) const {
+    ScopedComponentTimer timer(PipelineComponent::kGpuWait);
     std::unique_lock<std::mutex> lock(mutex_);
     const auto done = [this] { return status_ != MKVC_GPU_COMPLETION_PENDING; };
     if (timeout_ms == std::numeric_limits<uint32_t>::max()) {
@@ -58,6 +60,7 @@ mkvc_gpu_completion_status CallbackCompletion::query(std::string& error) const {
 }
 
 mkvc_result CallbackCompletion::wait(uint32_t timeout_ms, std::string& error) const {
+    ScopedComponentTimer timer(PipelineComponent::kGpuWait);
     const auto started = std::chrono::steady_clock::now();
     while (true) {
         bool complete = false;

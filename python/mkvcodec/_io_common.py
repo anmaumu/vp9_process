@@ -6,7 +6,9 @@ import ctypes as ct
 from fractions import Fraction
 
 from . import _native as native
-from ._types import PipelineMetrics, PipelineStageMetrics, U8Plane
+from ._types import (
+    PipelineComponentMetrics, PipelineMetrics, PipelineStageMetrics, U8Plane,
+)
 
 
 def _read_metrics(handle: ct.c_void_p, function: object) -> PipelineMetrics:
@@ -38,6 +40,22 @@ def _read_stage_metrics(handle: ct.c_void_p, function: object) -> PipelineStageM
             "frame_calls", "frame_time_ns", "flush_calls", "flush_time_ns",
             "close_calls", "close_time_ns", "sync_frame_calls",
             "sync_frame_time_ns", "worker_frame_calls", "worker_frame_time_ns"
+        )
+    })
+
+
+def _read_component_metrics(
+    handle: ct.c_void_p, function: object
+) -> PipelineComponentMetrics:
+    metrics = native.PipelineComponentMetrics()
+    metrics.struct_size = ct.sizeof(metrics)
+    metrics.struct_version = 1
+    native.check(function(handle, ct.byref(metrics)))
+    return PipelineComponentMetrics(**{
+        name: int(getattr(metrics, name)) for name in (
+            "conversion_calls", "conversion_time_ns", "codec_calls",
+            "codec_time_ns", "container_calls", "container_time_ns",
+            "gpu_wait_calls", "gpu_wait_time_ns",
         )
     })
 

@@ -187,6 +187,10 @@ void EncoderSession::get_stage_metrics(mkvc_pipeline_stage_metrics& metrics) con
     metrics.struct_version = 1;
 }
 
+void EncoderSession::get_component_metrics(mkvc_pipeline_component_metrics& metrics) const {
+    metrics = impl_->component_metrics.snapshot();
+}
+
 mkvc_result EncoderSession::flush(std::string& error) {
     if (impl_->capacity == 0) {
         {

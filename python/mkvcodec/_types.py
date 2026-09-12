@@ -150,6 +150,33 @@ class PipelineStageMetrics:
 
 
 @dataclass(frozen=True)
+class PipelineComponentMetrics:
+    """Exclusive host time attributed to pipeline components.
+
+    Attributes
+    ----------
+    conversion_calls, conversion_time_ns:
+        Pixel-format conversion invocation count and accumulated host time.
+    codec_calls, codec_time_ns:
+        Codec/backend invocation count and exclusive accumulated host time.
+    container_calls, container_time_ns:
+        Container parsing or muxing invocation count and accumulated host time.
+    gpu_wait_calls, gpu_wait_time_ns:
+        GPU completion waits observed inside the pipeline and their host wait
+        time. This is not GPU kernel execution time.
+    """
+
+    conversion_calls: int
+    conversion_time_ns: int
+    codec_calls: int
+    codec_time_ns: int
+    container_calls: int
+    container_time_ns: int
+    gpu_wait_calls: int
+    gpu_wait_time_ns: int
+
+
+@dataclass(frozen=True)
 class GpuResourcePoolStats:
     """Snapshot of a fixed-capacity external GPU resource pool.
 

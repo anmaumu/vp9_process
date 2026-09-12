@@ -61,7 +61,8 @@
 - [x] public API end-to-end JSON benchmark, detailed operation metrics and CI smoke
 - [x] native aggregate backend/queue timing, high-water and copy-path metrics ABI
 - [x] fail-closed relative performance baseline gate with exact case/schema validation
-- [ ] conversion/codec/mux/GPU-event別の詳細stage timing
+- [x] conversion/codec/container/GPU-wait別の排他的host component timing
+- [ ] vendor profilerによるdevice kernel/event durationの詳細計測
 - [ ] approved 1080p/4K CPU/Intel/NVIDIA baseline and regression thresholds
 - [x] strict Intel GPU transcode JSON benchmark and initial 1080p VP9 development baseline
 

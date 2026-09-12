@@ -32,7 +32,7 @@ regression thresholdではない。
 | GPU strict mode | 共通GpuFrame lease、native handle、DLPack、`require_gpu_resident`、copy-path metrics | driver内部まで含む完全copy proofは環境別に継続 |
 | C++ | move-only RAII facade、CPU/GPU frame、pool、submission、strict GPU transcode harness | Linux Intel round-trip認定済み。AV1対応NVIDIAでのpositive encode認定が残件 |
 | .NET | .NET 8 P/Invoke、SafeHandle、codec自動判別・動画情報probe、全8-bit CPU形式、native pool Submit＋cancellable `WaitAsync`、GPU surface API、strict GPU transcode harness | Linux Intel round-trip認定済み。Windows IntelとAV1対応NVIDIAでのpositive認定が残件 |
-| Observability | aggregate queue/backend/copy-path metrics、versioned frame/flush/close host timing、同期/worker内訳、JSON benchmark、相対baseline gate | conversion/codec/mux単体とGPU event timingは残件 |
+| Observability | aggregate queue/backend/copy-path metrics、versioned frame/flush/close host timing、同期/worker内訳、conversion/codec/container/GPU-waitの排他的host timing、JSON benchmark、相対baseline gate | device kernel/event timingとdriver内部copy追跡は残件 |
 | Packaging | dependency manifest、legal payload collector、SPDX SBOM、wheel/NuGet builderとinspector、通常/delay-load PE importの再帰閉包検査、qualification/release分離、Windows全backend実artifact load・CPU実行認定 | project LICENSE決定、実Intel/NVIDIA AV1 hardware認定、公開前legal reviewとrelease artifactが残件 |
 
 H.264/HEVCは公開codec、暗黙fallback、配布対象のいずれにも含めない。

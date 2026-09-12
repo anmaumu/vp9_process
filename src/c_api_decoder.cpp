@@ -63,6 +63,7 @@ mkvc_result mkvc_decoder_read(mkvc_decoder* decoder, mkvc_frame** out_frame) {
         if (result != MKVC_OK) return fail(result, std::move(error));
         auto frame = std::make_unique<mkvc_frame>();
         frame->implementation = std::move(decoded);
+        frame->component_metrics = decoder->component_metrics;
         *out_frame = frame.release();
         return MKVC_OK;
     });
@@ -117,6 +118,15 @@ mkvc_result mkvc_decoder_get_stage_metrics(const mkvc_decoder* decoder,
     *out_metrics = decoder->stage_metrics;
     out_metrics->struct_size = sizeof(*out_metrics);
     out_metrics->struct_version = 1;
+    return MKVC_OK;
+}
+
+mkvc_result mkvc_decoder_get_component_metrics(const mkvc_decoder* decoder,
+                                               mkvc_pipeline_component_metrics* out_metrics) {
+    last_error.clear();
+    if (decoder == nullptr || !mkvc::capi::valid_component_metrics_output(out_metrics))
+        return fail(MKVC_ERROR_INVALID_ARGUMENT, "invalid decoder component-metrics output");
+    *out_metrics = decoder->component_metrics->snapshot();
     return MKVC_OK;
 }
 

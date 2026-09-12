@@ -12,6 +12,8 @@ if (Marshal.SizeOf<MkvPipelineMetrics>() != 64)
     throw new InvalidOperationException("MkvPipelineMetrics ABI layout mismatch");
 if (Marshal.SizeOf<MkvPipelineStageMetrics>() != 88)
     throw new InvalidOperationException("MkvPipelineStageMetrics ABI layout mismatch");
+if (Marshal.SizeOf<MkvPipelineComponentMetrics>() != 72)
+    throw new InvalidOperationException("MkvPipelineComponentMetrics ABI layout mismatch");
 if (Marshal.SizeOf<MkvGpuFrameDescriptor>() != 136)
     throw new InvalidOperationException("MkvGpuFrameDescriptor ABI layout mismatch");
 if (Marshal.SizeOf<MkvGpuNativeHandleDescriptor>() != 64)
@@ -85,6 +87,10 @@ try
             writer.WriteI420(y, u, v);
         }
         writer.Flush();
+        if (writer.ComponentMetrics.CodecCalls < 10 ||
+            writer.ComponentMetrics.ContainerCalls < 10 ||
+            writer.ComponentMetrics.ConversionCalls < 10)
+            throw new InvalidOperationException(".NET encoder component metrics mismatch");
     }
     using var capture = new MkvVideoCapture(path, prefetch: 2);
     var probed = MkvCodecInfo.ProbeVideo(path);
@@ -110,6 +116,9 @@ try
         ++count;
     }
     if (count != 10) throw new InvalidOperationException(".NET frame count mismatch");
+    if (capture.ComponentMetrics.CodecCalls < 10 ||
+        capture.ComponentMetrics.ContainerCalls < 10)
+        throw new InvalidOperationException(".NET decoder component metrics mismatch");
     using (var packedCapture = new MkvVideoCapture(
         path, prefetch: 0, decodeThreads: 1, conversionThreads: 1))
     {

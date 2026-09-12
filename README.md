@@ -318,7 +318,10 @@ while (capture.ReadSurface() is { } surface)
 
 `Metrics`/`metrics`はframe数、queue、copy pathの集計を返します。より細かな
 `StageMetrics`/`stage_metrics`はframe、flush、closeのhost境界時間と、frame処理の
-同期/worker内訳を返します。これはGPU kernel時間やcodec/mux単体時間ではありません。
+同期/worker内訳を返します。`ComponentMetrics`/`component_metrics`はconversion、
+codec/backend、container、GPU completion waitの二重計上しない排他的host時間を
+返します。GPU waitはhost blocking時間であり、GPU kernel/event時間やdriver内部copy
+ではありません。
 CTestにはC++と.NET双方のstrict GPU-resident round-tripがあり、非対応hardwareは77で
 skipし、対応環境ではframe数、zero-copy報告、出力artifactを検証します。
 

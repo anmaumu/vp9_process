@@ -294,6 +294,21 @@ internal struct NativeMutableFrameView
 }
 
 [StructLayout(LayoutKind.Sequential)]
+public struct MkvPipelineComponentMetrics
+{
+    public uint StructSize;
+    public uint StructVersion;
+    public ulong ConversionCalls;
+    public ulong ConversionTimeNanoseconds;
+    public ulong CodecCalls;
+    public ulong CodecTimeNanoseconds;
+    public ulong ContainerCalls;
+    public ulong ContainerTimeNanoseconds;
+    public ulong GpuWaitCalls;
+    public ulong GpuWaitTimeNanoseconds;
+}
+
+[StructLayout(LayoutKind.Sequential)]
 public struct MkvPipelineMetrics
 {
     public uint StructSize;

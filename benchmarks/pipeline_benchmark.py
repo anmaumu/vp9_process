@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import platform
 import statistics
 import sys
@@ -94,6 +93,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     encode_seconds = time.perf_counter() - encode_started
     writer_metrics = writer.metrics
     writer_stage_metrics = writer.stage_metrics
+    writer_component_metrics = writer.component_metrics
 
     decoded = 0
     first_frame_seconds: float | None = None
@@ -114,6 +114,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     decode_seconds = time.perf_counter() - decode_started
     capture_metrics = capture.metrics
     capture_stage_metrics = capture.stage_metrics
+    capture_component_metrics = capture.component_metrics
     if decoded != args.frames:
         raise RuntimeError(f"decoded {decoded} frames, expected {args.frames}")
 
@@ -164,6 +165,8 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             "decoder": asdict(capture_metrics),
             "encoder_stages": asdict(writer_stage_metrics),
             "decoder_stages": asdict(capture_stage_metrics),
+            "encoder_components": asdict(writer_component_metrics),
+            "decoder_components": asdict(capture_component_metrics),
         },
     }
     if temporary is not None:

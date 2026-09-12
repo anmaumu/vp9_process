@@ -14,6 +14,7 @@
 
 #include "container_format.hpp"
 #include "input_video_limits.hpp"
+#include "pipeline_component_metrics.hpp"
 
 namespace mkvc {
 
@@ -99,6 +100,7 @@ std::unique_ptr<WebmPacketReader> WebmPacketReader::open(const char* path, uint3
 }
 
 mkvc_result WebmPacketReader::read(EncodedPacket& packet, std::string& error) {
+    ScopedComponentTimer timer(PipelineComponent::kContainer);
     Impl& state = *impl_;
     while (state.cluster != nullptr && !state.cluster->EOS()) {
         if (state.block_entry == nullptr) {

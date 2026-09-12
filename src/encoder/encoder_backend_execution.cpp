@@ -2,18 +2,26 @@
 
 #include <algorithm>
 
+#include "pipeline_component_metrics.hpp"
+
 namespace mkvc::encoder {
 
 mkvc_result backend_write(EncoderSession::Impl& impl, const mkvc_frame_view& frame,
                           std::string& error) {
+    ActiveComponentMetrics active(impl.component_metrics);
+    ScopedComponentTimer timer(PipelineComponent::kCodec);
     return impl.backend->write(frame, error);
 }
 
 mkvc_result backend_flush(EncoderSession::Impl& impl, std::string& error) {
+    ActiveComponentMetrics active(impl.component_metrics);
+    ScopedComponentTimer timer(PipelineComponent::kCodec);
     return impl.backend->flush(error);
 }
 
 mkvc_result backend_close(EncoderSession::Impl& impl, std::string& error) {
+    ActiveComponentMetrics active(impl.component_metrics);
+    ScopedComponentTimer timer(PipelineComponent::kCodec);
     return impl.backend->close(error);
 }
 
@@ -59,7 +67,12 @@ mkvc_result write_gpu_sync_locked(EncoderSession::Impl& impl,
                                   const std::shared_ptr<gpu::GpuFrameCore>& frame,
                                   std::string& error) {
     const auto started = std::chrono::steady_clock::now();
-    const mkvc_result result = impl.backend->write_gpu(frame, error);
+    mkvc_result result = MKVC_OK;
+    {
+        ActiveComponentMetrics active(impl.component_metrics);
+        ScopedComponentTimer timer(PipelineComponent::kCodec);
+        result = impl.backend->write_gpu(frame, error);
+    }
     const uint64_t elapsed = elapsed_ns(started);
     impl.backend_time_ns += elapsed;
     ++impl.stage_metrics.frame_calls;

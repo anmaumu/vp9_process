@@ -11,6 +11,7 @@
 #include <utility>
 
 #include "container_format.hpp"
+#include "pipeline_component_metrics.hpp"
 
 namespace mkvc {
 
@@ -76,6 +77,7 @@ std::unique_ptr<WebmMuxer> WebmMuxer::create(const char* path, uint32_t codec, u
 
 mkvc_result WebmMuxer::add_frame(const uint8_t* data, size_t size, uint64_t timestamp_ns,
                                  uint64_t duration_ns, bool key, std::string& error) {
+    ScopedComponentTimer timer(PipelineComponent::kContainer);
     if (impl_->finalized || !impl_->segment_initialized || data == nullptr || size == 0) {
         error = "invalid encoded packet or finalized muxer";
         return MKVC_ERROR_INVALID_STATE;
@@ -97,6 +99,7 @@ mkvc_result WebmMuxer::add_frame(const uint8_t* data, size_t size, uint64_t time
 }
 
 mkvc_result WebmMuxer::finalize(std::string& error) {
+    ScopedComponentTimer timer(PipelineComponent::kContainer);
     if (impl_->finalized) return MKVC_OK;
     if (impl_->segment_initialized && !impl_->segment.Finalize()) {
         error = "libwebm failed to finalize the output";

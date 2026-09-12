@@ -21,6 +21,7 @@
 #include "intel_webm_decoder.hpp"
 #include "mkvcodec/mkvc.h"
 #include "nvidia_webm_decoder.hpp"
+#include "pipeline_component_metrics.hpp"
 
 /** @brief Opaque C encoder handle owning one C++ encoder session. */
 struct mkvc_encoder {
@@ -48,6 +49,8 @@ struct mkvc_decoder {
     uint64_t queue_wait_ns = 0;
     uint64_t backend_time_ns = 0;
     mkvc_pipeline_stage_metrics stage_metrics{};
+    std::shared_ptr<mkvc::ComponentMetricsAccumulator> component_metrics =
+        std::make_shared<mkvc::ComponentMetricsAccumulator>();
     uint32_t peak_queue_depth = 0;
     uint32_t hardware_pending_peak = 0;
     bool gpu_path_exercised = false;
@@ -61,6 +64,7 @@ struct mkvc_decoder {
 struct mkvc_frame {
     std::atomic<uint32_t> references{1};
     std::unique_ptr<mkvc::DecodedFrame> implementation;
+    std::shared_ptr<mkvc::ComponentMetricsAccumulator> component_metrics;
 };
 
 /** @brief Opaque asynchronous CPU submission completion handle. */

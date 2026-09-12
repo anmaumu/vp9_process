@@ -1,6 +1,7 @@
 /build/
 /site/
 /out/
+/Testing/
 /.vs/
 /.vscode/
 __pycache__/

@@ -9,6 +9,18 @@
 [implementation-status.md](implementation-status.md)を使用する。この履歴には
 過去の判断、測定値、詳細なverification matrixを粒度を落とさず保持する。
 
+## 2026-09-13: Exclusive pipeline component metrics
+
+Added an additive, versioned component-metrics ABI for conversion,
+codec/backend, container, and GPU completion-wait call counts and cumulative
+host time. Nested timers pause their parent so categories are exclusive rather
+than double-counted. CPU decoded frames share the session accumulator, allowing
+later BGR/RGB/NV12 copies and processing to remain attributable after decoder
+close. C++, Python and .NET expose the same snapshot, and the public JSON
+benchmark records both encoder and decoder components. GPU-wait time remains a
+host wait measurement; device kernel/event duration and driver-internal copy
+proof remain hardware-profiler work.
+
 ## 2026-09-12: Stage metrics, performance gate, GPU SDK harnesses and fuzz CI
 
 Added a separate versioned stage-metrics ABI rather than extending the existing

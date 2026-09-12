@@ -266,6 +266,20 @@ typedef struct mkvc_pipeline_stage_metrics {
     uint64_t worker_frame_time_ns; /**< Worker-thread frame backend time. */
 } mkvc_pipeline_stage_metrics;
 
+/** Exclusive host time attributed to pipeline implementation components. */
+typedef struct mkvc_pipeline_component_metrics {
+    uint32_t struct_size;        /**< Size of this struct. */
+    uint32_t struct_version;     /**< Must be 1. */
+    uint64_t conversion_calls;   /**< CPU pixel copy/conversion operations. */
+    uint64_t conversion_time_ns; /**< Exclusive host conversion time. */
+    uint64_t codec_calls;        /**< Codec/backend processing operations. */
+    uint64_t codec_time_ns;      /**< Exclusive host codec/backend time. */
+    uint64_t container_calls;    /**< Container mux/demux operations. */
+    uint64_t container_time_ns;  /**< Exclusive host container time. */
+    uint64_t gpu_wait_calls;     /**< GPU completion waits observed inside this pipeline. */
+    uint64_t gpu_wait_time_ns;   /**< Exclusive host time waiting for GPU completion. */
+} mkvc_pipeline_component_metrics;
+
 /** Runtime copy/fallback policy; set before the first frame operation. */
 typedef struct mkvc_copy_policy {
     uint32_t struct_size;          /**< Size of this struct. */
@@ -488,6 +502,9 @@ MKVC_API mkvc_result mkvc_encoder_get_metrics(const mkvc_encoder* encoder,
 /** Snapshot detailed encoder operation timing without resetting it. */
 MKVC_API mkvc_result mkvc_encoder_get_stage_metrics(
     const mkvc_encoder* encoder, mkvc_pipeline_stage_metrics* out_metrics);
+/** Snapshot exclusive conversion/codec/container/GPU-wait timing. */
+MKVC_API mkvc_result mkvc_encoder_get_component_metrics(
+    const mkvc_encoder* encoder, mkvc_pipeline_component_metrics* out_metrics);
 /** Destroy an encoder handle; NULL is accepted. */
 MKVC_API void mkvc_encoder_destroy(mkvc_encoder* encoder);
 
@@ -564,6 +581,9 @@ MKVC_API mkvc_result mkvc_decoder_get_metrics(const mkvc_decoder* decoder,
 /** Snapshot detailed decoder operation timing without resetting it. */
 MKVC_API mkvc_result mkvc_decoder_get_stage_metrics(
     const mkvc_decoder* decoder, mkvc_pipeline_stage_metrics* out_metrics);
+/** Snapshot exclusive conversion/codec/container/GPU-wait timing. */
+MKVC_API mkvc_result mkvc_decoder_get_component_metrics(
+    const mkvc_decoder* decoder, mkvc_pipeline_component_metrics* out_metrics);
 /** Return immutable video information resolved when the decoder was created. */
 MKVC_API mkvc_result mkvc_decoder_get_info(const mkvc_decoder* decoder, mkvc_video_info* out_info);
 /** Destroy a decoder handle; NULL is accepted. */

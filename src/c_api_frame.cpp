@@ -19,9 +19,14 @@ using mkvc::capi::guard;
 mkvc_result copy_frame(const mkvc_frame* frame, mkvc_mutable_frame_view* destination,
                        const uint32_t conversion_threads) {
     return guard("unknown frame conversion failure", [&] {
+        std::unique_ptr<mkvc::ActiveComponentMetrics> active;
+        if (frame->component_metrics) {
+            active = std::make_unique<mkvc::ActiveComponentMetrics>(*frame->component_metrics);
+        }
+        mkvc::ScopedComponentTimer timer(mkvc::PipelineComponent::kConversion);
         std::string error;
-        const mkvc_result result = mkvc::copy_frame_to(*frame->implementation, *destination, error,
-                                                       conversion_threads);
+        const mkvc_result result =
+            mkvc::copy_frame_to(*frame->implementation, *destination, error, conversion_threads);
         return result == MKVC_OK ? result : fail(result, std::move(error));
     });
 }
@@ -69,15 +74,13 @@ mkvc_result mkvc_frame_copy_to(const mkvc_frame* frame, mkvc_mutable_frame_view*
     return copy_frame(frame, destination, 0);
 }
 
-mkvc_result mkvc_frame_copy_to_ex(const mkvc_frame* frame,
-                                  mkvc_mutable_frame_view* destination,
+mkvc_result mkvc_frame_copy_to_ex(const mkvc_frame* frame, mkvc_mutable_frame_view* destination,
                                   const mkvc_frame_copy_options* options) {
     last_error.clear();
     if (frame == nullptr || destination == nullptr || options == nullptr ||
         destination->struct_size < sizeof(mkvc_mutable_frame_view) ||
         destination->struct_version != 1 || options->struct_size < sizeof(*options) ||
-        options->struct_version != 1 || options->conversion_threads > 4 ||
-        options->reserved != 0) {
+        options->struct_version != 1 || options->conversion_threads > 4 || options->reserved != 0) {
         return fail(MKVC_ERROR_INVALID_ARGUMENT, "invalid frame copy options");
     }
     return copy_frame(frame, destination, options->conversion_threads);
@@ -93,6 +96,11 @@ mkvc_result mkvc_frame_process(const mkvc_frame* frame, const mkvc_frame_process
         return fail(MKVC_ERROR_INVALID_ARGUMENT, "invalid frame process arguments");
     }
     try {
+        std::unique_ptr<mkvc::ActiveComponentMetrics> active;
+        if (frame->component_metrics) {
+            active = std::make_unique<mkvc::ActiveComponentMetrics>(*frame->component_metrics);
+        }
+        mkvc::ScopedComponentTimer timer(mkvc::PipelineComponent::kConversion);
         std::unique_ptr<mkvc::DecodedFrame> processed;
         std::string error;
         const mkvc_result result =
@@ -100,6 +108,7 @@ mkvc_result mkvc_frame_process(const mkvc_frame* frame, const mkvc_frame_process
         if (result != MKVC_OK) return fail(result, std::move(error));
         auto handle = std::make_unique<mkvc_frame>();
         handle->implementation = std::move(processed);
+        handle->component_metrics = frame->component_metrics;
         *out_frame = handle.release();
         return MKVC_OK;
     } catch (const std::exception& exception) {

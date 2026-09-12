@@ -5,6 +5,8 @@
 #include <cstddef>
 #include <cstring>
 
+#include "pipeline_component_metrics.hpp"
+
 namespace mkvc::encoder {
 namespace {
 
@@ -20,6 +22,7 @@ void copy_plane(uint8_t* destination, int destination_stride, const uint8_t* sou
 mkvc_result convert_cpu_frame_to_i420(const mkvc_frame_view& frame, uint32_t width, uint32_t height,
                                       std::vector<uint8_t>& i420, const char* codec_name,
                                       std::string& error) {
+    ScopedComponentTimer timer(PipelineComponent::kConversion);
     const size_t y_size = static_cast<size_t>(width) * height;
     const size_t chroma_size = y_size / 4;
     const size_t frame_size = y_size + chroma_size * 2;

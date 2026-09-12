@@ -5,6 +5,7 @@
 
 #include "c_api_internal.hpp"
 #include "decoder/decoder_backend_io.hpp"
+#include "pipeline_component_metrics.hpp"
 
 namespace mkvc::decoder {
 namespace {
@@ -41,9 +42,14 @@ mkvc_result read_cpu_sync(mkvc_decoder& decoder, std::unique_ptr<DecodedFrame>& 
 
 mkvc_result read_gpu_sync(mkvc_decoder& decoder, mkvc_gpu_frame** frame, std::string& error) {
     const auto started = std::chrono::steady_clock::now();
-    const mkvc_result result = decoder.intel_implementation
-                                   ? decoder.intel_implementation->read_gpu(frame, error)
-                                   : decoder.nvidia_implementation->read_gpu(frame, error);
+    mkvc_result result = MKVC_OK;
+    {
+        ActiveComponentMetrics active(*decoder.component_metrics);
+        ScopedComponentTimer timer(PipelineComponent::kCodec);
+        result = decoder.intel_implementation
+                     ? decoder.intel_implementation->read_gpu(frame, error)
+                     : decoder.nvidia_implementation->read_gpu(frame, error);
+    }
     {
         std::lock_guard<std::mutex> lock(decoder.mutex);
         const uint64_t elapsed = elapsed_ns(started);
