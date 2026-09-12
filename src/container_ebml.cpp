@@ -45,11 +45,12 @@ bool parse_header_bytes(const std::vector<uint8_t>& bytes, HeaderInfo& info) {
     while (position < info.header_end) {
         uint64_t element_id = 0;
         uint64_t element_size = 0;
-        if (!read_vint(bytes, position, true, element_id, width)) return false;
+        if (!read_vint(bytes, position, true, element_id, width) || position > info.header_end)
+            return false;
         const size_t size_position = position;
         size_t size_width = 0;
         if (!read_vint(bytes, position, false, element_size, size_width) ||
-            element_size > info.header_end - position)
+            position > info.header_end || element_size > info.header_end - position)
             return false;
         if (element_id == kDocType) {
             info.doc_size_position = size_position;
@@ -84,7 +85,7 @@ bool read_header(const char* path, std::vector<uint8_t>& bytes, HeaderInfo& info
 
 bool write_size(std::vector<uint8_t>& data, size_t position, size_t width, uint64_t value) {
     const uint64_t limit =
-        width == 8 ? std::numeric_limits<uint64_t>::max() : ((uint64_t{1} << (7 * width)) - 1);
+        width == 8 ? (std::numeric_limits<uint64_t>::max)() : ((uint64_t{1} << (7 * width)) - 1);
     if (value >= limit) return false;
     for (size_t index = 0; index < width; ++index) {
         data[position + width - 1 - index] = static_cast<uint8_t>(value & 0xFF);

@@ -12,6 +12,17 @@ function(mkvc_add_core_tests)
     target_include_directories(mkvc_input_video_limits_test PRIVATE src)
     add_test(NAME mkvc_input_video_limits COMMAND mkvc_input_video_limits_test)
 
+    add_executable(mkvc_container_ebml_test
+        tests/container_ebml_test.cpp src/container_ebml.cpp)
+    target_compile_features(mkvc_container_ebml_test PRIVATE cxx_std_17)
+    target_include_directories(mkvc_container_ebml_test PRIVATE src)
+    if(MSVC)
+        target_compile_options(mkvc_container_ebml_test PRIVATE /UNDEBUG)
+    else()
+        target_compile_options(mkvc_container_ebml_test PRIVATE -UNDEBUG)
+    endif()
+    add_test(NAME mkvc_container_ebml COMMAND mkvc_container_ebml_test)
+
     add_executable(mkvc_c_api_tests tests/c_api_tests.cpp)
     target_compile_features(mkvc_c_api_tests PRIVATE cxx_std_17)
     target_link_libraries(mkvc_c_api_tests PRIVATE mkvcodec)

@@ -1821,6 +1821,11 @@ Repository Python checks install NumPy explicitly. The two Linux `LD_AUDIT`
 test shims are deliberately uninstrumented because they execute in the dynamic
 loader before a host sanitizer runtime is guaranteed; product code and native
 test executables remain fully instrumented.
+The first hosted fuzz campaign found that an element-size VINT could begin
+inside the declared EBML header and finish beyond it. The resulting unsigned
+boundary subtraction admitted a hostile, enormous DocType allocation. Both
+element VINTs are now required to end inside the declared header; a permanent
+native regression test covers the crossing-size case.
 
 - vcpkg registry baseline `114d9fe62faf35856b45cf55cb93b57028a45d63`
 - libvpx `1.16.0#3`
