@@ -69,6 +69,14 @@ function(mkvc_add_core_tests)
             target_compile_features(mkvc_gpu_copy_audit PRIVATE c_std_11)
             target_compile_options(mkvc_gpu_copy_audit PRIVATE -Wall -Wextra -Werror)
             add_library(mkvc_gpu_copy_audit_mock MODULE tests/gpu_copy_audit_mock.c)
+            # LD_AUDIT objects execute inside the dynamic loader before a host
+            # sanitizer runtime is guaranteed to exist. Keep these two test
+            # shims uninstrumented; the product library and native test
+            # executables remain fully covered by the caller's sanitizer flags.
+            if(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
+                target_compile_options(mkvc_gpu_copy_audit PRIVATE -fno-sanitize=all)
+                target_compile_options(mkvc_gpu_copy_audit_mock PRIVATE -fno-sanitize=all)
+            endif()
             add_test(NAME mkvc_gpu_copy_audit_selftest
                 COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/run_gpu_copy_audit.py"
                     --audit "$<TARGET_FILE:mkvc_gpu_copy_audit>"
