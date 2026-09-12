@@ -29,8 +29,10 @@ correctly skips Intel and AV1 NVENC paths unavailable on the test hardware.
 
 The bounded in-memory EBML header parser is shared with a Clang libFuzzer target.
 Linux CI builds the project with ASan/UBSan, runs CTest, then executes a bounded
-fuzz campaign. A local Windows Clang ASan/UBSan qualification completed 10,000
-generated inputs without a finding.
+fuzz campaign. The campaign uses an EBML token dictionary and preserves its
+evolved corpus plus any failure artifacts for 14 days on every run. A local
+Windows Clang ASan/UBSan qualification completed 100,000 generated inputs after
+the hostile element-size regression was fixed.
 
 ## 2026-09-12: CPU VP9/AV1 luma SSIM acceptance
 

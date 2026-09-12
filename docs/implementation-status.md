@@ -13,6 +13,7 @@
 | Windows x64 / CPU VP9+AV1、Intel、NVIDIA同時build | 33 tests | pass、実hardware capability不足による想定内skip 8 |
 | Linux x64 / Intel GPU required | 53 tests | pass、C++/.NET GPU round-tripを含む |
 | Linux x64 / CPU VP9 and AV1 | 32 tests | pass |
+| GitHub Ubuntu / ASan+UBSan | 27 tests + 60秒libFuzzer | pass、11,888,127 inputs |
 
 各refactorではABI guard、Python/.NET binding generation、docgen、source
 compliance gate、対象PythonのRuff検査も通す。性能値は環境依存であり、承認済み
@@ -22,7 +23,7 @@ regression thresholdではない。
 
 | Area | Implemented | Current boundary |
 |---|---|---|
-| Container | libwebmによるWebM/Matroska mux・demux、拡張子とDocTypeの整合、VP9/AV1自動判別、decode不要の動画情報probe、共通入力上限、固定破損＋seeded mutation smoke、ASan/UBSan＋libFuzzer CI | 最初の対応映像trackを選択。長期corpus管理は継続課題 |
+| Container | libwebmによるWebM/Matroska mux・demux、拡張子とDocTypeの整合、VP9/AV1自動判別、decode不要の動画情報probe、共通入力上限、固定破損＋seeded mutation smoke、ASan/UBSan＋辞書付きlibFuzzer CI、run別corpus/crash artifact保存 | 最初の対応映像trackを選択。hardware-class間のcorpus統合は継続課題 |
 | CPU codec | libvpx VP9 encode/decode、SVT-AV1 encode、libaom AV1 decode、PSNR＋block SSIM受け入れ | 現行は8-bit I420/NV12/packed入力。10-bitは将来範囲 |
 | CPU Python | OpenCV風Capture/Writer、owned/borrowed NumPy、native buffer pool、async submission | OS page-lock計測と詳細copy traceは任意残件 |
 | Intel Linux | oneVPL VP9/AV1、VA surface、OpenCL/Level Zero、device-USM DLPack、pool/backpressure | direct oneVPL USM consumptionと30分cross-context soakは残件 |

@@ -1,0 +1,7 @@
+# EBML identifiers and WebM/Matroska DocType strings used by the bounded parser.
+ebml_header="\x1A\x45\xDF\xA3"
+doc_type="\x42\x82"
+webm="webm"
+matroska="matroska"
+one_byte_zero="\x80"
+eight_byte_vint="\x01"

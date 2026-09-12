@@ -60,6 +60,7 @@
 
 - [x] public API end-to-end JSON benchmark, detailed operation metrics and CI smoke
 - [x] native aggregate backend/queue timing, high-water and copy-path metrics ABI
+- [x] fail-closed relative performance baseline gate with exact case/schema validation
 - [ ] conversion/codec/mux/GPU-event別の詳細stage timing
 - [ ] approved 1080p/4K CPU/Intel/NVIDIA baseline and regression thresholds
 - [x] strict Intel GPU transcode JSON benchmark and initial 1080p VP9 development baseline
@@ -76,9 +77,10 @@
 - [x] CPU resize/crop/basic 8-bit conversion/rotate/flip/contain/cover subset
 - [x] common `mkvc_gpu_frame` metadata, retain/release lease, generation and producer query/wait C ABI foundation
 - [x] fixed-capacity generation-safe GPU frame pool with completion/lease-gated recycle and backpressure
-- [ ] backend resource allocation/frame factories integration（CUDAおよびIntel USM consumer dependency登録は完了）
+- [x] CUDA device-pointer、Intel VA/USM resource frame factories and consumer dependency integration
+- [ ] decoded D3D11 texture and NVIDIA CUarray export factory integration
 - [x] oneVPL SyncPoint and NVIDIA CUDA event completion adapter foundations
-- [ ] connect completion adapters to decode/export/import/encode surface factories; add D3D11 fence/VA synchronization
+- [x] connect SyncPoint/CUDA event/D3D11 fence/VA completion adapters to implemented surface factories
 - [x] oneVPL video-memory surface wrapper with SyncPoint, native handle, pool lease and deferred Surface Release
 - [x] Linux Intel decode→external OpenCL image processing→VA shared import→encode synchronous pipeline
 - [ ] fully asynchronous external-resource pipeline and shared-session optimization
@@ -115,7 +117,8 @@
 - [x] Arc B580 128x128 external OpenCL -> AV1 30-minute lifecycle soak and per-process VRAM growth-budget qualification (131040 frames)
 - [ ] 1080p/4K and other-device soak, slow-consumer and complete driver-internal copy qualification
 - [ ] VA pending real-workload/race, missing-symbol loader fault injection and independent trace qualification
-- [ ] strict GPU-resident policy and export/import edge copy-path trace
+- [x] strict GPU-resident rejection policy and public copy-path metrics
+- [ ] complete export/import edge and driver-internal copy-path trace
 - [x] Python CuPy contiguous-NV12 DLPack processed-resource import/export hardware qualification
 - [ ] Python CuPy/CUarray processed-resource→NVENC positive encode qualification on an AV1-capable GPU
 - [x] .NET GPU Frame SafeHandle, descriptor/native handle/wait and Capture.ReadSurface source API
@@ -123,7 +126,8 @@
 - [x] .NET external GPU frame owner/query/release adapter
 - [x] .NET 8 SDK-style build and Windows native-load/CPU round-trip smoke
 - [x] header-only C++17 RAII wrapper over the stable C ABI
-- [ ] .NET Intel/NVIDIA hardware smoke
+- [x] C++/.NET strict GPU-resident round-trip harnesses and Linux Intel hardware smoke
+- [ ] .NET Windows Intel and AV1-capable NVIDIA hardware smoke
 - [ ] `TEST-GPU-001..020` lifetime, interop, fault, trace and soak qualification
 
 ## Phase 3E: CPU borrowed frame interoperability
@@ -150,4 +154,5 @@
 - [x] dependency manifest、SPDX SBOM generator、source/artifact compliance gate foundation
 - [x] hash-locked LICENSE/PATENTS collectorとTHIRD_PARTY_NOTICES生成
 - [x] wheel/NuGetへのnative/legal/SBOM収録と実artifact gate
+- [x] Linux ASan/UBSan native test CI and bounded libFuzzer container campaign
 - [ ] project LICENSE確定、Windows artifact実build、release publication
