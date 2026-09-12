@@ -7,6 +7,7 @@
 #include <thread>
 
 #include "d3d11_completion.hpp"
+#include "dlpack_types.hpp"
 #include "gpu_frame_pool.hpp"
 #include "intel_native_handle.hpp"
 #include "level_zero_completion.hpp"
@@ -27,29 +28,7 @@ int fake_va_sync(void* display, unsigned int surface, uint64_t timeout_ns) {
     ++probe.calls;
     return probe.result;
 }
-struct TestDLDevice {
-    int32_t type;
-    int32_t id;
-};
-struct TestDLDataType {
-    uint8_t code;
-    uint8_t bits;
-    uint16_t lanes;
-};
-struct TestDLTensor {
-    void* data;
-    TestDLDevice device;
-    int32_t ndim;
-    TestDLDataType dtype;
-    int64_t* shape;
-    int64_t* strides;
-    uint64_t byte_offset;
-};
-struct TestDLManagedTensor {
-    TestDLTensor dl_tensor;
-    void* manager_ctx;
-    void (*deleter)(TestDLManagedTensor*);
-};
+using TestDLManagedTensor = DLManagedTensor;
 struct ExternalState {
     std::atomic<bool> complete{false};
     std::atomic<unsigned> releases{0};
@@ -246,7 +225,8 @@ int main() {
     auto* tensor = static_cast<TestDLManagedTensor*>(opaque_tensor);
     assert(tensor->dl_tensor.data ==
            reinterpret_cast<void*>(native.handles[0] + desc.plane_offsets[1]));
-    assert(tensor->dl_tensor.device.type == 2 && tensor->dl_tensor.device.id == 7);
+    assert(tensor->dl_tensor.device.device_type == kDLCUDA &&
+           tensor->dl_tensor.device.device_id == 7);
     assert(tensor->dl_tensor.ndim == 2 && tensor->dl_tensor.dtype.code == 1 &&
            tensor->dl_tensor.dtype.bits == 8 && tensor->dl_tensor.dtype.lanes == 1);
     assert(tensor->dl_tensor.shape[0] == 540 && tensor->dl_tensor.shape[1] == 1920);
@@ -291,7 +271,8 @@ int main() {
            dependency_probe.stream == 0x99AB0000);
     tensor = static_cast<TestDLManagedTensor*>(opaque_tensor);
     assert(tensor->dl_tensor.data == reinterpret_cast<void*>(usm_native.handles[0]));
-    assert(tensor->dl_tensor.device.type == 14 && tensor->dl_tensor.device.id == 3);
+    assert(tensor->dl_tensor.device.device_type == kDLOneAPI &&
+           tensor->dl_tensor.device.device_id == 3);
     assert(tensor->dl_tensor.shape[0] == 1080 && tensor->dl_tensor.shape[1] == 1920);
     // Export returned while the producer was pending. Complete it before the
     // last lease is destroyed so the frame core can shut down normally.

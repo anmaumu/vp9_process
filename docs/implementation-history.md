@@ -1812,6 +1812,14 @@ operation before releasing its bitstream/surface and closing the oneVPL session.
 
 ## Verified dependency baseline
 
+The ASan/UBSan qualification job also exercises the native C/C++ tests before
+its bounded container-header fuzz campaign. Its first hosted run exposed and
+closed two ABI-boundary defects: unknown C result values are now inspected by
+object representation instead of loading an out-of-range C++ enum, and the
+DLPack producer/test share one exact managed-tensor function-pointer type.
+Repository Python checks install NumPy explicitly, while the sanitizer runtime
+is preloaded for Python-hosted audit modules.
+
 - vcpkg registry baseline `114d9fe62faf35856b45cf55cb93b57028a45d63`
 - libvpx `1.16.0#3`
 - libwebm `1.0.0.32`

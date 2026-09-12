@@ -3,6 +3,8 @@
  * @brief C ABI version, capability discovery, and diagnostics entry points.
  */
 #include <algorithm>
+#include <cstdint>
+#include <cstring>
 #include <string>
 
 #include "backend_registry.hpp"
@@ -48,7 +50,13 @@ mkvc_result mkvc_get_backend_capabilities(mkvc_backend_capability* capabilities,
 }
 
 const char* mkvc_result_string(mkvc_result result) {
-    switch (result) {
+    // A C caller may pass any integer bit pattern. Reading an out-of-range C++
+    // enum directly is undefined behavior, so inspect its representation as an
+    // integer at this ABI validation boundary.
+    static_assert(sizeof(mkvc_result) == sizeof(int32_t));
+    int32_t raw_result = 0;
+    std::memcpy(&raw_result, &result, sizeof(raw_result));
+    switch (raw_result) {
         case MKVC_OK:
             return "ok";
         case MKVC_ERROR_INVALID_ARGUMENT:
