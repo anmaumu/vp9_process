@@ -21,6 +21,8 @@ occupancy/wait/lease metrics. Acceptance fails on resource-growth budgets,
 persistent managed pins, leaked slots, or capacity violations. CTest runs a
 short delayed-encoder smoke to guarantee overlapping native leases; the same
 executable accepts `--duration-seconds 1800` for release qualification.
+An independent size-bounded Python gate re-parses the persisted report and
+rejects missing, partial, non-finite, over-budget, pinned, or leaked-slot data.
 
 ## 2026-09-13: Optional OS page-locked CPU pool
 

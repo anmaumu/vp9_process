@@ -269,6 +269,15 @@ function(mkvc_add_dotnet_tests vp9_fixture)
             --report "${CMAKE_CURRENT_BINARY_DIR}/dotnet_pool_soak_smoke.json")
     set_tests_properties(mkvc_dotnet_pool_soak_smoke PROPERTIES
         DEPENDS mkvc_dotnet_pool_soak_build TIMEOUT 120 RESOURCE_LOCK dotnet_build)
+    if(Python3_Interpreter_FOUND)
+        add_test(NAME mkvc_dotnet_pool_soak_report
+            COMMAND "${Python3_EXECUTABLE}"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tools/validate_dotnet_pool_soak_report.py"
+                "${CMAKE_CURRENT_BINARY_DIR}/dotnet_pool_soak_smoke.json"
+                --minimum-seconds 1)
+        set_tests_properties(mkvc_dotnet_pool_soak_report PROPERTIES
+            DEPENDS mkvc_dotnet_pool_soak_smoke)
+    endif()
 
     if(vp9_fixture AND (MKVC_ENABLE_INTEL_ONEVPL OR MKVC_ENABLE_NVIDIA))
         add_test(NAME mkvc_dotnet_gpu_build

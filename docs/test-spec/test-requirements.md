@@ -192,6 +192,11 @@ wheel/NuGetへ同梱せず、実行時version/source revisionを成果ととも�
 | `TEST-CPUINT-006` | GPU decode→NumPyは`cpu_readback`、CPU borrowed共有は`zero_copy`となり、形式変換allocationをedge別traceする | trace/hardware | CPU/Intel/NVIDIA |
 | `TEST-CPUINT-007` | plane count、dtype、shape、stride、alignment不一致がstrict時に失敗し、copy許可時だけcopyする | parameterized | CPU CI |
 
+`.NET` pool soak reportはproducerの終了codeだけで受け入れない。
+`validate_dotnet_pool_soak_report.py`がsize上限とschemaを確認し、要求時間、全GC世代、
+resource budget、managed pin増分0、page-lock byte、最終slot解放、peak occupancyを
+独立に再検査する。field欠落、途中・failed report、NaN/Infinity、boolの数値扱いは拒否する。
+
 ### 1.5 CPU Convenience Processing
 
 | ID | Test requirement | Level | Environment |
