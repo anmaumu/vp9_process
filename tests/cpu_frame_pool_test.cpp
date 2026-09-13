@@ -1,9 +1,9 @@
-#include "mkvcodec/mkvc.h"
-
 #include <cassert>
 #include <cstdint>
 #include <filesystem>
 #include <string>
+
+#include "mkvcodec/mkvc.h"
 
 namespace {
 
@@ -30,10 +30,18 @@ int main(int argc, char** argv) {
     mkvc_cpu_frame_pool* pool = nullptr;
     mkvc_cpu_frame_pool_config invalid_config = pool_config;
     invalid_config.capacity = 0;
-    assert(mkvc_cpu_frame_pool_create(&invalid_config, &pool) ==
-           MKVC_ERROR_INVALID_ARGUMENT);
+    assert(mkvc_cpu_frame_pool_create(&invalid_config, &pool) == MKVC_ERROR_INVALID_ARGUMENT);
     assert(pool == nullptr);
     require_ok(mkvc_cpu_frame_pool_create(&pool_config, &pool));
+    mkvc_cpu_frame_pool_options invalid_options{};
+    invalid_options.struct_size = sizeof(invalid_options);
+    invalid_options.struct_version = 1;
+    invalid_options.memory_mode = MKVC_CPU_MEMORY_PAGEABLE;
+    invalid_options.reserved = 1;
+    mkvc_cpu_frame_pool* invalid_pool = reinterpret_cast<mkvc_cpu_frame_pool*>(1);
+    assert(mkvc_cpu_frame_pool_create_ex(&pool_config, &invalid_options, &invalid_pool) ==
+           MKVC_ERROR_INVALID_ARGUMENT);
+    assert(invalid_pool == nullptr);
     mkvc_cpu_buffer* first = nullptr;
     require_ok(mkvc_cpu_frame_pool_acquire(pool, 0, &first));
 
@@ -63,8 +71,7 @@ int main(int argc, char** argv) {
     }
 
     mkvc_cpu_buffer* unavailable = reinterpret_cast<mkvc_cpu_buffer*>(1);
-    assert(mkvc_cpu_frame_pool_acquire(pool, 0, &unavailable) ==
-           MKVC_WOULD_BLOCK);
+    assert(mkvc_cpu_frame_pool_acquire(pool, 0, &unavailable) == MKVC_WOULD_BLOCK);
     assert(unavailable == nullptr);
 
     const std::string output = argv[1];
@@ -85,8 +92,7 @@ int main(int argc, char** argv) {
     require_ok(mkvc_encoder_create(&encoder_config, &encoder));
 
     mkvc_submission* submission = nullptr;
-    require_ok(mkvc_encoder_submit_cpu_buffer(
-        encoder, first, 0, &submission));
+    require_ok(mkvc_encoder_submit_cpu_buffer(encoder, first, 0, &submission));
     mkvc_cpu_buffer_release(first);
     first = nullptr;
     require_ok(mkvc_submission_wait(submission, 5000));
@@ -103,6 +109,20 @@ int main(int argc, char** argv) {
     require_ok(mkvc_cpu_buffer_get_desc(second, &second_desc));
     assert(second_desc.generation > first_desc.generation);
 
+    mkvc_cpu_frame_pool_stats stats{};
+    stats.struct_size = sizeof(stats);
+    stats.struct_version = 1;
+    require_ok(mkvc_cpu_frame_pool_get_stats(pool, &stats));
+    assert(stats.capacity == 1 && stats.in_use == 1 && stats.peak_in_use == 1);
+    assert(stats.memory_mode == MKVC_CPU_MEMORY_PAGEABLE);
+    assert(stats.allocation_bytes == width * height * 3 / 2);
+    assert(stats.acquisitions == 2 && stats.rejected_acquisitions == 1);
+    assert(stats.lease_time_ns > 0 && stats.peak_lease_time_ns > 0);
+    mkvc_cpu_frame_pool_stats invalid_stats{};
+    invalid_stats.struct_size = sizeof(invalid_stats) - 1;
+    invalid_stats.struct_version = 1;
+    assert(mkvc_cpu_frame_pool_get_stats(pool, &invalid_stats) == MKVC_ERROR_INVALID_ARGUMENT);
+
     // The lease owns the pool allocation after its public pool owner is gone.
     mkvc_cpu_frame_pool_destroy(pool);
     pool = nullptr;
@@ -112,6 +132,21 @@ int main(int argc, char** argv) {
     require_ok(mkvc_cpu_buffer_get_view(second, &view));
     assert(view.planes[0] != nullptr);
     mkvc_cpu_buffer_release(second);
+
+    mkvc_cpu_frame_pool_options locked_options{};
+    locked_options.struct_size = sizeof(locked_options);
+    locked_options.struct_version = 1;
+    locked_options.memory_mode = MKVC_CPU_MEMORY_PAGE_LOCKED;
+    mkvc_cpu_frame_pool* locked_pool = nullptr;
+    require_ok(mkvc_cpu_frame_pool_create_ex(&pool_config, &locked_options, &locked_pool));
+    stats = {};
+    stats.struct_size = sizeof(stats);
+    stats.struct_version = 1;
+    require_ok(mkvc_cpu_frame_pool_get_stats(locked_pool, &stats));
+    assert(stats.memory_mode == MKVC_CPU_MEMORY_PAGE_LOCKED);
+    assert(stats.allocation_bytes == width * height * 3 / 2);
+    assert(stats.page_locked_bytes >= stats.allocation_bytes);
+    mkvc_cpu_frame_pool_destroy(locked_pool);
 
     require_ok(mkvc_encoder_close(encoder));
     mkvc_encoder_destroy(encoder);

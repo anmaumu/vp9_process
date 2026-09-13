@@ -27,6 +27,7 @@ add_library(mkvcodec SHARED
     src/cpu_vp9_decoder.cpp
     src/cpu_vp9_decoder_runtime.cpp
     src/cpu_frame_pool.cpp
+    src/cpu_page_lock.cpp
     src/cpu_conversion_workers.cpp
     src/frame_conversion.cpp
     src/frame_processor.cpp

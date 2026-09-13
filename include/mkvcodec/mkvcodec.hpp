@@ -146,6 +146,10 @@ class CpuFramePool {
     explicit CpuFramePool(const mkvc_cpu_frame_pool_config& config) {
         check(mkvc_cpu_frame_pool_create(&config, &handle_));
     }
+    CpuFramePool(const mkvc_cpu_frame_pool_config& config,
+                 const mkvc_cpu_frame_pool_options& options) {
+        check(mkvc_cpu_frame_pool_create_ex(&config, &options, &handle_));
+    }
     CpuFramePool(uint32_t pixel_format, uint32_t width, uint32_t height, uint32_t capacity) {
         mkvc_cpu_frame_pool_config config{};
         config.struct_size = sizeof(config);
@@ -181,6 +185,15 @@ class CpuFramePool {
         if (result == MKVC_WOULD_BLOCK) return std::nullopt;
         check(result);
         return CpuBuffer(buffer);
+    }
+    /** Snapshot allocation, occupancy, wait, and completed lease metrics. */
+    mkvc_cpu_frame_pool_stats stats() const {
+        ensure_open();
+        mkvc_cpu_frame_pool_stats value{};
+        value.struct_size = sizeof(value);
+        value.struct_version = 1;
+        check(mkvc_cpu_frame_pool_get_stats(handle_, &value));
+        return value;
     }
     void reset() noexcept {
         if (handle_ != nullptr) {

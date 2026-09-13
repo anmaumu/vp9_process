@@ -29,9 +29,28 @@ int main(int argc, char** argv) {
     const std::string output = argv[1];
     std::filesystem::remove(output);
 
+    mkvc_cpu_frame_pool_config locked_config{};
+    locked_config.struct_size = sizeof(locked_config);
+    locked_config.struct_version = 1;
+    locked_config.pixel_format = MKVC_PIXEL_FORMAT_I420;
+    locked_config.width = width;
+    locked_config.height = height;
+    locked_config.capacity = 1;
+    mkvc_cpu_frame_pool_options locked_options{};
+    locked_options.struct_size = sizeof(locked_options);
+    locked_options.struct_version = 1;
+    locked_options.memory_mode = MKVC_CPU_MEMORY_PAGE_LOCKED;
+    mkvcodec::CpuFramePool locked_pool(locked_config, locked_options);
+    const auto locked_stats = locked_pool.stats();
+    assert(locked_stats.memory_mode == MKVC_CPU_MEMORY_PAGE_LOCKED);
+    assert(locked_stats.page_locked_bytes >= locked_stats.allocation_bytes);
+
     mkvcodec::CpuFramePool original_pool(MKVC_PIXEL_FORMAT_I420, width, height, 1);
     mkvcodec::CpuFramePool pool(std::move(original_pool));
     assert(!original_pool.native_handle());
+    const auto initial_pool_stats = pool.stats();
+    assert(initial_pool_stats.capacity == 1);
+    assert(initial_pool_stats.memory_mode == MKVC_CPU_MEMORY_PAGEABLE);
     auto buffer = pool.acquire();
     const auto first_desc = buffer.descriptor();
     auto view = buffer.view();

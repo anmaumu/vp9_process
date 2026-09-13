@@ -299,6 +299,37 @@ typedef struct mkvc_cpu_frame_pool_config {
     uint32_t capacity; /**< Number of fixed native frame slots. */
 } mkvc_cpu_frame_pool_config;
 
+/** Native CPU pool allocation policy. */
+typedef enum mkvc_cpu_memory_mode {
+    MKVC_CPU_MEMORY_PAGEABLE = 0,
+    MKVC_CPU_MEMORY_PAGE_LOCKED = 1
+} mkvc_cpu_memory_mode;
+
+/** Optional CPU pool behavior supplied to mkvc_cpu_frame_pool_create_ex. */
+typedef struct mkvc_cpu_frame_pool_options {
+    uint32_t struct_size;
+    uint32_t struct_version; /**< Must be 1. */
+    uint32_t memory_mode;    /**< One mkvc_cpu_memory_mode. */
+    uint32_t reserved;       /**< Must be zero. */
+} mkvc_cpu_frame_pool_options;
+
+/** Cumulative allocation, occupancy, wait, and lease-duration observations. */
+typedef struct mkvc_cpu_frame_pool_stats {
+    uint32_t struct_size;
+    uint32_t struct_version; /**< Must be 1. */
+    uint32_t capacity;
+    uint32_t in_use;
+    uint32_t peak_in_use;
+    uint32_t memory_mode; /**< One mkvc_cpu_memory_mode actually allocated. */
+    uint64_t allocation_bytes;
+    uint64_t page_locked_bytes; /**< Page-rounded bytes locked by the OS. */
+    uint64_t acquisitions;
+    uint64_t rejected_acquisitions;
+    uint64_t wait_ns;
+    uint64_t lease_time_ns;
+    uint64_t peak_lease_time_ns;
+} mkvc_cpu_frame_pool_stats;
+
 /** Fixed-capacity reservation pool for caller-allocated GPU resources. */
 typedef struct mkvc_gpu_resource_pool_config {
     uint32_t struct_size;
@@ -521,11 +552,18 @@ MKVC_API void mkvc_submission_release(mkvc_submission* submission);
 /** Create a fixed-capacity native CPU frame pool. */
 MKVC_API mkvc_result mkvc_cpu_frame_pool_create(const mkvc_cpu_frame_pool_config* config,
                                                 mkvc_cpu_frame_pool** out_pool);
+/** Create a CPU pool with an explicit pageable or OS page-locked policy. */
+MKVC_API mkvc_result mkvc_cpu_frame_pool_create_ex(
+    const mkvc_cpu_frame_pool_config* config, const mkvc_cpu_frame_pool_options* options,
+    mkvc_cpu_frame_pool** out_pool);
 /** Destroy a pool owner; outstanding buffer leases remain valid. */
 MKVC_API void mkvc_cpu_frame_pool_destroy(mkvc_cpu_frame_pool* pool);
 /** Acquire one native slot; zero timeout is nonblocking. */
 MKVC_API mkvc_result mkvc_cpu_frame_pool_acquire(mkvc_cpu_frame_pool* pool, uint32_t timeout_ms,
                                                  mkvc_cpu_buffer** out_buffer);
+/** Snapshot CPU pool occupancy, wait, allocation, and lease-duration metrics. */
+MKVC_API mkvc_result mkvc_cpu_frame_pool_get_stats(const mkvc_cpu_frame_pool* pool,
+                                                   mkvc_cpu_frame_pool_stats* out_stats);
 /** Query a live native CPU buffer lease descriptor. */
 MKVC_API mkvc_result mkvc_cpu_buffer_get_desc(const mkvc_cpu_buffer* buffer,
                                               mkvc_cpu_buffer_desc* out_desc);

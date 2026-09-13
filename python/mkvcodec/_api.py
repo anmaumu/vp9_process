@@ -9,6 +9,7 @@ from ._io import VideoCapture, VideoWriter
 from ._types import (
     BackendCapability,
     CpuFrame,
+    CpuFramePoolStatistics,
     GpuInteropInfo,
     GpuResourcePoolStats,
     PipelineMetrics,

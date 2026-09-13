@@ -196,3 +196,36 @@ class GpuResourcePoolStats:
     acquisitions: int
     rejected_acquisitions: int
     wait_ns: int
+
+
+@dataclass(frozen=True)
+class CpuFramePoolStatistics:
+    """Cumulative native CPU pool allocation and lease observations.
+
+    Attributes
+    ----------
+    capacity, in_use, peak_in_use:
+        Configured, current and highest simultaneous lease counts.
+    memory_mode:
+        ``"pageable"`` or ``"page_locked"``.
+    allocation_bytes:
+        Total bytes owned by all fixed pool slots.
+    page_locked_bytes:
+        Page-rounded bytes locked by the OS, or zero for pageable pools.
+    acquisitions, rejected_acquisitions, wait_ns:
+        Successful acquisitions, capacity failures, and accumulated wait time.
+    lease_time_ns, peak_lease_time_ns:
+        Accumulated and longest completed lease durations.
+    """
+
+    capacity: int
+    in_use: int
+    peak_in_use: int
+    memory_mode: str
+    allocation_bytes: int
+    page_locked_bytes: int
+    acquisitions: int
+    rejected_acquisitions: int
+    wait_ns: int
+    lease_time_ns: int
+    peak_lease_time_ns: int

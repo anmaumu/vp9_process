@@ -163,7 +163,7 @@ C#は同じC ABI queryを`MkvCodecInfo.SelectBackend`として公開する。
 - `EXT-FRAME-008`: standard NumPyはCPU memoryとして扱い、GPU decodeからNumPyを要求した場合は`gpu_download`と必要な形式変換をcopy-pathへ記録する。
 - `EXT-FRAME-009`: CPU importはI420/NV12および対応するpacked形式のpointer/shape/strideを検証し、同期borrowまたはcompletion付き非同期leaseとしてencoderへ渡す。
 - `EXT-FRAME-010`: BGR/RGB等からcodec入力形式への変換はzero-copyとは報告しない。同一format/layoutを共有する場合だけCPU zero-copyとする。
-- `EXT-FRAME-011`: .NET同期borrowは呼出中だけmanaged arrayをpinし、非同期経路は長時間pinningを避けるnative/pinned poolを推奨・提供する。
+- `EXT-FRAME-011`: .NET同期borrowは呼出中だけmanaged arrayをpinし、非同期経路は長時間pinningを避ける固定容量native poolを推奨・提供する。poolはpageableまたはOS page-lockedを明示選択でき、page-lock不能時は黙ってpageableへfallbackせず失敗する。C ABI/C++/Python/.NETからlogical allocation、実page-locked byte数、occupancy、acquire wait/rejection、完了lease保持時間を取得できる。
 - `EXT-FRAME-012`: 外部CPU libraryが連続配列、alignmentまたは特定strideを要求して共有不能な場合、strict指定では失敗し、copy許可時だけ明示copyする。
 
 ### 5.5.2 GPU-resident Frame Interoperability

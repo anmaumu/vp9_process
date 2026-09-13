@@ -138,10 +138,10 @@
 - [x] synchronous `write_borrowed()` for I420/NV12/packed layout (`queue_size=0` initial slice)
 - [x] asynchronous `submit_borrowed()` submission lease, query/wait and mutation contract
 - [x] fixed-capacity native input pool with backpressure, generation checks and Python NumPy views
-- [ ] optional OS page-locked/pinned allocation mode and pinning metrics
+- [x] optional Windows/Linux OS page-locked allocation mode and native lease metrics
 - [x] .NET synchronous short pin and asynchronous unmanaged native-pool API
 - [x] .NET submission `WaitAsync` with timeout、cancellation、SafeHandle dispose-race protection
-- [ ] .NET optional OS page-locked pool mode and pin-duration/GC metrics
+- [ ] .NET page-locked poolとpin-duration metricsは実装済み。長時間GC pressure/memory soak認定
 - [ ] strict layout/stride/alignment validation and explicit copy-path fallback
 - [ ] GPU decode→NumPy download/conversion edge tracing
 - [ ] `TEST-CPUINT-001..007` lifetime, GC, fault, copy-path and soak qualification

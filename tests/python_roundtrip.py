@@ -231,6 +231,8 @@ def main() -> None:
 
         pool_path = os.path.join(directory, "native-pool.webm")
         pool = mkvcodec.CpuFramePool("i420", (width, height), capacity=1)
+        assert pool.statistics.capacity == 1
+        assert pool.statistics.memory_mode == "pageable"
         buffer = pool.acquire()
         first_generation = buffer.generation
         y, u, v = buffer.planes
@@ -270,6 +272,16 @@ def main() -> None:
         with mkvcodec.VideoCapture(pool_path, prefetch=0) as capture:
             assert capture.read_i420() is not None
             assert capture.read_i420() is None
+
+        with mkvcodec.CpuFramePool(
+            "i420", (width, height), capacity=1, page_locked=True
+        ) as locked_pool:
+            locked_stats = locked_pool.statistics
+            assert locked_stats.memory_mode == "page_locked"
+            assert locked_stats.page_locked_bytes >= locked_stats.allocation_bytes
+            with locked_pool.acquire() as locked_buffer:
+                locked_buffer.planes[0][:] = 64
+            assert locked_pool.statistics.lease_time_ns > 0
 
         pool_layouts = {
             "nv12": ((height, width), (height // 2, width)),

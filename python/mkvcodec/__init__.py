@@ -1,5 +1,6 @@
 from ._api import (
     BackendCapability, BorrowedCpuFrame, CpuBuffer, CpuFrame, CpuFramePool,
+    CpuFramePoolStatistics,
     GpuFrame, GpuInteropInfo, GpuPlane, GpuResourcePoolStats,
     IntelUsmFramePool, IntelUsmPoolSlot, backend_capabilities, select_backend,
     PipelineComponentMetrics, PipelineMetrics, PipelineStageMetrics, Submission,
@@ -9,6 +10,7 @@ from ._api import (
 
 __all__ = [
     "BackendCapability", "BorrowedCpuFrame", "CpuBuffer", "CpuFrame", "CpuFramePool",
+    "CpuFramePoolStatistics",
     "GpuFrame", "GpuInteropInfo", "GpuPlane", "GpuResourcePoolStats",
     "IntelUsmFramePool", "IntelUsmPoolSlot", "backend_capabilities", "select_backend",
     "PipelineComponentMetrics", "PipelineMetrics", "PipelineStageMetrics",

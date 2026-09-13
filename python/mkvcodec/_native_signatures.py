@@ -36,8 +36,19 @@ def configure(lib: ct.CDLL, t: dict[str, Any]) -> None:
         ct.POINTER(t["CpuFramePoolHandle"]),
     ]
     lib.mkvc_cpu_frame_pool_create.restype = ct.c_int
+    lib.mkvc_cpu_frame_pool_create_ex.argtypes = [
+        ct.POINTER(t["CpuFramePoolConfig"]),
+        ct.POINTER(t["CpuFramePoolOptions"]),
+        ct.POINTER(t["CpuFramePoolHandle"]),
+    ]
+    lib.mkvc_cpu_frame_pool_create_ex.restype = ct.c_int
     lib.mkvc_cpu_frame_pool_destroy.argtypes = [t["CpuFramePoolHandle"]]
     lib.mkvc_cpu_frame_pool_destroy.restype = None
+    lib.mkvc_cpu_frame_pool_get_stats.argtypes = [
+        t["CpuFramePoolHandle"],
+        ct.POINTER(t["CpuFramePoolStats"]),
+    ]
+    lib.mkvc_cpu_frame_pool_get_stats.restype = ct.c_int
     lib.mkvc_decoder_close.argtypes = [t["DecoderHandle"]]
     lib.mkvc_decoder_close.restype = ct.c_int
     lib.mkvc_decoder_create.argtypes = [

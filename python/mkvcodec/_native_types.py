@@ -15,6 +15,8 @@ MKVC_COPY_PATH_UNKNOWN = 0
 MKVC_COPY_PATH_CPU = 1
 MKVC_COPY_PATH_ZERO_COPY = 2
 MKVC_COPY_PATH_MIXED = 3
+MKVC_CPU_MEMORY_PAGEABLE = 0
+MKVC_CPU_MEMORY_PAGE_LOCKED = 1
 MKVC_FRAME_FIT_STRETCH = 0
 MKVC_FRAME_FIT_CONTAIN = 1
 MKVC_FRAME_FIT_COVER = 2
@@ -101,6 +103,33 @@ class CpuFramePoolConfig(ct.Structure):
         ("width", ct.c_uint32),
         ("height", ct.c_uint32),
         ("capacity", ct.c_uint32),
+    ]
+
+
+class CpuFramePoolOptions(ct.Structure):
+    _fields_ = [
+        ("struct_size", ct.c_uint32),
+        ("struct_version", ct.c_uint32),
+        ("memory_mode", ct.c_uint32),
+        ("reserved", ct.c_uint32),
+    ]
+
+
+class CpuFramePoolStats(ct.Structure):
+    _fields_ = [
+        ("struct_size", ct.c_uint32),
+        ("struct_version", ct.c_uint32),
+        ("capacity", ct.c_uint32),
+        ("in_use", ct.c_uint32),
+        ("peak_in_use", ct.c_uint32),
+        ("memory_mode", ct.c_uint32),
+        ("allocation_bytes", ct.c_uint64),
+        ("page_locked_bytes", ct.c_uint64),
+        ("acquisitions", ct.c_uint64),
+        ("rejected_acquisitions", ct.c_uint64),
+        ("wait_ns", ct.c_uint64),
+        ("lease_time_ns", ct.c_uint64),
+        ("peak_lease_time_ns", ct.c_uint64),
     ]
 
 
@@ -357,6 +386,8 @@ __all__ = [
     "MKVC_COPY_PATH_CPU",
     "MKVC_COPY_PATH_ZERO_COPY",
     "MKVC_COPY_PATH_MIXED",
+    "MKVC_CPU_MEMORY_PAGEABLE",
+    "MKVC_CPU_MEMORY_PAGE_LOCKED",
     "MKVC_FRAME_FIT_STRETCH",
     "MKVC_FRAME_FIT_CONTAIN",
     "MKVC_FRAME_FIT_COVER",
@@ -403,6 +434,8 @@ __all__ = [
     "CopyPolicy",
     "CpuBufferDesc",
     "CpuFramePoolConfig",
+    "CpuFramePoolOptions",
+    "CpuFramePoolStats",
     "DecoderConfig",
     "EncoderConfig",
     "FrameCopyOptions",

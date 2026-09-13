@@ -10,7 +10,7 @@ from . import _native as native
 from ._borrowed_cpu_frame import BorrowedCpuFrame
 from ._cpu_array import _BorrowedArray
 from ._submission import Submission
-from ._types import U8Plane
+from ._types import CpuFramePoolStatistics, U8Plane
 
 __all__ = ["BorrowedCpuFrame", "CpuBuffer", "CpuFramePool", "Submission"]
 
@@ -166,8 +166,12 @@ class CpuFramePool:
         Even ``(width, height)`` dimensions in pixels.
     capacity : int
         Maximum number of simultaneously leased slots.
+    page_locked : bool, default: False
+        Request OS page-locked native allocations. Creation fails explicitly
+        when the process lacks the required working-set or memlock allowance.
     """
-    def __init__(self, format: str, frame_size: tuple[int, int], capacity: int) -> None:
+    def __init__(self, format: str, frame_size: tuple[int, int], capacity: int,
+                 *, page_locked: bool = False) -> None:
         formats = {
             "i420": native.MKVC_PIXEL_FORMAT_I420,
             "nv12": native.MKVC_PIXEL_FORMAT_NV12,
@@ -185,17 +189,51 @@ class CpuFramePool:
         if (not isinstance(capacity, int) or capacity <= 0 or
                 capacity > 0xFFFFFFFF):
             raise ValueError("capacity must be a positive uint32 value")
+        if not isinstance(page_locked, bool):
+            raise ValueError("page_locked must be bool")
         config = native.CpuFramePoolConfig()
         config.struct_size, config.struct_version = ct.sizeof(config), 1
         config.pixel_format = formats[format]
         config.width, config.height, config.capacity = width, height, capacity
+        options = native.CpuFramePoolOptions()
+        options.struct_size, options.struct_version = ct.sizeof(options), 1
+        options.memory_mode = (native.MKVC_CPU_MEMORY_PAGE_LOCKED if page_locked
+                               else native.MKVC_CPU_MEMORY_PAGEABLE)
         self._handle = native.CpuFramePoolHandle()
-        native.check(native.lib.mkvc_cpu_frame_pool_create(
-            ct.byref(config), ct.byref(self._handle)
+        native.check(native.lib.mkvc_cpu_frame_pool_create_ex(
+            ct.byref(config), ct.byref(options), ct.byref(self._handle)
         ))
         self.format = format
         self.frame_size = frame_size
         self.capacity = capacity
+        self.page_locked = bool(page_locked)
+        self._last_statistics: CpuFramePoolStatistics | None = None
+
+    @property
+    def statistics(self) -> CpuFramePoolStatistics:
+        """CpuFramePoolStatistics: Current or final pool observations."""
+        if not self._handle:
+            if self._last_statistics is None:
+                raise RuntimeError("native CPU frame pool statistics are unavailable")
+            return self._last_statistics
+        value = native.CpuFramePoolStats()
+        value.struct_size, value.struct_version = ct.sizeof(value), 1
+        native.check(native.lib.mkvc_cpu_frame_pool_get_stats(
+            self._handle, ct.byref(value)
+        ))
+        modes = {native.MKVC_CPU_MEMORY_PAGEABLE: "pageable",
+                 native.MKVC_CPU_MEMORY_PAGE_LOCKED: "page_locked"}
+        return CpuFramePoolStatistics(
+            capacity=int(value.capacity), in_use=int(value.in_use),
+            peak_in_use=int(value.peak_in_use),
+            memory_mode=modes.get(value.memory_mode, f"unknown_{value.memory_mode}"),
+            allocation_bytes=int(value.allocation_bytes),
+            page_locked_bytes=int(value.page_locked_bytes),
+            acquisitions=int(value.acquisitions),
+            rejected_acquisitions=int(value.rejected_acquisitions),
+            wait_ns=int(value.wait_ns), lease_time_ns=int(value.lease_time_ns),
+            peak_lease_time_ns=int(value.peak_lease_time_ns),
+        )
 
     def acquire(self, timeout_ms: int = 0xFFFFFFFF) -> CpuBuffer:
         """Acquire a writable buffer, waiting for capacity when necessary.
@@ -249,6 +287,7 @@ class CpuFramePool:
     def close(self) -> None:
         """Close the pool after outstanding slots finish their leases."""
         if getattr(self, "_handle", None):
+            self._last_statistics = self.statistics
             native.lib.mkvc_cpu_frame_pool_destroy(self._handle)
             self._handle = native.CpuFramePoolHandle()
 

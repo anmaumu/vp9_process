@@ -28,6 +28,8 @@ _PYTHON_TYPES = {
     "mkvc_cpu_buffer_desc": "CpuBufferDesc",
     "mkvc_cpu_frame_pool": "CpuFramePoolHandle",
     "mkvc_cpu_frame_pool_config": "CpuFramePoolConfig",
+    "mkvc_cpu_frame_pool_options": "CpuFramePoolOptions",
+    "mkvc_cpu_frame_pool_stats": "CpuFramePoolStats",
     "mkvc_decoder": "DecoderHandle",
     "mkvc_decoder_config": "DecoderConfig",
     "mkvc_encoder": "EncoderHandle",
@@ -84,6 +86,8 @@ _DOTNET_TYPES = {
     "mkvc_copy_policy": "NativeCopyPolicy",
     "mkvc_cpu_buffer_desc": "MkvCpuBufferDescriptor",
     "mkvc_cpu_frame_pool_config": "NativeCpuFramePoolConfig",
+    "mkvc_cpu_frame_pool_options": "NativeCpuFramePoolOptions",
+    "mkvc_cpu_frame_pool_stats": "MkvCpuFramePoolStatistics",
     "mkvc_decoder_config": "NativeDecoderConfig",
     "mkvc_encoder_config": "NativeEncoderConfig",
     "mkvc_frame_process_config": "NativeFrameProcessConfig",
@@ -155,9 +159,14 @@ _DOTNET_ENUMS = {
         "MKVC_SUBMISSION_FAILED": "Failed",
         "MKVC_SUBMISSION_CANCELLED": "Cancelled",
     }),
+    "mkvc_cpu_memory_mode": ("MkvCpuMemoryMode", {
+        "MKVC_CPU_MEMORY_PAGEABLE": "Pageable",
+        "MKVC_CPU_MEMORY_PAGE_LOCKED": "PageLocked",
+    }),
 }
 _DOTNET_PUBLIC_STRUCTS = {
-    "mkvc_backend_capability", "mkvc_cpu_buffer_desc", "mkvc_gpu_frame_desc",
+    "mkvc_backend_capability", "mkvc_cpu_buffer_desc", "mkvc_cpu_frame_pool_stats",
+    "mkvc_gpu_frame_desc",
     "mkvc_gpu_native_handle_desc", "mkvc_gpu_resource_pool_stats",
     "mkvc_gpu_resource_reservation_desc", "mkvc_pipeline_metrics",
     "mkvc_pipeline_component_metrics",
@@ -169,6 +178,8 @@ _DOTNET_FIELD_TYPES = {
     ("mkvc_backend_capability", "codec"): "MkvCodecKind",
     ("mkvc_cpu_buffer_desc", "pixel_format"): "MkvPixelFormat",
     ("mkvc_cpu_frame_pool_config", "pixel_format"): "MkvPixelFormat",
+    ("mkvc_cpu_frame_pool_options", "memory_mode"): "MkvCpuMemoryMode",
+    ("mkvc_cpu_frame_pool_stats", "memory_mode"): "MkvCpuMemoryMode",
     ("mkvc_frame_process_config", "backend"): "MkvBackend",
     ("mkvc_gpu_frame_desc", "backend"): "MkvBackend",
     ("mkvc_gpu_frame_desc", "memory_type"): "MkvGpuMemoryType",
@@ -191,6 +202,8 @@ _DOTNET_FIELD_NAMES = {
     "codec_time_ns": "CodecTimeNanoseconds",
     "container_time_ns": "ContainerTimeNanoseconds",
     "gpu_wait_time_ns": "GpuWaitTimeNanoseconds",
+    "lease_time_ns": "LeaseTimeNanoseconds",
+    "peak_lease_time_ns": "PeakLeaseTimeNanoseconds",
 }
 _DOTNET_HANDLES = {
     "mkvc_cpu_buffer": "MkvCpuBufferHandle",

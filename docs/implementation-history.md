@@ -9,6 +9,19 @@
 [implementation-status.md](implementation-status.md)を使用する。この履歴には
 過去の判断、測定値、詳細なverification matrixを粒度を落とさず保持する。
 
+## 2026-09-13: Optional OS page-locked CPU pool
+
+Added ABI-compatible `create_ex` and statistics APIs instead of extending the
+existing v1 pool configuration. Pageable remains the default. Explicit
+page-locked mode uses dedicated `VirtualAlloc` + `VirtualLock` regions on
+Windows and dedicated `mmap` + `mlock` regions on Linux, preventing unrelated
+heap neighbors from being affected by page-granularity lock/unlock operations.
+Failure is explicit and never silently falls back to pageable memory. C++,
+Python and .NET expose logical bytes, page-rounded locked bytes, occupancy,
+acquisition/rejection/wait counters and completed lease duration. Constant
+native, Python and .NET tests cover real small page-locked allocations and
+close-time snapshots; long-duration .NET GC-pressure qualification remains.
+
 ## 2026-09-13: Exclusive pipeline component metrics
 
 Added an additive, versioned component-metrics ABI for conversion,

@@ -31,7 +31,8 @@ decode結果をNumPy/OpenCV、CuPy/DLPack、D3D11、VA-API等へexportし、外�
 - CPU owned NumPy APIと現在のCPU convenience processingは安全な既定機能として残します。
 - borrowed CPU decode、同期/非同期encode、固定容量native input poolはC ABI/Pythonへ
   実装済みです。.NETも同じunmanaged poolとcompletion submissionを利用できます。
-  OS page-lock付きpoolは未実装です。GPU processed-resource importはCUDA pointer/
+  OS page-lock付きpoolはWindows/Linuxで明示選択でき、固定容量・実lock byte数・
+  occupancy・待機・lease保持時間を取得できます。GPU processed-resource importはCUDA pointer/
   CUDA array（完了済みまたはproducer CUDA event付き）と、oneVPL runtime capability
   対応時のIntel D3D11/VA shared surface adapterを実装済みです。
 
@@ -127,7 +128,9 @@ with mkvcodec.VideoWriter(
 全ownerの解放とencode完了までは同じslotを再取得できません。
 
 ```python
-pool = mkvcodec.CpuFramePool("i420", (1920, 1080), capacity=4)
+pool = mkvcodec.CpuFramePool(
+    "i420", (1920, 1080), capacity=4, page_locked=True,
+)
 with mkvcodec.VideoWriter(
     "pooled.webm", fps=30, frame_size=(1920, 1080), queue_size=4,
 ) as writer:
@@ -138,6 +141,7 @@ with mkvcodec.VideoWriter(
     buffer.close()       # submissionが完了するまではslotをnative側で保持
     submission.wait()
 pool.close()
+print(pool.statistics)  # close後も最終snapshotを取得可能
 ```
 
 C++17では`mkvcodec/mkvcodec.hpp`のheader-only RAII facadeを利用できます。公開binary

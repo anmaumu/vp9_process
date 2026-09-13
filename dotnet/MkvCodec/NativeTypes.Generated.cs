@@ -69,6 +69,12 @@ public enum MkvSubmissionStatus : uint
     Cancelled = 3,
 }
 
+public enum MkvCpuMemoryMode : uint
+{
+    Pageable = 0,
+    PageLocked = 1,
+}
+
 [StructLayout(LayoutKind.Sequential)]
 public struct MkvBackendCapability
 {
@@ -112,6 +118,33 @@ internal struct NativeCpuFramePoolConfig
     internal uint Width;
     internal uint Height;
     internal uint Capacity;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+internal struct NativeCpuFramePoolOptions
+{
+    internal uint StructSize;
+    internal uint StructVersion;
+    internal MkvCpuMemoryMode MemoryMode;
+    internal uint Reserved;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public struct MkvCpuFramePoolStatistics
+{
+    public uint StructSize;
+    public uint StructVersion;
+    public uint Capacity;
+    public uint InUse;
+    public uint PeakInUse;
+    public MkvCpuMemoryMode MemoryMode;
+    public ulong AllocationBytes;
+    public ulong PageLockedBytes;
+    public ulong Acquisitions;
+    public ulong RejectedAcquisitions;
+    public ulong WaitNanoseconds;
+    public ulong LeaseTimeNanoseconds;
+    public ulong PeakLeaseTimeNanoseconds;
 }
 
 [StructLayout(LayoutKind.Sequential)]

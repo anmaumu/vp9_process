@@ -43,8 +43,20 @@ using (var gpuPool = new MkvGpuResourcePool(1))
 }
 if (Marshal.SizeOf<MkvCpuBufferDescriptor>() != 32)
     throw new InvalidOperationException("MkvCpuBufferDescriptor ABI layout mismatch");
+if (Marshal.SizeOf<MkvCpuFramePoolStatistics>() != 80)
+    throw new InvalidOperationException("MkvCpuFramePoolStatistics ABI layout mismatch");
 if (Marshal.SizeOf(typeof(NativeCopyPolicyForSmoke)) != 20)
     throw new InvalidOperationException("copy policy ABI layout mismatch");
+
+var lockedCpuPool = new MkvCpuFramePool(
+    MkvPixelFormat.I420, 64, 48, capacity: 1, pageLocked: true);
+using (MkvCpuBuffer lockedBuffer = lockedCpuPool.Acquire())
+    lockedBuffer.GetPlane(0).Fill(32);
+lockedCpuPool.Dispose();
+if (lockedCpuPool.Statistics.MemoryMode != MkvCpuMemoryMode.PageLocked ||
+    lockedCpuPool.Statistics.PageLockedBytes < lockedCpuPool.Statistics.AllocationBytes ||
+    lockedCpuPool.Statistics.LeaseTimeNanoseconds == 0)
+    throw new InvalidOperationException("page-locked CPU pool metrics mismatch");
 
 MkvVersion version = MkvCodecInfo.Version;
 if (version.AbiVersion != 1 || version.StructSize != 20)
@@ -162,6 +174,10 @@ try
         buffer.GetPlane(2).Fill(128);
         if (pool.TryAcquire(out _))
             throw new InvalidOperationException("Native CPU pool exceeded capacity");
+        if (pool.Statistics.InUse != 1 || pool.Statistics.PeakInUse != 1 ||
+            pool.Statistics.MemoryMode != MkvCpuMemoryMode.Pageable ||
+            pool.Statistics.AllocationBytes != width * height * 3 / 2)
+            throw new InvalidOperationException("Native CPU pool statistics mismatch");
         using MkvSubmission submission = writer.Submit(buffer, pts: 0);
         buffer.Dispose();
         using (var cancelled = new CancellationTokenSource())

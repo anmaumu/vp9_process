@@ -31,8 +31,19 @@ internal static partial class NativeMethods
         out MkvCpuFramePoolHandle out_pool);
 
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern MkvResult mkvc_cpu_frame_pool_create_ex(
+        ref NativeCpuFramePoolConfig config,
+        ref NativeCpuFramePoolOptions options,
+        out MkvCpuFramePoolHandle out_pool);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
     internal static extern void mkvc_cpu_frame_pool_destroy(
         nint pool);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern MkvResult mkvc_cpu_frame_pool_get_stats(
+        MkvCpuFramePoolHandle pool,
+        ref MkvCpuFramePoolStatistics out_stats);
 
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
     internal static extern MkvResult mkvc_decoder_close(
