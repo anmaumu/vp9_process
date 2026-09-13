@@ -11,7 +11,7 @@
 
 ## 2026-09-13: .NET page-locked pool GC soak harness
 
-Status: `IMPLEMENTED` (short smoke passed; 30-minute release qualification pending)
+Status: `QUALIFIED` (short CI smoke and 30-minute Windows release soak passed)
 
 Added a configurable `.NET 8` soak executable which keeps asynchronous encoder
 submissions alive while generating moving managed allocations and forcing full,
@@ -23,6 +23,12 @@ short delayed-encoder smoke to guarantee overlapping native leases; the same
 executable accepts `--duration-seconds 1800` for release qualification.
 An independent size-bounded Python gate re-parses the persisted report and
 rejects missing, partial, non-finite, over-budget, pinned, or leaked-slot data.
+The Windows release run completed **1800.108 seconds / 107,178 frames** with
+capacity/peak/final occupancy **4/4/0**, 49,152 page-locked bytes, managed
+pinned-object growth **0**, managed-heap growth **16,616 bytes**, and process
+private-memory growth **1,884,160 bytes** (peak 25,731,072). All values passed
+the independent gate with `--minimum-seconds 1800`; evidence is retained at
+`build/qualification/dotnet_cpu_pool_soak_30m.json` on the qualification host.
 
 ## 2026-09-13: Optional OS page-locked CPU pool
 

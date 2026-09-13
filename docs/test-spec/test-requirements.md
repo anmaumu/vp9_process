@@ -196,6 +196,9 @@ wheel/NuGetへ同梱せず、実行時version/source revisionを成果ととも�
 `validate_dotnet_pool_soak_report.py`がsize上限とschemaを確認し、要求時間、全GC世代、
 resource budget、managed pin増分0、page-lock byte、最終slot解放、peak occupancyを
 独立に再検査する。field欠落、途中・failed report、NaN/Infinity、boolの数値扱いは拒否する。
+Windowsの30分認定値は1800.108秒、107,178 frames、capacity/peak/final
+occupancy=4/4/0、managed pinned-object増分0、managed heap増分16,616 bytes、
+process private-memory増分1,884,160 bytesで、独立gateを通過している。
 
 ### 1.5 CPU Convenience Processing
 

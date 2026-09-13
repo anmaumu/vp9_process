@@ -142,7 +142,7 @@
 - [x] .NET synchronous short pin and asynchronous unmanaged native-pool API
 - [x] .NET submission `WaitAsync` with timeout、cancellation、SafeHandle dispose-race protection
 - [x] .NET page-locked poolのGC pressure/memory soak harness、bounded JSON、短時間CI smoke
-- [ ] .NET page-locked poolの30分release soak認定
+- [x] .NET page-locked poolの30分release soak認定（107,178 frames、managed pin増分0、最終slot 0）
 - [ ] strict layout/stride/alignment validation and explicit copy-path fallback
 - [ ] GPU decode→NumPy download/conversion edge tracing
 - [ ] `TEST-CPUINT-001..007` lifetime, GC, fault, copy-path and soak qualification
