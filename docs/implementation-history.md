@@ -9,6 +9,19 @@
 [implementation-status.md](implementation-status.md)を使用する。この履歴には
 過去の判断、測定値、詳細なverification matrixを粒度を落とさず保持する。
 
+## 2026-09-13: .NET page-locked pool GC soak harness
+
+Status: `IMPLEMENTED` (short smoke passed; 30-minute release qualification pending)
+
+Added a configurable `.NET 8` soak executable which keeps asynchronous encoder
+submissions alive while generating moving managed allocations and forcing full,
+compacting collections. Its bounded JSON records Gen0/1/2 collections, managed
+heap and process-private memory, managed pinned-object counts, and native pool
+occupancy/wait/lease metrics. Acceptance fails on resource-growth budgets,
+persistent managed pins, leaked slots, or capacity violations. CTest runs a
+short delayed-encoder smoke to guarantee overlapping native leases; the same
+executable accepts `--duration-seconds 1800` for release qualification.
+
 ## 2026-09-13: Optional OS page-locked CPU pool
 
 Added ABI-compatible `create_ex` and statistics APIs instead of extending the

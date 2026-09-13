@@ -62,6 +62,9 @@ NVIDIA AV1対応GPU検証、
 .NET 8 bindingではABI version/capability query、型付きerror、SafeHandleに加え、
 `IDisposable`な`MkvVideoWriter`/`MkvVideoCapture`、owned I420 frame、managed arrayの
 長時間pinningを避ける`MkvCpuFramePool`/`MkvSubmission`を実装済みです。
+`.NET`向けには、非同期submission中の強制GC、managed pin数、heap/private memory、
+pool occupancyをJSONへ記録する`MkvCodec.PoolSoak`も用意しています。通常CIは短時間、
+release認定では`--duration-seconds 1800`を指定します。
 利用可能と報告される機能は、実装済みbackendだけに限定します。
 Intel capabilityはruntime Queryに成功したcodec/directionだけを公開します。
 Windows NVIDIA VP9 decodeを実GPU検証済みです。Windows Intel GPU検証は未完です。
