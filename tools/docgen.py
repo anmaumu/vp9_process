@@ -337,6 +337,8 @@ def generate(output: Path) -> None:
             output / "implementation-status.md",
         ROOT / "docs" / "implementation-history.md":
             output / "implementation-history.md",
+        ROOT / "docs" / "release-closure.md":
+            output / "release-closure.md",
         ROOT / "docs" / "docgen.md": output / "docgen.md",
         ROOT / "docs" / "abi-governance.md": output / "abi-governance.md",
         ROOT / "LICENSE_POLICY.md": output / "license-policy.md",
@@ -349,7 +351,8 @@ def generate(output: Path) -> None:
         specification_index,
         read_text(ROOT / "docs" / "README.md")
         .replace("(implementation-status.md)", "(../implementation-status.md)")
-        .replace("(implementation-history.md)", "(../implementation-history.md)"),
+        .replace("(implementation-history.md)", "(../implementation-history.md)")
+        .replace("(release-closure.md)", "(../release-closure.md)"),
     )
 
     gate_metrics = gate["metrics"]

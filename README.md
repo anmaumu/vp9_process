@@ -15,6 +15,9 @@ H.264とHEVCは対象外です。
 出力拡張子がcontainerを決定し、`.webm`はEBML DocType `webm`、`.mkv`は
 `matroska`として生成します。入力時も拡張子とDocTypeの矛盾をエラーにします。
 
+v0.1の必要残件は[release closure](docs/release-closure.md)へ集約しています。
+詳細backlogの未完了行すべてをrelease blockerにはしません。
+
 ## Frame interopの方針
 
 このlibraryはcodec/containerとCPU/GPU memoryの所有権・同期を担当し、GPU上の

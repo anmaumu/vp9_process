@@ -3,6 +3,10 @@
 仕様IDは外部仕様 `EXT`、受入条件 `AC`、内部仕様 `INT`、テスト `TEST` の順で
 追跡する。詳細仕様書の移管後もこの規則を維持する。
 
+この文書は詳細backlogを保持する。v0.1に必要な残件と完成条件は
+[release-closure.md](release-closure.md)を唯一の正本とし、この文書の未完了行を
+自動的にrelease blockerとは扱わない。
+
 ## Phase 0: foundation
 
 - CMakeによるWindows/Linux shared library build

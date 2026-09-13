@@ -9,6 +9,18 @@
 [implementation-status.md](implementation-status.md)を使用する。この履歴には
 過去の判断、測定値、詳細なverification matrixを粒度を落とさず保持する。
 
+## 2026-09-13: v0.1 release closure normalization
+
+Status: `DOCUMENTED`
+
+Consolidated the expanding detailed backlog into seven release-closure items
+with explicit acceptance and waiver rules. 10-bit, seek, built-in GPU image
+processing, exhaustive 4K/device matrices, complete driver-internal copy proof,
+and real driver-reset qualification remain recorded but no longer block v0.1.
+Unavailable Intel Windows or NVIDIA AV1 hardware can be closed by marking that
+backend preview/unqualified instead of leaving the whole release indefinitely
+open. `docs/release-closure.md` is the sole v0.1 remaining-work authority.
+
 ## 2026-09-13: .NET page-locked pool GC soak harness
 
 Status: `QUALIFIED` (short CI smoke and 30-minute Windows release soak passed)

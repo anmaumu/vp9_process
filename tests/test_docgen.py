@@ -32,6 +32,7 @@ class DocgenTests(unittest.TestCase):
                 "specification/external.md",
                 "implementation-status.md",
                 "implementation-history.md",
+                "release-closure.md",
                 "docgen.md",
                 "abi-governance.md",
             )
@@ -44,6 +45,10 @@ class DocgenTests(unittest.TestCase):
             self.assertIn("BackendCapability", python_api)
             self.assertIn("backend_capabilities", python_api)
             self.assertIn("Current or final encoder pipeline counters.", python_api)
+            specification_index = (
+                output / "specification" / "index.md"
+            ).read_text(encoding="utf-8")
+            self.assertIn("(../release-closure.md)", specification_index)
 
     def test_all_c_abi_symbols_have_doxygen_comments(self) -> None:
         docgen.validate()

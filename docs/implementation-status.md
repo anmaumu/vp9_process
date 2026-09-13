@@ -4,13 +4,14 @@
 外部仕様・内部仕様・テスト要求・traceabilityを正本とし、実装過程の詳細、
 過去時点の未実装表現、測定値、完全なverification matrixは
 [implementation-history.md](implementation-history.md)に保持する。
+v0.1に必要な残件は[release-closure.md](release-closure.md)だけを正本とする。
 
 ## Qualification summary
 
 | Environment | Current suite | Result |
 |---|---:|---|
 | Windows x64 / NVIDIA-enabled build | 38 tests | pass、GPU capability不足による想定内skip 2 |
-| Windows x64 / CPU VP9+AV1、Intel、NVIDIA同時build | 33 tests | pass、実hardware capability不足による想定内skip 8 |
+| Windows x64 / CPU VP9+AV1、Intel、NVIDIA同時build | 36 tests | pass、実hardware capability不足による想定内skip 8 |
 | Linux x64 / Intel GPU required | 53 tests | pass、C++/.NET GPU round-tripを含む |
 | Linux x64 / CPU VP9 and AV1 | 32 tests | pass |
 | GitHub Ubuntu / ASan+UBSan | 27 tests + 60秒libFuzzer | pass、11,888,127 inputs |
@@ -114,11 +115,10 @@ GPU vendor driver/runtimeはwheel/NuGetへ同梱せず、実行環境側の責�
 
 ## Remaining acceptance work
 
-1. AV1対応NVIDIA GPUでNVDEC/NVENC positive GPU-resident transcodeを認定する。
-2. Intel Windows D3D11の実機end-to-endとmanaged/C++ hardware round-tripを認定する。
-3. Intel direct oneVPL USM consumption、cross-context fault、30分pool soakを完了する。
-4. project LICENSEを決定し、全backend構成の配布物について最終legal reviewを行う。
-5. 性能baselineと許容regression thresholdを承認する。
+残件は[release-closure.md](release-closure.md)の`RC-01..07`へ統合した。
+10-bit、seek、全driver内部copy証明、全GPU世代・4K matrix等はv0.1完成条件から外す。
+実機を用意できないIntel Windows/NVIDIA AV1は、認定するかpreviewとして対応表から
+外すかを選択し、無期限のrelease blockerにはしない。
 
 ## Verified dependency baseline
 

@@ -2,6 +2,7 @@
 
 実装の現在地は [implementation-status.md](implementation-status.md)、過去の判断・
 測定・詳細checkpointは [implementation-history.md](implementation-history.md) を参照する。
+v0.1に必要な残件と終了条件は [release-closure.md](release-closure.md) を正本とする。
 
 このディレクトリを、MKVCodecの外部仕様・内部仕様・受け入れ条件・テスト要求の正本とする。
 
@@ -13,6 +14,7 @@
 | `internal-spec/system-design.md` | 外部仕様を実現するArchitecture、処理、制約 |
 | `test-spec/test-requirements.md` | TEST ID単位の検証条件と実行環境 |
 | `traceability.md` | `EXT → AC → INT → TEST` の追跡表 |
+| `release-closure.md` | v0.1に必要な残件、完了条件、明示的な延期範囲 |
 | `docgen.md` | 自動文書生成の入力、出力、検証、CI規則 |
 | `design-model.json` | 同じ追跡情報の機械可読な正規化表現 |
 | `quality-gate.json` | 仕様品質ゲートの結果 |
