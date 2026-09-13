@@ -24,6 +24,7 @@ DOTNET_END_MARKER = "    // END MKVC GENERATED PINVOKE DECLARATIONS"
 _PYTHON_TYPES = {
     "mkvc_backend_capability": "BackendCapability",
     "mkvc_copy_policy": "CopyPolicy",
+    "mkvc_cpu_layout_policy": "CpuLayoutPolicy",
     "mkvc_cpu_buffer": "CpuBufferHandle",
     "mkvc_cpu_buffer_desc": "CpuBufferDesc",
     "mkvc_cpu_frame_pool": "CpuFramePoolHandle",
@@ -84,6 +85,7 @@ _OPAQUE_TYPES = {
 _DOTNET_TYPES = {
     "mkvc_backend_capability": "MkvBackendCapability",
     "mkvc_copy_policy": "NativeCopyPolicy",
+    "mkvc_cpu_layout_policy": "NativeCpuLayoutPolicy",
     "mkvc_cpu_buffer_desc": "MkvCpuBufferDescriptor",
     "mkvc_cpu_frame_pool_config": "NativeCpuFramePoolConfig",
     "mkvc_cpu_frame_pool_options": "NativeCpuFramePoolOptions",
@@ -163,6 +165,10 @@ _DOTNET_ENUMS = {
         "MKVC_CPU_MEMORY_PAGEABLE": "Pageable",
         "MKVC_CPU_MEMORY_PAGE_LOCKED": "PageLocked",
     }),
+    "mkvc_cpu_layout_mode": ("MkvCpuLayoutMode", {
+        "MKVC_CPU_LAYOUT_ALLOW_COPY": "AllowCopy",
+        "MKVC_CPU_LAYOUT_STRICT": "Strict",
+    }),
 }
 _DOTNET_PUBLIC_STRUCTS = {
     "mkvc_backend_capability", "mkvc_cpu_buffer_desc", "mkvc_cpu_frame_pool_stats",
@@ -180,6 +186,7 @@ _DOTNET_FIELD_TYPES = {
     ("mkvc_cpu_frame_pool_config", "pixel_format"): "MkvPixelFormat",
     ("mkvc_cpu_frame_pool_options", "memory_mode"): "MkvCpuMemoryMode",
     ("mkvc_cpu_frame_pool_stats", "memory_mode"): "MkvCpuMemoryMode",
+    ("mkvc_cpu_layout_policy", "mode"): "MkvCpuLayoutMode",
     ("mkvc_frame_process_config", "backend"): "MkvBackend",
     ("mkvc_gpu_frame_desc", "backend"): "MkvBackend",
     ("mkvc_gpu_frame_desc", "memory_type"): "MkvGpuMemoryType",

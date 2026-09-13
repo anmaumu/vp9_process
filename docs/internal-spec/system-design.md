@@ -331,7 +331,7 @@ pool slot lease -> producer submit -> producer completion
 - `INT-CPUINT-003`: 同期borrowed encodeは呼出中だけpointerを参照し、codecがinputを読了してからreturnする。
 - `INT-CPUINT-004`: 非同期borrowed encodeはsubmission objectがPython/.NET/native ownerをcompletionまで保持し、完了・cancel・failure時に一度だけ解放する。
 - `INT-CPUINT-005`: .NETおよび高throughput非同期経路は長時間managed pinningを避け、固定容量native pool、backpressure、generation検査を使う。page-locked modeは通常heapの一部をlockせず、Windowsでは`VirtualAlloc`+`VirtualLock`、Linuxでは専用`mmap`+`mlock`領域をplane単位で確保する。失敗時は`NOT_SUPPORTED`として全確保済み領域を解放し、pageableへ暗黙fallbackしない。pool metricsはlogical bytes、page-rounded locked bytes、occupancy、wait/rejection、完了lease durationをversioned snapshotで公開する。
-- `INT-CPUINT-006`: import時にplane count、dtype、shape、stride、alignment、format、writabilityを検証し、strict時は共有不能layoutを拒否し、copy許可時だけ明示copyする。
+- `INT-CPUINT-006`: import時にplane count、dtype、shape、stride、alignment、format、writabilityを検証し、strict時は共有不能layoutを拒否し、copy許可時だけ明示copyする。共通native validatorがformatからplane数/row bytesを導出し、全CPU submission入口でencoder寸法、pointer、strideをqueue取得前に検査する。strictはcanonical packed plane、未使用field=0、指定2冪alignmentも検査する。allow-copyは有効なrow-strided inputをcodec staging/owned queueへ正規化する。policyはframe受理後に変更できない。PythonはC ABIで表現できないnegative/non-unit element strideだけを事前にcontiguous copyし、そのownerをnative call/submission完了まで保持する。
 - `INT-CPUINT-007`: GPU frameからstandard NumPyへの変換は必ず`cpu_readback`を記録し、BGR等への形式変換allocationも別edgeとして記録する。
 - `INT-CPUINT-008`: native finalizer/release callbackはinterpreter shutdown後にPython APIを呼ばず、exceptionを越境させない。
 

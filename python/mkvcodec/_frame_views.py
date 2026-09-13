@@ -33,6 +33,7 @@ def _build_view(
     for index, plane in enumerate(planes):
         view.planes[index] = _plane_pointer(plane)
         view.strides[index] = plane.strides[0]
+    view._plane_owners = planes
     return view
 
 
@@ -41,15 +42,21 @@ def _validate_planes(
     expected: tuple[tuple[int, ...], ...],
     *,
     label: str,
-) -> None:
+    allow_copy: bool,
+) -> tuple[U8Plane, ...]:
     """Reject layouts that the native row-stride ABI cannot represent."""
+    normalized: list[U8Plane] = []
     for plane, shape in zip(planes, expected):
         if plane.dtype != np.uint8 or plane.shape != shape:
             raise ValueError(f"{label} plane must be uint8 with shape {shape}")
-        if plane.strides[0] <= 0 or plane.strides[-1] != 1:
-            raise ValueError(f"{label} planes require positive packed element stride")
-        if plane.ndim == 3 and plane.strides[1] != plane.shape[2]:
-            raise ValueError(f"{label} packed frame must have interleaved channels")
+        valid = plane.strides[0] > 0 and plane.strides[-1] == 1
+        valid = valid and (plane.ndim != 3 or plane.strides[1] == plane.shape[2])
+        if not valid:
+            if not allow_copy:
+                raise ValueError(f"{label} planes require positive packed element stride")
+            plane = np.ascontiguousarray(plane)
+        normalized.append(plane)
+    return tuple(normalized)
 
 
 def make_i420_view(
@@ -60,6 +67,7 @@ def make_i420_view(
     width: int,
     height: int,
     pts: int,
+    allow_copy: bool = False,
 ) -> native.FrameView:
     """Validate an I420 plane tuple and return its borrowed native view."""
     planes = tuple(np.asarray(plane) for plane in (y, u, v))
@@ -68,7 +76,7 @@ def make_i420_view(
         (height // 2, width // 2),
         (height // 2, width // 2),
     )
-    _validate_planes(planes, expected, label="I420")
+    planes = _validate_planes(planes, expected, label="I420", allow_copy=allow_copy)
     return _build_view(
         planes,
         pixel_format=native.MKVC_PIXEL_FORMAT_I420,
@@ -85,11 +93,12 @@ def make_nv12_view(
     width: int,
     height: int,
     pts: int,
+    allow_copy: bool = False,
 ) -> native.FrameView:
     """Validate an NV12 plane tuple and return its borrowed native view."""
     planes = tuple(np.asarray(plane) for plane in (y, uv))
     expected = ((height, width), (height // 2, width))
-    _validate_planes(planes, expected, label="NV12")
+    planes = _validate_planes(planes, expected, label="NV12", allow_copy=allow_copy)
     return _build_view(
         planes,
         pixel_format=native.MKVC_PIXEL_FORMAT_NV12,
@@ -107,10 +116,13 @@ def make_packed_view(
     channels: int,
     pixel_format: int,
     pts: int,
+    allow_copy: bool = False,
 ) -> native.FrameView:
     """Validate a packed image and return its borrowed native view."""
     planes = (np.asarray(array),)
-    _validate_planes(planes, ((height, width, channels),), label="packed")
+    planes = _validate_planes(
+        planes, ((height, width, channels),), label="packed", allow_copy=allow_copy
+    )
     return _build_view(
         planes,
         pixel_format=pixel_format,
@@ -127,6 +139,7 @@ def make_borrowed_view(
     width: int,
     height: int,
     pts: int,
+    allow_copy: bool = False,
 ) -> tuple[native.FrameView, tuple[U8Plane, ...]]:
     """Validate any supported borrowed format and retain its NumPy owners."""
     if format == "i420":
@@ -157,7 +170,7 @@ def make_borrowed_view(
         expected = ((height, width, channels),)
     else:
         raise ValueError("format must be i420, nv12, bgr, rgb, or bgra")
-    _validate_planes(planes, expected, label="borrowed")
+    planes = _validate_planes(planes, expected, label="borrowed", allow_copy=allow_copy)
     return (
         _build_view(
             planes,

@@ -1,12 +1,12 @@
-#include "mkvcodec/mkvc.h"
-
 #include <algorithm>
 #include <cassert>
-#include <cstdint>
 #include <cmath>
+#include <cstdint>
 #include <filesystem>
 #include <string>
 #include <vector>
+
+#include "mkvcodec/mkvc.h"
 
 namespace {
 
@@ -62,11 +62,19 @@ int main(int argc, char** argv) {
     copy_policy.allow_gpu_copy = 1;
     copy_policy.allow_cpu_copy = 1;
     require_ok(mkvc_encoder_set_copy_policy(encoder, &copy_policy));
+    mkvc_cpu_layout_policy layout_policy{};
+    layout_policy.struct_size = sizeof(layout_policy);
+    layout_policy.struct_version = 1;
+    layout_policy.mode = MKVC_CPU_LAYOUT_STRICT;
+    layout_policy.required_alignment = 3;
+    assert(mkvc_encoder_set_cpu_layout_policy(encoder, &layout_policy) ==
+           MKVC_ERROR_INVALID_ARGUMENT);
+    layout_policy.required_alignment = 16;
+    require_ok(mkvc_encoder_set_cpu_layout_policy(encoder, &layout_policy));
     mkvc_pipeline_metrics invalid_metrics{};
     invalid_metrics.struct_size = sizeof(invalid_metrics) - 1;
     invalid_metrics.struct_version = 1;
-    assert(mkvc_encoder_get_metrics(encoder, &invalid_metrics) ==
-           MKVC_ERROR_INVALID_ARGUMENT);
+    assert(mkvc_encoder_get_metrics(encoder, &invalid_metrics) == MKVC_ERROR_INVALID_ARGUMENT);
 
     mkvc_submission* async_borrowed = nullptr;
     mkvc_frame_view invalid_borrowed{};
@@ -75,8 +83,7 @@ int main(int argc, char** argv) {
     invalid_borrowed.pixel_format = MKVC_PIXEL_FORMAT_I420;
     invalid_borrowed.width = width;
     invalid_borrowed.height = height;
-    assert(mkvc_encoder_submit_frame_borrowed(
-               encoder, &invalid_borrowed, &async_borrowed) ==
+    assert(mkvc_encoder_submit_frame_borrowed(encoder, &invalid_borrowed, &async_borrowed) ==
            MKVC_ERROR_INVALID_ARGUMENT);
     assert(async_borrowed == nullptr);
 
@@ -92,20 +99,27 @@ int main(int argc, char** argv) {
     borrowed_probe.strides[0] = width;
     borrowed_probe.strides[1] = width / 2;
     borrowed_probe.strides[2] = width / 2;
-    assert(mkvc_encoder_write_frame_borrowed(encoder, &borrowed_probe) ==
-           MKVC_ERROR_NOT_SUPPORTED);
+    mkvc_frame_view padded_probe = borrowed_probe;
+    padded_probe.strides[0] = width + 1;
+    assert(mkvc_encoder_write_frame(encoder, &padded_probe) == MKVC_ERROR_INVALID_ARGUMENT);
+    mkvc_frame_view misaligned_probe = borrowed_probe;
+    ++misaligned_probe.planes[0];
+    assert(mkvc_encoder_write_frame(encoder, &misaligned_probe) == MKVC_ERROR_INVALID_ARGUMENT);
+    mkvc_frame_view extra_plane_probe = borrowed_probe;
+    extra_plane_probe.planes[3] = image.data();
+    assert(mkvc_encoder_write_frame(encoder, &extra_plane_probe) == MKVC_ERROR_INVALID_ARGUMENT);
+    assert(mkvc_encoder_write_frame_borrowed(encoder, &borrowed_probe) == MKVC_ERROR_NOT_SUPPORTED);
 
     for (uint32_t index = 0; index < frame_count; ++index) {
         for (uint32_t row = 0; row < height; ++row) {
             for (uint32_t column = 0; column < width; ++column) {
-                image[row * width + column] = static_cast<uint8_t>(
-                    (column * 3 + row * 2 + index * 7) & 0xff);
+                image[row * width + column] =
+                    static_cast<uint8_t>((column * 3 + row * 2 + index * 7) & 0xff);
             }
         }
         std::fill(image.begin() + y_size, image.begin() + y_size + uv_size,
                   static_cast<uint8_t>(96 + index));
-        std::fill(image.begin() + y_size + uv_size, image.end(),
-                  static_cast<uint8_t>(160 - index));
+        std::fill(image.begin() + y_size + uv_size, image.end(), static_cast<uint8_t>(160 - index));
 
         mkvc_frame_view frame{};
         frame.struct_size = sizeof(frame);
@@ -121,23 +135,19 @@ int main(int argc, char** argv) {
         frame.strides[2] = width / 2;
         frame.pts = -1;
         if (index == frame_count - 1) {
-            require_ok(mkvc_encoder_submit_frame_borrowed(
-                encoder, &frame, &async_borrowed));
+            require_ok(mkvc_encoder_submit_frame_borrowed(encoder, &frame, &async_borrowed));
             assert(async_borrowed != nullptr);
             uint32_t submission_status = 99;
-            require_ok(mkvc_submission_query(
-                async_borrowed, &submission_status));
+            require_ok(mkvc_submission_query(async_borrowed, &submission_status));
             assert(submission_status == MKVC_SUBMISSION_PENDING ||
                    submission_status == MKVC_SUBMISSION_COMPLETE);
             require_ok(mkvc_submission_wait(async_borrowed, 5000));
-            require_ok(mkvc_submission_query(
-                async_borrowed, &submission_status));
+            require_ok(mkvc_submission_query(async_borrowed, &submission_status));
             assert(submission_status == MKVC_SUBMISSION_COMPLETE);
             mkvc_submission_release(async_borrowed);
             async_borrowed = nullptr;
         } else {
-            const mkvc_result try_result =
-                mkvc_encoder_try_write_frame(encoder, &frame);
+            const mkvc_result try_result = mkvc_encoder_try_write_frame(encoder, &frame);
             if (try_result == MKVC_WOULD_BLOCK) {
                 require_ok(mkvc_encoder_write_frame(encoder, &frame));
             } else {
@@ -145,7 +155,8 @@ int main(int argc, char** argv) {
             }
         }
         if (index == 0) {
-            assert(mkvc_encoder_set_copy_policy(encoder, &copy_policy) ==
+            assert(mkvc_encoder_set_copy_policy(encoder, &copy_policy) == MKVC_ERROR_INVALID_STATE);
+            assert(mkvc_encoder_set_cpu_layout_policy(encoder, &layout_policy) ==
                    MKVC_ERROR_INVALID_STATE);
         }
     }
@@ -160,16 +171,14 @@ int main(int argc, char** argv) {
     assert(encoder_metrics.accepted_frames == frame_count);
     assert(encoder_metrics.completed_frames == frame_count);
     assert(encoder_metrics.queue_capacity == 2);
-    assert(encoder_metrics.peak_queue_depth > 0 &&
-           encoder_metrics.peak_queue_depth <= 2);
+    assert(encoder_metrics.peak_queue_depth > 0 && encoder_metrics.peak_queue_depth <= 2);
     assert(encoder_metrics.backend_time_ns > 0);
     assert(encoder_metrics.copy_path == MKVC_COPY_PATH_CPU);
 
     mkvc_frame_view closed_frame{};
     closed_frame.struct_size = sizeof(closed_frame);
     closed_frame.struct_version = 1;
-    assert(mkvc_encoder_write_frame(encoder, &closed_frame) ==
-           MKVC_ERROR_INVALID_STATE);
+    assert(mkvc_encoder_write_frame(encoder, &closed_frame) == MKVC_ERROR_INVALID_STATE);
     assert(mkvc_get_last_error()[0] != '\0');
     mkvc_encoder_destroy(encoder);
 
@@ -203,8 +212,7 @@ int main(int argc, char** argv) {
     require_ok(mkvc_decoder_create(&decoder_config, &decoder));
     invalid_metrics.struct_size = sizeof(invalid_metrics);
     invalid_metrics.struct_version = 0;
-    assert(mkvc_decoder_get_metrics(decoder, &invalid_metrics) ==
-           MKVC_ERROR_INVALID_ARGUMENT);
+    assert(mkvc_decoder_get_metrics(decoder, &invalid_metrics) == MKVC_ERROR_INVALID_ARGUMENT);
     uint32_t decoded_count = 0;
     int64_t previous_pts = -1;
     double squared_error = 0.0;
@@ -224,14 +232,13 @@ int main(int argc, char** argv) {
         require_ok(mkvc_frame_get_view(decoded, &view));
         assert(view.pixel_format == MKVC_PIXEL_FORMAT_I420);
         assert(view.width == width && view.height == height);
-        assert(view.planes[0] != nullptr && view.planes[1] != nullptr &&
-               view.planes[2] != nullptr);
+        assert(view.planes[0] != nullptr && view.planes[1] != nullptr && view.planes[2] != nullptr);
         assert(view.pts > previous_pts);
         previous_pts = view.pts;
         for (uint32_t row = 0; row < height; ++row) {
             for (uint32_t column = 0; column < width; ++column) {
-                const int expected = static_cast<uint8_t>(
-                    (column * 3 + row * 2 + decoded_count * 7) & 0xff);
+                const int expected =
+                    static_cast<uint8_t>((column * 3 + row * 2 + decoded_count * 7) & 0xff);
                 const int actual = view.planes[0][row * view.strides[0] + column];
                 const double difference = static_cast<double>(actual - expected);
                 squared_error += difference * difference;
@@ -256,8 +263,7 @@ int main(int argc, char** argv) {
     assert(decoder_metrics.accepted_frames == frame_count);
     assert(decoder_metrics.completed_frames == frame_count);
     assert(decoder_metrics.queue_capacity == 2);
-    assert(decoder_metrics.peak_queue_depth > 0 &&
-           decoder_metrics.peak_queue_depth <= 2);
+    assert(decoder_metrics.peak_queue_depth > 0 && decoder_metrics.peak_queue_depth <= 2);
     assert(decoder_metrics.backend_time_ns > 0);
     assert(decoder_metrics.copy_path == MKVC_COPY_PATH_CPU);
     mkvc_decoder_destroy(decoder);

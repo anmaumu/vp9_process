@@ -52,6 +52,19 @@ mkvc_result mkvc_encoder_set_copy_policy(mkvc_encoder* encoder, const mkvc_copy_
     });
 }
 
+mkvc_result mkvc_encoder_set_cpu_layout_policy(mkvc_encoder* encoder,
+                                               const mkvc_cpu_layout_policy* policy) {
+    last_error.clear();
+    if (encoder == nullptr || !mkvc::capi::valid_cpu_layout_policy(policy)) {
+        return fail(MKVC_ERROR_INVALID_ARGUMENT, "invalid encoder CPU layout policy");
+    }
+    return guard("unknown encoder CPU layout policy failure", [&] {
+        std::string error;
+        const mkvc_result result = encoder->implementation->set_cpu_layout_policy(*policy, error);
+        return result == MKVC_OK ? result : fail(result, std::move(error));
+    });
+}
+
 mkvc_result mkvc_encoder_write_frame(mkvc_encoder* encoder, const mkvc_frame_view* frame) {
     last_error.clear();
     if (encoder == nullptr || !mkvc::encoder::capi::valid_frame_view(frame)) {

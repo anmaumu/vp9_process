@@ -89,6 +89,10 @@ mkvc_result EncoderSession::write(const mkvc_frame_view& frame, bool block, std:
             error = impl_->canceled ? "encoder was cancelled" : "encoder is closing or closed";
             return impl_->canceled ? MKVC_ERROR_CANCELLED : MKVC_ERROR_INVALID_STATE;
         }
+        const mkvc_result layout = encoder::validate_cpu_frame_layout(
+            frame, impl_->width, impl_->height, impl_->cpu_layout_mode,
+            impl_->cpu_required_alignment, error);
+        if (layout != MKVC_OK) return layout;
     }
     if (impl_->capacity == 0) {
         return write_cpu_sync(*impl_, frame, error);
@@ -118,6 +122,13 @@ mkvc_result EncoderSession::write_borrowed(const mkvc_frame_view& frame, std::st
 mkvc_result EncoderSession::submit_borrowed(const mkvc_frame_view& frame,
                                             std::shared_ptr<CpuSubmission>& submission,
                                             std::string& error) {
+    {
+        std::lock_guard<std::mutex> lock(impl_->mutex);
+        const mkvc_result layout = encoder::validate_cpu_frame_layout(
+            frame, impl_->width, impl_->height, impl_->cpu_layout_mode,
+            impl_->cpu_required_alignment, error);
+        if (layout != MKVC_OK) return layout;
+    }
     return enqueue_borrowed(*impl_, frame, submission, error);
 }
 
@@ -142,6 +153,18 @@ mkvc_result EncoderSession::set_copy_policy(const mkvc_copy_policy& policy, std:
     impl_->require_gpu_resident = policy.require_gpu_resident != 0;
     impl_->allow_gpu_copy = policy.allow_gpu_copy != 0;
     impl_->allow_cpu_copy = policy.allow_cpu_copy != 0;
+    return MKVC_OK;
+}
+
+mkvc_result EncoderSession::set_cpu_layout_policy(const mkvc_cpu_layout_policy& policy,
+                                                  std::string& error) {
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    if (impl_->accepted_frames != 0 || impl_->completed_frames != 0) {
+        error = "CPU layout policy must be set before the first encoder frame";
+        return MKVC_ERROR_INVALID_STATE;
+    }
+    impl_->cpu_layout_mode = policy.mode;
+    impl_->cpu_required_alignment = policy.required_alignment;
     return MKVC_OK;
 }
 

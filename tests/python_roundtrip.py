@@ -22,6 +22,25 @@ def main() -> None:
     with tempfile.TemporaryDirectory() as directory:
         path = os.path.join(directory, "python.webm")
         width, height = 64, 48
+        padded_bgr = np.zeros((height, width + 1, 3), np.uint8)[:, :width, :]
+        strict_path = os.path.join(directory, "strict-layout.webm")
+        with mkvcodec.VideoWriter(
+            strict_path, fps=30, frame_size=(width, height),
+            strict_cpu_layout=True,
+        ) as strict_writer:
+            expect_value_error(lambda: strict_writer.write_bgr(padded_bgr))
+            expect_value_error(lambda: strict_writer.write_bgr(padded_bgr[:, :, ::-1]))
+            strict_writer.write_bgr(np.zeros((height, width, 3), np.uint8))
+        copied_layout_path = os.path.join(directory, "copied-layout.webm")
+        with mkvcodec.VideoWriter(
+            copied_layout_path, fps=30, frame_size=(width, height)
+        ) as copied_layout_writer:
+            copied_layout_writer.write_bgr(padded_bgr)
+            copied_layout_writer.write_bgr(padded_bgr[:, :, ::-1])
+        expect_value_error(lambda: mkvcodec.VideoWriter(
+            os.path.join(directory, "bad-alignment.webm"), fps=30,
+            frame_size=(width, height), required_alignment=3,
+        ))
         with mkvcodec.VideoWriter(
             path, fps=30, frame_size=(width, height), quality=32
         ) as writer:
@@ -380,9 +399,6 @@ def main() -> None:
                     )
                     expect_value_error(
                         lambda: writer.write_bgr(image[:, :-1])
-                    )
-                    expect_value_error(
-                        lambda: writer.write_bgr(image[::-1])
                     )
                 getattr(writer, method_name)(image)
             with mkvcodec.VideoCapture(packed_path) as capture:

@@ -15,6 +15,8 @@ MKVC_COPY_PATH_UNKNOWN = 0
 MKVC_COPY_PATH_CPU = 1
 MKVC_COPY_PATH_ZERO_COPY = 2
 MKVC_COPY_PATH_MIXED = 3
+MKVC_CPU_LAYOUT_ALLOW_COPY = 0
+MKVC_CPU_LAYOUT_STRICT = 1
 MKVC_CPU_MEMORY_PAGEABLE = 0
 MKVC_CPU_MEMORY_PAGE_LOCKED = 1
 MKVC_FRAME_FIT_STRETCH = 0
@@ -130,6 +132,15 @@ class CpuFramePoolStats(ct.Structure):
         ("wait_ns", ct.c_uint64),
         ("lease_time_ns", ct.c_uint64),
         ("peak_lease_time_ns", ct.c_uint64),
+    ]
+
+
+class CpuLayoutPolicy(ct.Structure):
+    _fields_ = [
+        ("struct_size", ct.c_uint32),
+        ("struct_version", ct.c_uint32),
+        ("mode", ct.c_uint32),
+        ("required_alignment", ct.c_uint32),
     ]
 
 
@@ -386,6 +397,8 @@ __all__ = [
     "MKVC_COPY_PATH_CPU",
     "MKVC_COPY_PATH_ZERO_COPY",
     "MKVC_COPY_PATH_MIXED",
+    "MKVC_CPU_LAYOUT_ALLOW_COPY",
+    "MKVC_CPU_LAYOUT_STRICT",
     "MKVC_CPU_MEMORY_PAGEABLE",
     "MKVC_CPU_MEMORY_PAGE_LOCKED",
     "MKVC_FRAME_FIT_STRETCH",
@@ -436,6 +449,7 @@ __all__ = [
     "CpuFramePoolConfig",
     "CpuFramePoolOptions",
     "CpuFramePoolStats",
+    "CpuLayoutPolicy",
     "DecoderConfig",
     "EncoderConfig",
     "FrameCopyOptions",

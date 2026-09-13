@@ -289,6 +289,20 @@ typedef struct mkvc_copy_policy {
     uint32_t allow_cpu_copy;       /**< Permit upload, download, or CPU fallback. */
 } mkvc_copy_policy;
 
+/** CPU input layout handling selected before the first encoder frame. */
+typedef enum mkvc_cpu_layout_mode {
+    MKVC_CPU_LAYOUT_ALLOW_COPY = 0, /**< Accept valid strided input and normalize by copying. */
+    MKVC_CPU_LAYOUT_STRICT = 1      /**< Require canonical packed planes and requested alignment. */
+} mkvc_cpu_layout_mode;
+
+/** CPU input layout policy; set before the first encoder frame operation. */
+typedef struct mkvc_cpu_layout_policy {
+    uint32_t struct_size;
+    uint32_t struct_version;     /**< Must be 1. */
+    uint32_t mode;               /**< One mkvc_cpu_layout_mode. */
+    uint32_t required_alignment; /**< Power-of-two byte alignment from 1 through 4096. */
+} mkvc_cpu_layout_policy;
+
 /** Fixed-capacity reusable native CPU frame pool configuration. */
 typedef struct mkvc_cpu_frame_pool_config {
     uint32_t struct_size;
@@ -494,6 +508,9 @@ MKVC_API mkvc_result mkvc_encoder_create(const mkvc_encoder_config* config,
 /** Set copy/fallback policy before the first encoder frame operation. */
 MKVC_API mkvc_result mkvc_encoder_set_copy_policy(mkvc_encoder* encoder,
                                                   const mkvc_copy_policy* policy);
+/** Set strict-or-copy CPU layout handling before the first encoder frame. */
+MKVC_API mkvc_result mkvc_encoder_set_cpu_layout_policy(mkvc_encoder* encoder,
+                                                        const mkvc_cpu_layout_policy* policy);
 /** Copy and submit one CPU frame to an encoder. */
 MKVC_API mkvc_result mkvc_encoder_write_frame(mkvc_encoder* encoder, const mkvc_frame_view* frame);
 /**

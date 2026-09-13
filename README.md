@@ -150,6 +150,11 @@ pool.close()
 print(pool.statistics)  # close後も最終snapshotを取得可能
 ```
 
+CPU入力layoutは既定で有効なrow-strided配列をcopy正規化します。共有可能なcanonical
+layoutだけを受け付けたい場合は`VideoWriter(..., strict_cpu_layout=True,
+required_alignment=16)`を指定します。strictではrow padding、非packed/負stride、
+pointer/stride alignment違反を黙ってcopyせず拒否します。
+
 C++17では`mkvcodec/mkvcodec.hpp`のheader-only RAII facadeを利用できます。公開binary
 境界は引き続きC ABIであり、wrapperはcompiler固有のC++ ABIをDLL境界へ公開しません。
 

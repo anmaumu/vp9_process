@@ -139,6 +139,11 @@ internal static partial class NativeMethods
         ref NativeCopyPolicy policy);
 
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern MkvResult mkvc_encoder_set_cpu_layout_policy(
+        MkvEncoderHandle encoder,
+        ref NativeCpuLayoutPolicy policy);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
     internal static extern MkvResult mkvc_encoder_submit_cpu_buffer(
         MkvEncoderHandle encoder,
         MkvCpuBufferHandle buffer,

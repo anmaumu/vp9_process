@@ -14,6 +14,16 @@ inline bool valid_copy_policy(const mkvc_copy_policy* policy) noexcept {
            policy->struct_version == 1;
 }
 
+/** Return whether a versioned CPU layout policy is safe and meaningful. */
+inline bool valid_cpu_layout_policy(const mkvc_cpu_layout_policy* policy) noexcept {
+    if (policy == nullptr || policy->struct_size < sizeof(mkvc_cpu_layout_policy) ||
+        policy->struct_version != 1 || policy->mode > MKVC_CPU_LAYOUT_STRICT) {
+        return false;
+    }
+    const uint32_t alignment = policy->required_alignment;
+    return alignment != 0 && alignment <= 4096 && (alignment & (alignment - 1)) == 0;
+}
+
 /** Return whether a versioned metrics destination is safe to overwrite. */
 inline bool valid_metrics_output(const mkvc_pipeline_metrics* metrics) noexcept {
     return metrics != nullptr && metrics->struct_size >= sizeof(mkvc_pipeline_metrics) &&

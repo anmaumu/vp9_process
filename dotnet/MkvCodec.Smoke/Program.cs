@@ -83,6 +83,8 @@ string pooledPath = Path.Combine(
     Path.GetTempPath(), $"mkvcodec-dotnet-pool-{Guid.NewGuid():N}.webm");
 string formatsPath = Path.Combine(
     Path.GetTempPath(), $"mkvcodec-dotnet-formats-{Guid.NewGuid():N}.webm");
+string strictLayoutPath = Path.Combine(
+    Path.GetTempPath(), $"mkvcodec-dotnet-strict-layout-{Guid.NewGuid():N}.webm");
 try
 {
     const uint width = 64, height = 48;
@@ -227,6 +229,17 @@ try
     Array.Fill(rgb, (byte)96);
     Array.Fill(bgra, (byte)128);
     Array.Fill(nv12Uv, (byte)128);
+    using (var strictWriter = new MkvVideoWriter(
+        strictLayoutPath, width, height, strictCpuLayout: true))
+    {
+        try
+        {
+            strictWriter.WriteBgr(bgr, bgrStride);
+            throw new InvalidOperationException("Strict CPU layout accepted row padding");
+        }
+        catch (MkvCodecException error) when (error.Result == MkvResult.InvalidArgument) { }
+        strictWriter.WriteBgr(rgb);
+    }
     using (var writer = new MkvVideoWriter(formatsPath, width, height))
     {
         try
@@ -252,18 +265,25 @@ try
     }
 
     int externalReleases = 0;
-    var externalDescriptor = new MkvGpuFrameDescriptor {
+    var externalDescriptor = new MkvGpuFrameDescriptor
+    {
         Backend = MkvBackend.Nvidia,
         MemoryType = MkvGpuMemoryType.CudaPointer,
-        DeviceId = 1, Generation = 1,
+        DeviceId = 1,
+        Generation = 1,
         PixelFormat = MkvPixelFormat.Nv12,
-        Width = width, Height = height, PlaneCount = 2,
+        Width = width,
+        Height = height,
+        PlaneCount = 2,
         PlaneOffsets = [0, width * height, 0, 0],
         Pitches = [width, width, 0, 0]
     };
-    var externalHandle = new MkvGpuNativeHandleDescriptor {
-        Type = MkvGpuNativeHandleType.CudaPointer, Borrowed = 1,
-        DeviceId = 1, Generation = 1,
+    var externalHandle = new MkvGpuNativeHandleDescriptor
+    {
+        Type = MkvGpuNativeHandleType.CudaPointer,
+        Borrowed = 1,
+        DeviceId = 1,
+        Generation = 1,
         Handles = [0x1000, 0x2000, 0, 0]
     };
     bool externalReady = false;
@@ -315,6 +335,7 @@ finally
     if (File.Exists(borrowedPath)) File.Delete(borrowedPath);
     if (File.Exists(pooledPath)) File.Delete(pooledPath);
     if (File.Exists(formatsPath)) File.Delete(formatsPath);
+    if (File.Exists(strictLayoutPath)) File.Delete(strictLayoutPath);
 }
 
 [StructLayout(LayoutKind.Sequential)]

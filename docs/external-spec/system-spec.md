@@ -164,7 +164,7 @@ C#は同じC ABI queryを`MkvCodecInfo.SelectBackend`として公開する。
 - `EXT-FRAME-009`: CPU importはI420/NV12および対応するpacked形式のpointer/shape/strideを検証し、同期borrowまたはcompletion付き非同期leaseとしてencoderへ渡す。
 - `EXT-FRAME-010`: BGR/RGB等からcodec入力形式への変換はzero-copyとは報告しない。同一format/layoutを共有する場合だけCPU zero-copyとする。
 - `EXT-FRAME-011`: .NET同期borrowは呼出中だけmanaged arrayをpinし、非同期経路は長時間pinningを避ける固定容量native poolを推奨・提供する。poolはpageableまたはOS page-lockedを明示選択でき、page-lock不能時は黙ってpageableへfallbackせず失敗する。C ABI/C++/Python/.NETからlogical allocation、実page-locked byte数、occupancy、acquire wait/rejection、完了lease保持時間を取得できる。
-- `EXT-FRAME-012`: 外部CPU libraryが連続配列、alignmentまたは特定strideを要求して共有不能な場合、strict指定では失敗し、copy許可時だけ明示copyする。
+- `EXT-FRAME-012`: 外部CPU libraryが連続配列、alignmentまたは特定strideを要求して共有不能な場合、strict指定では失敗し、copy許可時だけ明示copyする。encoderの既定は`MKVC_CPU_LAYOUT_ALLOW_COPY`、alignment=1で後方互換とする。`mkvc_encoder_set_cpu_layout_policy`は最初のframe前だけ設定でき、strictではformat別の必要plane、encoderと同じ偶数寸法、row paddingなし、未使用plane/stride=0、1..4096の2冪pointer/stride alignmentを要求する。C ABIのCPU element型は`uint8_t`であり、Pythonは`numpy.uint8`、.NETは`byte`だけを受け付ける。Pythonの非packed element/負strideはcopy modeだけでcontiguousへ正規化する。
 
 ### 5.5.2 GPU-resident Frame Interoperability
 

@@ -9,6 +9,20 @@
 [implementation-status.md](implementation-status.md)を使用する。この履歴には
 過去の判断、測定値、詳細なverification matrixを粒度を落とさず保持する。
 
+## 2026-09-13: Strict-or-copy CPU input layout contract
+
+Status: `IMPLEMENTED`
+
+Added an additive CPU layout policy C ABI and matching C++/Python/.NET surfaces.
+The default allow-copy mode preserves compatibility and accepts valid padded
+row layouts; Python also materializes layouts whose element strides cannot be
+represented by the C ABI. Strict mode requires exact format planes, encoder
+dimensions, packed rows, zero unused fields and a requested power-of-two
+pointer/stride alignment. A common native validator runs before synchronous,
+owned-queue and borrowed-queue submission. Native I420, Python NumPy and .NET
+packed tests cover rejection and explicit normalization; ABI and generated
+binding guards include the additive enum, structure and function.
+
 ## 2026-09-13: v0.1 release closure normalization
 
 Status: `DOCUMENTED`

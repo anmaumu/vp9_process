@@ -26,7 +26,7 @@ regression thresholdではない。
 |---|---|---|
 | Container | libwebmによるWebM/Matroska mux・demux、拡張子とDocTypeの整合、VP9/AV1自動判別、decode不要の動画情報probe、共通入力上限、固定破損＋seeded mutation smoke、ASan/UBSan＋辞書付きlibFuzzer CI、run別corpus/crash artifact保存 | 最初の対応映像trackを選択。hardware-class間のcorpus統合は継続課題 |
 | CPU codec | libvpx VP9 encode/decode、SVT-AV1 encode、libaom AV1 decode、PSNR＋block SSIM受け入れ | 現行は8-bit I420/NV12/packed入力。10-bitは将来範囲 |
-| CPU Python | OpenCV風Capture/Writer、owned/borrowed NumPy、pageable/page-locked native buffer pool、async submission、pool occupancy/wait/lease metrics | 詳細copy traceは残件 |
+| CPU Python | OpenCV風Capture/Writer、owned/borrowed NumPy、strict/copy-normalized layout policy、pageable/page-locked native buffer pool、async submission、pool occupancy/wait/lease metrics | edge別の詳細copy traceは残件 |
 | Intel Linux | oneVPL VP9/AV1、VA surface、OpenCL/Level Zero、device-USM DLPack、pool/backpressure | direct oneVPL USM consumptionと30分cross-context soakは残件 |
 | Intel Windows | D3D11 handle/fence契約と外部import実装 | 実GPUでのdecode→external processing→encode総合認定が残件 |
 | NVIDIA Windows | NVDEC VP9 CUDA surface、CUDA pointer/array/event interop、NVENC AV1実装 | RTX 2060はAV1 encode非対応。対応GPUでのpositive NVENC試験が必要 |

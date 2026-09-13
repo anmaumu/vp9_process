@@ -582,6 +582,11 @@ class Encoder {
         ensure_open();
         check(mkvc_encoder_set_copy_policy(handle_, &policy));
     }
+    /** Configure strict or copy-normalized CPU input layout handling. */
+    void set_cpu_layout_policy(const mkvc_cpu_layout_policy& policy) {
+        ensure_open();
+        check(mkvc_encoder_set_cpu_layout_policy(handle_, &policy));
+    }
     void write(const GpuFrame& frame) {
         ensure_open();
         if (!frame) throw std::logic_error("MKVCodec GPU frame is closed");

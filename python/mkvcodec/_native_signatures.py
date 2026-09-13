@@ -107,6 +107,11 @@ def configure(lib: ct.CDLL, t: dict[str, Any]) -> None:
     lib.mkvc_encoder_get_stage_metrics.restype = ct.c_int
     lib.mkvc_encoder_set_copy_policy.argtypes = [t["EncoderHandle"], ct.POINTER(t["CopyPolicy"])]
     lib.mkvc_encoder_set_copy_policy.restype = ct.c_int
+    lib.mkvc_encoder_set_cpu_layout_policy.argtypes = [
+        t["EncoderHandle"],
+        ct.POINTER(t["CpuLayoutPolicy"]),
+    ]
+    lib.mkvc_encoder_set_cpu_layout_policy.restype = ct.c_int
     lib.mkvc_encoder_submit_cpu_buffer.argtypes = [
         t["EncoderHandle"],
         t["CpuBufferHandle"],

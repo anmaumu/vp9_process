@@ -35,6 +35,11 @@ struct OwnedFrame {
  */
 mkvc_result validate_borrowed_frame(const mkvc_frame_view& frame, std::string& error);
 
+/** Validate format planes and optionally require canonical packed/aligned storage. */
+mkvc_result validate_cpu_frame_layout(const mkvc_frame_view& frame, uint32_t width, uint32_t height,
+                                      uint32_t mode, uint32_t required_alignment,
+                                      std::string& error);
+
 /**
  * @brief Deep-copy a CPU frame into queue-owned packed storage.
  * @param source Candidate source frame descriptor.

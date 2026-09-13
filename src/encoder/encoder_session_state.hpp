@@ -63,6 +63,8 @@ struct EncoderSession::Impl {
     bool require_gpu_resident = false;
     bool allow_gpu_copy = true;
     bool allow_cpu_copy = true;
+    uint32_t cpu_layout_mode = MKVC_CPU_LAYOUT_ALLOW_COPY;
+    uint32_t cpu_required_alignment = 1;
 #if defined(MKVC_ENABLE_TEST_HOOKS)
     uint64_t test_fail_after = std::numeric_limits<uint64_t>::max();
     uint32_t test_delay_ms = 0;

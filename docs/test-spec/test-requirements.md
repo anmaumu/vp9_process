@@ -190,7 +190,7 @@ wheel/NuGetへ同梱せず、実行時version/source revisionを成果ととも�
 | `TEST-CPUINT-004` | async borrowed submissionが成功/失敗/cancelのcompletionまでownerを保持し、一度だけ解放する | concurrency/fault | Python/.NET/native CI |
 | `TEST-CPUINT-005` | pageable/OS page-locked native poolが固定容量、backpressure、generation規則を満たし、pool owner先行破棄・view/submission lease後も安全である。Windows/Linuxの小容量page-lock実確保、暗黙fallbackなし、logical/locked bytes、occupancy、wait/rejection、lease duration、close後snapshotをC++/Python/.NETで検証する。`.NET` soakは非同期submission中にmoving managed allocationとfull compacting GCを反復し、Gen0/1/2回数、managed heap、process private bytes、managed pinned-object数、pool occupancy/leaseをbounded JSONへ記録する。終了時`in_use=0`、peak<=capacity、managed pin増分0をfail-closedで要求する。短時間CI smokeと30分release認定を分離する | stress/performance | native/Python/.NET CPU CI |
 | `TEST-CPUINT-006` | GPU decode→NumPyは`cpu_readback`、CPU borrowed共有は`zero_copy`となり、形式変換allocationをedge別traceする | trace/hardware | CPU/Intel/NVIDIA |
-| `TEST-CPUINT-007` | plane count、dtype、shape、stride、alignment不一致がstrict時に失敗し、copy許可時だけcopyする | parameterized | CPU CI |
+| `TEST-CPUINT-007` | I420/NV12/packedのplane count、uint8/byte dtype、shape、stride、alignment、未使用plane不一致がstrict時に失敗し、copy許可時だけcopyする。不正policy（非2冪、0、4096超）、frame後policy変更、Python negative/non-unit stride正規化をparameterizedに検証する | parameterized | native/Python/.NET CPU CI |
 
 `.NET` pool soak reportはproducerの終了codeだけで受け入れない。
 `validate_dotnet_pool_soak_report.py`がsize上限とschemaを確認し、要求時間、全GC世代、

@@ -17,7 +17,8 @@ public sealed class MkvVideoWriter : IDisposable
         uint fpsNumerator = 30, uint fpsDenominator = 1,
         MkvCodecKind codec = MkvCodecKind.Vp9,
         MkvBackend backend = MkvBackend.Cpu, uint quality = 32,
-        uint queueSize = 0, bool requireGpuResident = false)
+        uint queueSize = 0, bool requireGpuResident = false,
+        bool strictCpuLayout = false, uint requiredAlignment = 1)
     {
         if (requireGpuResident && backend == MkvBackend.Cpu)
             throw new ArgumentException(
@@ -25,6 +26,10 @@ public sealed class MkvVideoWriter : IDisposable
         if (requireGpuResident && queueSize != 0)
             throw new ArgumentException(
                 "GPU-resident encoding currently requires queueSize=0", nameof(queueSize));
+        if (requiredAlignment == 0 || requiredAlignment > 4096 ||
+            (requiredAlignment & (requiredAlignment - 1)) != 0)
+            throw new ArgumentOutOfRangeException(nameof(requiredAlignment),
+                "alignment must be a power of two from 1 through 4096");
         nint utf8 = Marshal.StringToCoTaskMemUTF8(path);
         try
         {
@@ -38,6 +43,23 @@ public sealed class MkvVideoWriter : IDisposable
             };
             MkvCodecInfo.ThrowIfFailed(
                 NativeMethods.mkvc_encoder_create(ref config, out handle));
+            var layoutPolicy = new NativeCpuLayoutPolicy {
+                StructSize = checked((uint)Marshal.SizeOf<NativeCpuLayoutPolicy>()),
+                StructVersion = 1,
+                Mode = strictCpuLayout ? MkvCpuLayoutMode.Strict : MkvCpuLayoutMode.AllowCopy,
+                RequiredAlignment = requiredAlignment
+            };
+            try
+            {
+                MkvCodecInfo.ThrowIfFailed(
+                    NativeMethods.mkvc_encoder_set_cpu_layout_policy(handle!, ref layoutPolicy));
+            }
+            catch
+            {
+                handle?.Dispose();
+                handle = null;
+                throw;
+            }
             if (requireGpuResident)
             {
                 var policy = StrictGpuPolicy();

@@ -1,5 +1,6 @@
 #include "cpu_frame_copy.hpp"
 
+#include <cstdint>
 #include <cstring>
 
 namespace mkvc::encoder {
@@ -69,6 +70,64 @@ mkvc_result validate_borrowed_frame(const mkvc_frame_view& frame, std::string& e
     if (!valid) {
         error = "borrowed input has an invalid plane or stride";
         return MKVC_ERROR_INVALID_ARGUMENT;
+    }
+    return MKVC_OK;
+}
+
+mkvc_result validate_cpu_frame_layout(const mkvc_frame_view& frame, uint32_t width, uint32_t height,
+                                      uint32_t mode, uint32_t required_alignment,
+                                      std::string& error) {
+    if (frame.width != width || frame.height != height || width == 0 || height == 0 ||
+        (width & 1u) != 0 || (height & 1u) != 0) {
+        error = "frame dimensions do not match the even encoder dimensions";
+        return MKVC_ERROR_INVALID_ARGUMENT;
+    }
+    size_t plane_count = 0;
+    std::array<uint32_t, 4> row_bytes{};
+    switch (frame.pixel_format) {
+        case MKVC_PIXEL_FORMAT_I420:
+            plane_count = 3;
+            row_bytes = {width, width / 2, width / 2, 0};
+            break;
+        case MKVC_PIXEL_FORMAT_NV12:
+            plane_count = 2;
+            row_bytes = {width, width, 0, 0};
+            break;
+        case MKVC_PIXEL_FORMAT_BGR24:
+        case MKVC_PIXEL_FORMAT_RGB24:
+            plane_count = 1;
+            row_bytes = {width * 3, 0, 0, 0};
+            break;
+        case MKVC_PIXEL_FORMAT_BGRA32:
+            plane_count = 1;
+            row_bytes = {width * 4, 0, 0, 0};
+            break;
+        default:
+            error = "unsupported CPU input pixel format";
+            return MKVC_ERROR_NOT_SUPPORTED;
+    }
+    for (size_t index = 0; index < plane_count; ++index) {
+        if (frame.planes[index] == nullptr ||
+            frame.strides[index] < static_cast<int32_t>(row_bytes[index])) {
+            error = "CPU input has a missing plane or undersized row stride";
+            return MKVC_ERROR_INVALID_ARGUMENT;
+        }
+    }
+    if (mode == MKVC_CPU_LAYOUT_ALLOW_COPY) return MKVC_OK;
+    for (size_t index = 0; index < plane_count; ++index) {
+        if (frame.strides[index] != static_cast<int32_t>(row_bytes[index]) ||
+            reinterpret_cast<uintptr_t>(frame.planes[index]) % required_alignment != 0 ||
+            static_cast<uint32_t>(frame.strides[index]) % required_alignment != 0) {
+            error =
+                "strict CPU layout requires packed planes and requested pointer/stride alignment";
+            return MKVC_ERROR_INVALID_ARGUMENT;
+        }
+    }
+    for (size_t index = plane_count; index < 4; ++index) {
+        if (frame.planes[index] != nullptr || frame.strides[index] != 0) {
+            error = "strict CPU layout requires unused planes and strides to be zero";
+            return MKVC_ERROR_INVALID_ARGUMENT;
+        }
     }
     return MKVC_OK;
 }

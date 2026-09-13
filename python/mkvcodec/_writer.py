@@ -48,6 +48,10 @@ class VideoWriter:
         Asynchronous CPU submission capacity.
     require_gpu_resident : bool, default: False
         Reject every path that would stage a frame through CPU memory.
+    strict_cpu_layout : bool, default: False
+        Require canonical packed CPU planes instead of copying valid strided input.
+    required_alignment : int, default: 1
+        Required power-of-two pointer and row-stride alignment in strict mode.
     """
     def __init__(
         self,
@@ -62,6 +66,8 @@ class VideoWriter:
         threads: int = 0,
         queue_size: int | None = None,
         require_gpu_resident: bool = False,
+        strict_cpu_layout: bool = False,
+        required_alignment: int = 1,
     ) -> None:
         config, backend = build_encoder_config(
             path,
@@ -78,6 +84,32 @@ class VideoWriter:
         width, height = frame_size
         self._handle = native.EncoderHandle()
         native.check(native.lib.mkvc_encoder_create(ct.byref(config), ct.byref(self._handle)))
+        if (
+            not isinstance(required_alignment, int)
+            or isinstance(required_alignment, bool)
+            or required_alignment < 1
+            or required_alignment > 4096
+            or required_alignment & (required_alignment - 1)
+        ):
+            native.lib.mkvc_encoder_destroy(self._handle)
+            self._handle = native.EncoderHandle()
+            raise ValueError("required_alignment must be a power of two from 1 through 4096")
+        layout_policy = native.CpuLayoutPolicy()
+        layout_policy.struct_size = ct.sizeof(layout_policy)
+        layout_policy.struct_version = 1
+        layout_policy.mode = (
+            native.MKVC_CPU_LAYOUT_STRICT
+            if strict_cpu_layout
+            else native.MKVC_CPU_LAYOUT_ALLOW_COPY
+        )
+        layout_policy.required_alignment = required_alignment
+        result = native.lib.mkvc_encoder_set_cpu_layout_policy(
+            self._handle, ct.byref(layout_policy)
+        )
+        if result != native.MKVC_OK:
+            native.lib.mkvc_encoder_destroy(self._handle)
+            self._handle = native.EncoderHandle()
+            native.check(result)
         if require_gpu_resident:
             policy = native.CopyPolicy()
             policy.struct_size = ct.sizeof(policy)
@@ -97,6 +129,7 @@ class VideoWriter:
         self.backend = backend
         self._closed = False
         self._require_gpu_resident = bool(require_gpu_resident)
+        self._allow_layout_copy = not strict_cpu_layout
         self._last_metrics: PipelineMetrics | None = None
         self._last_stage_metrics: PipelineStageMetrics | None = None
         self._last_component_metrics: PipelineComponentMetrics | None = None
@@ -158,7 +191,8 @@ class VideoWriter:
         if self._closed:
             raise RuntimeError("writer is closed")
         frame = make_i420_view(
-            y, u, v, width=self._width, height=self._height, pts=pts
+            y, u, v, width=self._width, height=self._height, pts=pts,
+            allow_copy=self._allow_layout_copy,
         )
         return self._submit(frame, block=block)
 
@@ -170,7 +204,8 @@ class VideoWriter:
         if self._closed:
             raise RuntimeError("writer is closed")
         frame = make_nv12_view(
-            y, uv, width=self._width, height=self._height, pts=pts
+            y, uv, width=self._width, height=self._height, pts=pts,
+            allow_copy=self._allow_layout_copy,
         )
         return self._submit(frame, block=block)
 
@@ -210,6 +245,7 @@ class VideoWriter:
             channels=channels,
             pixel_format=pixel_format,
             pts=pts,
+            allow_copy=self._allow_layout_copy,
         )
         return self._submit(frame, block=block)
 
@@ -294,6 +330,7 @@ class VideoWriter:
             width=self._width,
             height=self._height,
             pts=pts,
+            allow_copy=self._allow_layout_copy,
         )
 
     def write_borrowed(

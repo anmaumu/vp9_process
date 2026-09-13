@@ -51,6 +51,8 @@ class EncoderSession {
     mkvc_result write_gpu(const std::shared_ptr<gpu::GpuFrameCore>& frame, std::string& error);
     /** Configure copy/fallback behavior before any frame is accepted. */
     mkvc_result set_copy_policy(const mkvc_copy_policy& policy, std::string& error);
+    /** Configure CPU plane packing/alignment handling before any frame is accepted. */
+    mkvc_result set_cpu_layout_policy(const mkvc_cpu_layout_policy& policy, std::string& error);
     /** Insert and wait for an ordered codec flush barrier. */
     mkvc_result flush(std::string& error);
     /** Discard queued work and wake blocked producers/submissions. */

@@ -75,6 +75,12 @@ public enum MkvCpuMemoryMode : uint
     PageLocked = 1,
 }
 
+public enum MkvCpuLayoutMode : uint
+{
+    AllowCopy = 0,
+    Strict = 1,
+}
+
 [StructLayout(LayoutKind.Sequential)]
 public struct MkvBackendCapability
 {
@@ -145,6 +151,15 @@ public struct MkvCpuFramePoolStatistics
     public ulong WaitNanoseconds;
     public ulong LeaseTimeNanoseconds;
     public ulong PeakLeaseTimeNanoseconds;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+internal struct NativeCpuLayoutPolicy
+{
+    internal uint StructSize;
+    internal uint StructVersion;
+    internal MkvCpuLayoutMode Mode;
+    internal uint RequiredAlignment;
 }
 
 [StructLayout(LayoutKind.Sequential)]
