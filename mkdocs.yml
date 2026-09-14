@@ -13,6 +13,7 @@ nav:
   - v0.1 release closure: release-closure.md
   - Docgen: docgen.md
   - ABI governance: abi-governance.md
+  - OpenCV FFmpeg VP9 comparison: opencv-vp9-decode-comparison.md
   - Specification:
       - Overview: specification/index.md
       - External: specification/external.md

@@ -229,6 +229,7 @@ LICENSE決定後の作成・検査契約は
 - [実装状況](docs/implementation-status.md)
 - [v0.1 release closure](docs/release-closure.md)
 - [実装履歴](docs/implementation-history.md)
+- [OpenCV FFmpeg VP9デコーダーとの性能比較](docs/opencv-vp9-decode-comparison.md)
 
 ## 現在の主な制限
 

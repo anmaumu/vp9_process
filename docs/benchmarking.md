@@ -105,6 +105,14 @@ machine only; it is neither a cross-platform baseline nor evidence about GPU
 surface processing. The pixel regression compares conversion output against
 the unpartitioned libyuv function rather than accepting throughput alone.
 
+A newer controlled Python end-to-end comparison fixes both decoders to CPU,
+disables prefetch/hardware acceleration, includes BGR conversion, and measures
+one and 16 codec threads. See the
+[OpenCV FFmpeg VP9 decoder comparison](opencv-vp9-decode-comparison.md) for the
+method, reproducible benchmark, pixel-difference check, and results. The older
+136.5 fps observation above belongs to a different optimization experiment and
+must not be mixed into the controlled comparison.
+
 ## Classic MSVC x64 24-bit qualification
 
 The 2026-09-09 qualification used the same Windows host and 600-frame 1080p60

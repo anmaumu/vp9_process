@@ -341,6 +341,8 @@ def generate(output: Path) -> None:
             output / "release-closure.md",
         ROOT / "docs" / "docgen.md": output / "docgen.md",
         ROOT / "docs" / "abi-governance.md": output / "abi-governance.md",
+        ROOT / "docs" / "opencv-vp9-decode-comparison.md":
+            output / "opencv-vp9-decode-comparison.md",
         ROOT / "LICENSE_POLICY.md": output / "license-policy.md",
     }
     for source, destination in copies.items():
