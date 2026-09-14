@@ -6,7 +6,7 @@ import ctypes as ct
 
 import numpy as np
 
-from . import _native as native
+from .native import library as native
 from ._io_common import _plane_pointer
 from ._types import CpuFrame, U8Plane
 

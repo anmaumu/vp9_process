@@ -6,7 +6,7 @@ import ctypes as ct
 import itertools
 from typing import TYPE_CHECKING, Callable
 
-from . import _native as native
+from .native import library as native
 
 if TYPE_CHECKING:
     from ._gpu import GpuFrame

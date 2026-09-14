@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import ctypes as ct
 
-from . import _native as native
+from .native import library as native
 
 
 def build_process_config(

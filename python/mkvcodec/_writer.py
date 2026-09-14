@@ -6,7 +6,7 @@ import ctypes as ct
 from collections.abc import Sequence
 from pathlib import Path
 
-from . import _native as native
+from .native import library as native
 from ._cpu import CpuBuffer, Submission
 from ._encoder_config import build_encoder_config
 from ._frame_views import (

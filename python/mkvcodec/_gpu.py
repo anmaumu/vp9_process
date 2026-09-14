@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from typing import Callable
 
-from . import _native as native
-from ._gpu_cuda import _import_cuda_array as _import_cuda_array_impl
-from ._gpu_cuda import _import_cuda_pointer as _import_cuda_pointer_impl
-from ._gpu_cuda import _import_dlpack_nv12 as _import_dlpack_nv12_impl
-from ._gpu_intel import _import_d3d11_texture as _import_d3d11_texture_impl
-from ._gpu_intel import _import_usm_nv12 as _import_usm_nv12_impl
-from ._gpu_intel import _import_va_surface as _import_va_surface_impl
+from .interop.cuda import _import_cuda_array as _import_cuda_array_impl
+from .interop.cuda import _import_cuda_pointer as _import_cuda_pointer_impl
+from .interop.cuda import _import_dlpack_nv12 as _import_dlpack_nv12_impl
+from .interop.intel import _import_d3d11_texture as _import_d3d11_texture_impl
+from .interop.intel import _import_usm_nv12 as _import_usm_nv12_impl
+from .interop.intel import _import_va_surface as _import_va_surface_impl
+from .native import library as native
 from ._gpu_frame_native import (
     get_gpu_frame_descriptor,
     get_gpu_native_handle,
@@ -19,11 +19,7 @@ from ._gpu_frame_native import (
 from ._gpu_interop import describe_interop
 from ._gpu_plane import GpuPlane
 from ._types import GpuInteropInfo
-
-try:
-    from . import _dlpack
-except ImportError:
-    _dlpack = None
+from .interop.dlpack import extension as _dlpack
 
 class GpuFrame:
     """Own a lease over a backend-resident GPU video frame.

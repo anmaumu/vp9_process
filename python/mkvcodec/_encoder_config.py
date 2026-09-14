@@ -5,7 +5,7 @@ from __future__ import annotations
 import ctypes as ct
 from pathlib import Path
 
-from . import _native as native
+from .native import library as native
 from ._capabilities import _select_backend
 from ._io_common import _fps_fraction
 

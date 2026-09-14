@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from . import _native as native
+from .native import library as native
 from ._types import GpuInteropInfo
 
 

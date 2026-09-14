@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Callable
 
-from . import _native as native
+from .native import library as native
 from ._gpu_import_common import (
     dlpack_extension,
     import_external_frame,

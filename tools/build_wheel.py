@@ -74,8 +74,10 @@ def build_wheel(
     wheel = output_dir / f"{NAME}-{VERSION}-{python_tag}-{abi_tag}-{platform_tag}.whl"
     dist_info = f"{NAME}-{VERSION}.dist-info"
     entries: dict[str, bytes] = {}
-    for source in sorted((ROOT / "python" / NAME).glob("*.py")):
-        entries[f"{NAME}/{source.name}"] = source.read_bytes()
+    package_root = ROOT / "python" / NAME
+    for source in sorted(package_root.rglob("*.py")):
+        relative = source.relative_to(package_root).as_posix()
+        entries[f"{NAME}/{relative}"] = source.read_bytes()
     for native_file in native_files:
         entries[f"{NAME}/{native_file.name}"] = native_file.read_bytes()
     if dlpack_extension is not None:

@@ -5,7 +5,7 @@ from __future__ import annotations
 import ctypes as ct
 from typing import TYPE_CHECKING
 
-from . import _native as native
+from .native import library as native
 
 if TYPE_CHECKING:
     from ._gpu import GpuFrame

@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+# This compatibility binding is assembled from generated ctypes types and
+# signatures. The star import and marker-positioned import are intentional.
+# ruff: noqa: E402,F403,F405
+
 import ctypes as ct
 import ctypes.util
 import os

@@ -9,6 +9,17 @@
 [implementation-status.md](implementation-status.md)を使用する。この履歴には
 過去の判断、測定値、詳細なverification matrixを粒度を落とさず保持する。
 
+## 2026-09-15: Layered Python package boundary
+
+Status: `IMPLEMENTED`
+
+Python packageに`api/`、`native/`、`interop/`、`internal/`の責務別階層を追加し、root
+`mkvcodec`は`api/`から公開名だけを再exportする経路へ切り替えた。既存の高水準moduleが
+直接flat `_native`へ依存していた経路は`native.library`境界へ統一し、GPU frame assemblyは
+`interop.cuda`と`interop.intel`を経由する。既存qualification scriptが参照する`_api`、
+`_gpu`等は互換性のため保持した。構造、root initializer、native依存方向をsource testで固定し、
+実DLLを使うCPU Python roundtripで公開class identityとencode/decode互換性を確認した。
+
 ## 2026-09-15: CPU VP9 automatic decoder threading and OpenCV comparison correction
 
 Status: `IMPLEMENTED`

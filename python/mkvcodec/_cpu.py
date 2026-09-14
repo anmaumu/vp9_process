@@ -6,10 +6,10 @@ import ctypes as ct
 
 import numpy as np
 
-from . import _native as native
+from .native import library as native
 from ._borrowed_cpu_frame import BorrowedCpuFrame
 from ._cpu_array import _BorrowedArray
-from ._submission import Submission
+from .internal.submission import Submission
 from ._types import CpuFramePoolStatistics, U8Plane
 
 __all__ = ["BorrowedCpuFrame", "CpuBuffer", "CpuFramePool", "Submission"]

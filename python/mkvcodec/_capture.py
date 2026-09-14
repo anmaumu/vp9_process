@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 from typing import Iterator
 
-from . import _native as native
+from .native import library as native
 from ._capabilities import _select_backend
 from ._cpu import BorrowedCpuFrame
 from ._frame_outputs import copy_i420, copy_nv12, copy_packed, get_frame_view

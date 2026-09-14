@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from . import _native as native
+from .native import library as native
 from ._cpu_array import _BorrowedArray
 from ._types import U8Plane
 

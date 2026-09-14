@@ -109,6 +109,8 @@ function(mkvc_add_repository_python_checks)
     mkvc_add_python_unittest(mkvc_binding_guard tests/test_binding_guard.py)
     mkvc_add_python_unittest(
         mkvc_generate_bindings tests/test_generate_bindings.py)
+    mkvc_add_python_unittest(
+        mkvc_python_package_layout tests/test_python_package_layout.py)
     mkvc_add_python_script_test(
         mkvc_gpu_copy_audit_report tests/test_gpu_copy_audit.py)
     mkvc_add_python_script_test(

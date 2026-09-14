@@ -36,6 +36,11 @@ EBML DocType `webm`、`.mkv`は`matroska`です。入力時も拡張子とDocTyp
 
 ## Python quick start
 
+利用者向けの安定した名前はすべて`mkvcodec`直下からimportします。package内部は公開API、
+C ABI、GPU interop、非公開orchestrationをそれぞれ`api/`、`native/`、`interop/`、
+`internal/`へ分離しており、通常のアプリケーションがprivate `_xxx` moduleを参照する必要は
+ありません。
+
 初めて使う場合は、実行結果を確認しながら学べる
 [Python入門Notebook](notebooks/python_beginner_tutorial.ipynb)も利用できます。
 

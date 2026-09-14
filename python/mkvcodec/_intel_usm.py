@@ -5,7 +5,7 @@ from __future__ import annotations
 import ctypes as ct
 from typing import Callable
 
-from . import _native as native
+from .native import library as native
 from ._gpu import GpuFrame
 from ._gpu_resource_reservation import _GpuResourceReservation
 from ._intel_usm_slot import IntelUsmPoolSlot
