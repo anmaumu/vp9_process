@@ -11,9 +11,9 @@ from pathlib import Path
 import abi_guard
 
 ROOT = Path(__file__).resolve().parents[1]
-PYTHON_NATIVE = ROOT / "python" / "mkvcodec" / "_native.py"
-PYTHON_SIGNATURES = ROOT / "python" / "mkvcodec" / "_native_signatures.py"
-PYTHON_TYPES = ROOT / "python" / "mkvcodec" / "_native_types.py"
+PYTHON_NATIVE = ROOT / "python" / "mkvcodec" / "native" / "library.py"
+PYTHON_SIGNATURES = ROOT / "python" / "mkvcodec" / "native" / "signatures.py"
+PYTHON_TYPES = ROOT / "python" / "mkvcodec" / "native" / "types.py"
 DOTNET_NATIVE = ROOT / "dotnet" / "MkvCodec" / "NativeMethods.cs"
 DOTNET_METHODS = ROOT / "dotnet" / "MkvCodec" / "NativeMethods.Generated.cs"
 DOTNET_TYPES = ROOT / "dotnet" / "MkvCodec" / "NativeTypes.Generated.cs"
@@ -642,7 +642,7 @@ def _native_loader(source: str) -> str:
     replacement = "\n".join(
         (
             START_MARKER,
-            "from ._native_signatures import configure as _configure_signatures",
+            "from .signatures import configure as _configure_signatures",
             "_configure_signatures(lib, globals())",
             "del _configure_signatures",
             END_MARKER,
@@ -696,7 +696,7 @@ def check() -> None:
         )
     source = PYTHON_NATIVE.read_text(encoding="utf-8")
     if source != _native_loader(source):
-        raise BindingGenerationError("_native.py contains hand-edited generated declarations")
+        raise BindingGenerationError("native/library.py contains hand-edited generated declarations")
     if not DOTNET_METHODS.exists() or DOTNET_METHODS.read_text(encoding="utf-8") != render_dotnet():
         raise BindingGenerationError(
             "generated .NET methods are stale; run tools/generate_bindings.py generate"

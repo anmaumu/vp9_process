@@ -68,6 +68,24 @@ class PythonPackageLayoutTests(unittest.TestCase):
                 )
             )
 
+    def test_generated_native_implementation_lives_in_native_package(self) -> None:
+        moved = {
+            "_native.py": ("native/library.py", "check"),
+            "_native_signatures.py": ("native/signatures.py", "configure"),
+            "_native_types.py": ("native/types.py", "DecoderConfig"),
+        }
+        definitions = (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
+        for legacy_name, (canonical_name, definition_name) in moved.items():
+            legacy_tree = ast.parse((PACKAGE / legacy_name).read_text(encoding="utf-8"))
+            canonical_tree = ast.parse((PACKAGE / canonical_name).read_text(encoding="utf-8"))
+            self.assertFalse(any(isinstance(node, definitions) for node in legacy_tree.body))
+            self.assertTrue(
+                any(
+                    isinstance(node, definitions) and node.name == definition_name
+                    for node in canonical_tree.body
+                )
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

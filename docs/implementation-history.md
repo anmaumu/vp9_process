@@ -19,7 +19,10 @@ Python packageに`api/`、`native/`、`interop/`、`internal/`の責務別階層
 `interop.cuda`と`interop.intel`を経由する。既存qualification scriptが参照する`_api`、
 `_gpu`等は互換性のため保持した。続く実体移動で`VideoCapture`、`VideoWriter`、backend選択を
 `api/`へ移し、旧`_capture`、`_writer`、`_capabilities`はthin shimへ縮退した。構造、root initializer、native依存方向をsource testで固定し、
-実DLLを使うCPU Python roundtripで公開class identityとencode/decode互換性を確認した。
+実DLLを使うCPU Python roundtripで公開class identityとencode/decode互換性を確認した。さらに
+DLL loader、生成ctypes signatures/typesの正本を`native/`へ移し、binding generatorとguardも
+新しい正本を参照させた。旧`_native*`はthin shimとして残し、wheel内のnative library探索は
+package rootを維持する。
 
 ## 2026-09-15: CPU VP9 automatic decoder threading and OpenCV comparison correction
 
