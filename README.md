@@ -36,6 +36,9 @@ EBML DocType `webm`、`.mkv`は`matroska`です。入力時も拡張子とDocTyp
 
 ## Python quick start
 
+初めて使う場合は、実行結果を確認しながら学べる
+[Python入門Notebook](notebooks/python_beginner_tutorial.ipynb)も利用できます。
+
 ### CPU encode/decode
 
 ```python
