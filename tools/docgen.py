@@ -30,7 +30,7 @@ SOURCES = {
 
 PYTHON_API_MODULES = (
     ROOT / "python" / "mkvcodec" / "_types.py",
-    ROOT / "python" / "mkvcodec" / "_capabilities.py",
+    ROOT / "python" / "mkvcodec" / "api" / "backend.py",
     ROOT / "python" / "mkvcodec" / "_cpu.py",
     ROOT / "python" / "mkvcodec" / "_borrowed_cpu_frame.py",
     ROOT / "python" / "mkvcodec" / "_submission.py",
@@ -38,8 +38,8 @@ PYTHON_API_MODULES = (
     ROOT / "python" / "mkvcodec" / "_gpu_plane.py",
     ROOT / "python" / "mkvcodec" / "_intel_usm.py",
     ROOT / "python" / "mkvcodec" / "_intel_usm_slot.py",
-    ROOT / "python" / "mkvcodec" / "_writer.py",
-    ROOT / "python" / "mkvcodec" / "_capture.py",
+    ROOT / "python" / "mkvcodec" / "api" / "writer.py",
+    ROOT / "python" / "mkvcodec" / "api" / "capture.py",
     ROOT / "python" / "mkvcodec" / "_video_info.py",
     ROOT / "python" / "mkvcodec" / "_api.py",
 )

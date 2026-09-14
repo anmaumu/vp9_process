@@ -6,7 +6,7 @@ import ctypes as ct
 from pathlib import Path
 
 from .native import library as native
-from ._capabilities import _select_backend
+from .api.backend import _select_backend
 from ._io_common import _fps_fraction
 
 

@@ -50,6 +50,24 @@ class PythonPackageLayoutTests(unittest.TestCase):
                 offenders.append(path.name)
         self.assertEqual(offenders, [])
 
+    def test_capture_writer_and_backend_legacy_modules_are_thin_shims(self) -> None:
+        moved = {
+            "_capture.py": ("api/capture.py", "VideoCapture"),
+            "_writer.py": ("api/writer.py", "VideoWriter"),
+            "_capabilities.py": ("api/backend.py", "select_backend"),
+        }
+        for legacy_name, (canonical_name, public_name) in moved.items():
+            legacy_tree = ast.parse((PACKAGE / legacy_name).read_text(encoding="utf-8"))
+            canonical_tree = ast.parse((PACKAGE / canonical_name).read_text(encoding="utf-8"))
+            definitions = (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
+            self.assertFalse(any(isinstance(node, definitions) for node in legacy_tree.body))
+            self.assertTrue(
+                any(
+                    isinstance(node, definitions) and node.name == public_name
+                    for node in canonical_tree.body
+                )
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
