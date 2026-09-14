@@ -28,9 +28,9 @@ import dpnp.tensor
 sys.path[:0] = [package, extension]
 import mkvcodec
 import mkvcodec._api as api
-import mkvcodec._gpu as gpu_api
+import mkvcodec.interop.dlpack as dlpack_api
 import _dlpack
-gpu_api._dlpack = _dlpack
+dlpack_api.extension = _dlpack
 from intel_va_opencl_support import bind, check, invert_luma, P, U, I, OpenClReuseSession, reuse_program_enabled
 from intel_va_prime_support import Prime, Attribute, export_layout
 from gpu_resource_monitor import ResourceMonitor

@@ -20,9 +20,9 @@ sys.path[:0] = [package, extension]
 import _dlpack  # noqa: E402
 import dpctl  # noqa: E402
 import mkvcodec  # noqa: E402
-import mkvcodec._gpu as gpu_api  # noqa: E402
+import mkvcodec.interop.dlpack as dlpack_api  # noqa: E402
 
-gpu_api._dlpack = _dlpack
+dlpack_api.extension = _dlpack
 
 P = ct.c_void_p
 INT = ct.c_int

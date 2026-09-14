@@ -11,8 +11,8 @@ sys.path[:0] = [package_dir, extension_dir]
 import _dlpack
 import mkvcodec
 import mkvcodec._api as api
-import mkvcodec._gpu as gpu_api
-gpu_api._dlpack = _dlpack
+import mkvcodec.interop.dlpack as dlpack_api
+dlpack_api.extension = _dlpack
 
 # Preserve the native result to distinguish unsupported hardware from real bugs.
 original_check = api.native.check

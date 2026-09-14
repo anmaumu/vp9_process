@@ -21,10 +21,10 @@ def next_external_generation() -> int:
 
 
 def dlpack_extension() -> object | None:
-    """Resolve the optional extension through the compatibility GPU module."""
-    from . import _gpu
+    """Resolve the optional extension through the DLPack interop module."""
+    from .interop.dlpack import extension
 
-    return _gpu._dlpack
+    return extension
 
 
 def make_nv12_external_config(

@@ -11,7 +11,7 @@ from ..native import library as native
 from .backend import _select_backend
 from .._cpu import BorrowedCpuFrame
 from .._frame_outputs import copy_i420, copy_nv12, copy_packed, get_frame_view
-from .._gpu import GpuFrame
+from .frame import GpuFrame
 from .._io_common import (
     _read_component_metrics,
     _read_copy_edge_metrics,

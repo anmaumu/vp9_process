@@ -3,7 +3,7 @@ from __future__ import annotations
 from .native import library as native
 from .api.backend import _select_backend, backend_capabilities, select_backend
 from ._cpu import BorrowedCpuFrame, CpuBuffer, CpuFramePool, Submission
-from ._gpu import GpuFrame, GpuPlane
+from .api.frame import GpuFrame, GpuPlane
 from ._intel_usm import IntelUsmFramePool, IntelUsmPoolSlot
 from .api.capture import VideoCapture
 from .api.writer import VideoWriter

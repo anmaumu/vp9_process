@@ -16,7 +16,7 @@ from .._frame_views import (
     make_nv12_view,
     make_packed_view,
 )
-from .._gpu import GpuFrame
+from .frame import GpuFrame
 from .._io_common import (
     _read_component_metrics,
     _read_copy_edge_metrics,

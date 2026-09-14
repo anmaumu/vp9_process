@@ -22,9 +22,9 @@ sys.path.insert(0, extension_dir)
 import _dlpack
 import mkvcodec
 import mkvcodec._api as api
-import mkvcodec._gpu as gpu_api
+import mkvcodec.interop.dlpack as dlpack_api
 
-gpu_api._dlpack = _dlpack
+dlpack_api.extension = _dlpack
 
 
 def current_context() -> int:

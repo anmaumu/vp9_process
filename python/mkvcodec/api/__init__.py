@@ -6,7 +6,6 @@ the ctypes implementation.
 """
 
 from .backend import BackendCapability, backend_capabilities, select_backend
-from .capture import VideoCapture
 from .frame import (
     BorrowedCpuFrame,
     CpuBuffer,
@@ -18,6 +17,7 @@ from .frame import (
     IntelUsmPoolSlot,
     Submission,
 )
+from .capture import VideoCapture
 from .metrics import (
     CopyEdgeMetrics,
     CpuFramePoolStatistics,

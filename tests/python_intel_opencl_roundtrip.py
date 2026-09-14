@@ -18,11 +18,11 @@ import numpy as np
 import _dlpack
 import mkvcodec
 import mkvcodec._api as api
-import mkvcodec._gpu as gpu_api
+import mkvcodec.interop.dlpack as dlpack_api
 from intel_va_opencl_support import Unsupported, VaOwner, invert_luma, OpenClReuseSession, reuse_program_enabled
 from gpu_resource_monitor import ResourceMonitor
 from gpu_trace_journal import journal
-gpu_api._dlpack = _dlpack
+dlpack_api.extension = _dlpack
 original_check = api.native.check
 
 

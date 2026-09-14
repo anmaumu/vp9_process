@@ -24,6 +24,10 @@ DLL loader、生成ctypes signatures/typesの正本を`native/`へ移し、bindi
 新しい正本を参照させた。旧`_native*`はthin shimとして残し、wheel内のnative library探索は
 package rootを維持する。
 
+GPU frameの公開実体も`api/frame.py`へ移し、CUDA/Intel import assemblyを`interop/`経由に
+保った。`GpuPlane`とoptional extension discoveryは`interop/dlpack.py`へ移し、source-tree
+試験のextension注入点も同moduleへ統一した。旧`_gpu`と`_gpu_plane`はthin shimである。
+
 ## 2026-09-15: CPU VP9 automatic decoder threading and OpenCV comparison correction
 
 Status: `IMPLEMENTED`

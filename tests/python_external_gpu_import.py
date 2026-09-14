@@ -15,11 +15,11 @@ import _dlpack
 import mkvcodec
 import mkvcodec._api as api
 import mkvcodec.api.backend as capability_api
-import mkvcodec._gpu as gpu_api
+import mkvcodec.interop.dlpack as dlpack_api
 
 # Source-tree tests keep the extension in the build directory. Wheels install
 # it as mkvcodec._dlpack, so connect the equivalent module explicitly here.
-gpu_api._dlpack = _dlpack
+dlpack_api.extension = _dlpack
 
 
 class Owner:
