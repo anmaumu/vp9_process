@@ -7,7 +7,11 @@ from fractions import Fraction
 
 from . import _native as native
 from ._types import (
-    PipelineComponentMetrics, PipelineMetrics, PipelineStageMetrics, U8Plane,
+    CopyEdgeMetrics,
+    PipelineComponentMetrics,
+    PipelineMetrics,
+    PipelineStageMetrics,
+    U8Plane,
 )
 
 
@@ -35,29 +39,63 @@ def _read_stage_metrics(handle: ct.c_void_p, function: object) -> PipelineStageM
     metrics.struct_size = ct.sizeof(metrics)
     metrics.struct_version = 1
     native.check(function(handle, ct.byref(metrics)))
-    return PipelineStageMetrics(**{
-        name: int(getattr(metrics, name)) for name in (
-            "frame_calls", "frame_time_ns", "flush_calls", "flush_time_ns",
-            "close_calls", "close_time_ns", "sync_frame_calls",
-            "sync_frame_time_ns", "worker_frame_calls", "worker_frame_time_ns"
-        )
-    })
+    return PipelineStageMetrics(
+        **{
+            name: int(getattr(metrics, name))
+            for name in (
+                "frame_calls",
+                "frame_time_ns",
+                "flush_calls",
+                "flush_time_ns",
+                "close_calls",
+                "close_time_ns",
+                "sync_frame_calls",
+                "sync_frame_time_ns",
+                "worker_frame_calls",
+                "worker_frame_time_ns",
+            )
+        }
+    )
 
 
-def _read_component_metrics(
-    handle: ct.c_void_p, function: object
-) -> PipelineComponentMetrics:
+def _read_component_metrics(handle: ct.c_void_p, function: object) -> PipelineComponentMetrics:
     metrics = native.PipelineComponentMetrics()
     metrics.struct_size = ct.sizeof(metrics)
     metrics.struct_version = 1
     native.check(function(handle, ct.byref(metrics)))
-    return PipelineComponentMetrics(**{
-        name: int(getattr(metrics, name)) for name in (
-            "conversion_calls", "conversion_time_ns", "codec_calls",
-            "codec_time_ns", "container_calls", "container_time_ns",
-            "gpu_wait_calls", "gpu_wait_time_ns",
-        )
-    })
+    return PipelineComponentMetrics(
+        **{
+            name: int(getattr(metrics, name))
+            for name in (
+                "conversion_calls",
+                "conversion_time_ns",
+                "codec_calls",
+                "codec_time_ns",
+                "container_calls",
+                "container_time_ns",
+                "gpu_wait_calls",
+                "gpu_wait_time_ns",
+            )
+        }
+    )
+
+
+def _read_copy_edge_metrics(handle: ct.c_void_p, function: object) -> CopyEdgeMetrics:
+    """Read operations observed at library-controlled copy/share boundaries."""
+    metrics = native.CopyEdgeMetrics()
+    metrics.struct_size = ct.sizeof(metrics)
+    metrics.struct_version = 1
+    native.check(function(handle, ct.byref(metrics)))
+    return CopyEdgeMetrics(
+        shared_surface_frames=int(metrics.shared_surface_frames),
+        zero_copy_frames=int(metrics.zero_copy_frames),
+        gpu_copy_frames=int(metrics.gpu_copy_frames),
+        cpu_upload_frames=int(metrics.cpu_upload_frames),
+        cpu_readback_frames=int(metrics.cpu_readback_frames),
+        cpu_normalization_frames=int(metrics.cpu_normalization_frames),
+        pixel_conversion_frames=int(metrics.pixel_conversion_frames),
+        driver_internal_observed=bool(metrics.driver_internal_observed),
+    )
 
 
 def _fps_fraction(fps: float | int | tuple[int, int]) -> Fraction:

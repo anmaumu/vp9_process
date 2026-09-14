@@ -63,6 +63,11 @@ def configure(lib: ct.CDLL, t: dict[str, Any]) -> None:
         ct.POINTER(t["PipelineComponentMetrics"]),
     ]
     lib.mkvc_decoder_get_component_metrics.restype = ct.c_int
+    lib.mkvc_decoder_get_copy_edge_metrics.argtypes = [
+        t["DecoderHandle"],
+        ct.POINTER(t["CopyEdgeMetrics"]),
+    ]
+    lib.mkvc_decoder_get_copy_edge_metrics.restype = ct.c_int
     lib.mkvc_decoder_get_info.argtypes = [t["DecoderHandle"], ct.POINTER(t["VideoInfo"])]
     lib.mkvc_decoder_get_info.restype = ct.c_int
     lib.mkvc_decoder_get_metrics.argtypes = [t["DecoderHandle"], ct.POINTER(t["PipelineMetrics"])]
@@ -98,6 +103,11 @@ def configure(lib: ct.CDLL, t: dict[str, Any]) -> None:
         ct.POINTER(t["PipelineComponentMetrics"]),
     ]
     lib.mkvc_encoder_get_component_metrics.restype = ct.c_int
+    lib.mkvc_encoder_get_copy_edge_metrics.argtypes = [
+        t["EncoderHandle"],
+        ct.POINTER(t["CopyEdgeMetrics"]),
+    ]
+    lib.mkvc_encoder_get_copy_edge_metrics.restype = ct.c_int
     lib.mkvc_encoder_get_metrics.argtypes = [t["EncoderHandle"], ct.POINTER(t["PipelineMetrics"])]
     lib.mkvc_encoder_get_metrics.restype = ct.c_int
     lib.mkvc_encoder_get_stage_metrics.argtypes = [

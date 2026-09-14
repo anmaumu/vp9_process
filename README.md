@@ -337,6 +337,10 @@ while (capture.ReadSurface() is { } surface)
 codec/backend、container、GPU completion waitの二重計上しない排他的host時間を
 返します。GPU waitはhost blocking時間であり、GPU kernel/event時間やdriver内部copy
 ではありません。
+`CopyEdgeMetrics`/`copy_edge_metrics`は共有surface、library境界zero-copy、GPU内copy、
+CPU upload/readback、CPU layout正規化、pixel format変換をframe単位で分けます。
+`DriverInternalObserved == 0`（Pythonでは`driver_internal_observed is False`）はvendor
+driver内部が未観測という意味で、counterが0でもdriver全体のzero-copy証明にはなりません。
 CTestにはC++と.NET双方のstrict GPU-resident round-tripがあり、非対応hardwareは77で
 skipし、対応環境ではframe数、zero-copy報告、出力artifactを検証します。
 

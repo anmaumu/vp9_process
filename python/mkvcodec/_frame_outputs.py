@@ -20,16 +20,22 @@ def get_frame_view(handle: native.FrameHandle) -> native.FrameView:
     return view
 
 
-def copy_i420(view: native.FrameView) -> CpuFrame:
-    """Copy an I420 native view into three independently owned arrays."""
-    arrays: list[U8Plane] = []
-    for index in range(3):
-        width = int(view.width if index == 0 else view.width // 2)
-        height = int(view.height if index == 0 else view.height // 2)
-        stride = int(view.strides[index])
-        raw = np.ctypeslib.as_array(view.planes[index], shape=(stride * height,))
-        arrays.append(raw.reshape(height, stride)[:, :width].copy())
-    return CpuFrame(arrays[0], arrays[1], arrays[2], int(view.pts))
+def copy_i420(handle: native.FrameHandle, view: native.FrameView) -> CpuFrame:
+    """Copy an I420 frame through the native path so the edge is observable."""
+    y = np.empty((view.height, view.width), dtype=np.uint8)
+    u = np.empty((view.height // 2, view.width // 2), dtype=np.uint8)
+    v = np.empty((view.height // 2, view.width // 2), dtype=np.uint8)
+    destination = native.MutableFrameView()
+    destination.struct_size = ct.sizeof(destination)
+    destination.struct_version = 1
+    destination.pixel_format = native.MKVC_PIXEL_FORMAT_I420
+    destination.width = view.width
+    destination.height = view.height
+    for index, plane in enumerate((y, u, v)):
+        destination.planes[index] = _plane_pointer(plane)
+        destination.strides[index] = plane.strides[0]
+    native.check(native.lib.mkvc_frame_copy_to(handle, ct.byref(destination)))
+    return CpuFrame(y, u, v, int(destination.pts))
 
 
 def copy_nv12(

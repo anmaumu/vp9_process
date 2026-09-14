@@ -517,6 +517,15 @@ class Decoder {
         check(mkvc_decoder_get_component_metrics(handle_, &value));
         return value;
     }
+    /** Return explicitly observed decoder copy/share edges. */
+    mkvc_copy_edge_metrics copy_edge_metrics() const {
+        ensure_open();
+        mkvc_copy_edge_metrics value{};
+        value.struct_size = sizeof(value);
+        value.struct_version = 1;
+        check(mkvc_decoder_get_copy_edge_metrics(handle_, &value));
+        return value;
+    }
     /** Return immutable video information resolved when this decoder opened. */
     mkvc_video_info info() const {
         ensure_open();
@@ -644,6 +653,15 @@ class Encoder {
         value.struct_size = sizeof(value);
         value.struct_version = 1;
         check(mkvc_encoder_get_component_metrics(handle_, &value));
+        return value;
+    }
+    /** Return explicitly observed encoder copy/share edges. */
+    mkvc_copy_edge_metrics copy_edge_metrics() const {
+        ensure_open();
+        mkvc_copy_edge_metrics value{};
+        value.struct_size = sizeof(value);
+        value.struct_version = 1;
+        check(mkvc_encoder_get_copy_edge_metrics(handle_, &value));
         return value;
     }
     void reset() noexcept {

@@ -213,6 +213,17 @@ mkvc_result mkvc_encoder_get_component_metrics(const mkvc_encoder* encoder,
     });
 }
 
+mkvc_result mkvc_encoder_get_copy_edge_metrics(const mkvc_encoder* encoder,
+                                               mkvc_copy_edge_metrics* out_metrics) {
+    last_error.clear();
+    if (encoder == nullptr || !mkvc::capi::valid_copy_edge_metrics_output(out_metrics))
+        return fail(MKVC_ERROR_INVALID_ARGUMENT, "invalid encoder copy-edge metrics output");
+    return guard("unknown encoder copy-edge metrics failure", [&] {
+        encoder->implementation->get_copy_edge_metrics(*out_metrics);
+        return MKVC_OK;
+    });
+}
+
 void mkvc_encoder_destroy(mkvc_encoder* encoder) {
     try {
         delete encoder;

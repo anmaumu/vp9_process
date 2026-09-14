@@ -35,6 +35,8 @@ mkvc_result read_cpu_sync(mkvc_decoder& decoder, std::unique_ptr<DecodedFrame>& 
         if (result == MKVC_OK) {
             ++decoder.accepted_frames;
             ++decoder.completed_frames;
+            if (decoder.intel_implementation || decoder.nvidia_implementation)
+                decoder.copy_edge_metrics->add(CopyEdge::kCpuReadback);
         }
     }
     return result;
@@ -62,6 +64,8 @@ mkvc_result read_gpu_sync(mkvc_decoder& decoder, mkvc_gpu_frame** frame, std::st
             ++decoder.accepted_frames;
             ++decoder.completed_frames;
             decoder.gpu_path_exercised = true;
+            decoder.copy_edge_metrics->add(CopyEdge::kSharedSurface);
+            decoder.copy_edge_metrics->add(CopyEdge::kZeroCopy);
         }
     }
     return result;

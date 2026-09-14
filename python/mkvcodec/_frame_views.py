@@ -170,14 +170,16 @@ def make_borrowed_view(
         expected = ((height, width, channels),)
     else:
         raise ValueError("format must be i420, nv12, bgr, rgb, or bgra")
+    original_planes = planes
     planes = _validate_planes(planes, expected, label="borrowed", allow_copy=allow_copy)
-    return (
-        _build_view(
-            planes,
-            pixel_format=pixel_format,
-            width=width,
-            height=height,
-            pts=pts,
-        ),
+    view = _build_view(
         planes,
+        pixel_format=pixel_format,
+        width=width,
+        height=height,
+        pts=pts,
     )
+    view._binding_normalized = any(
+        normalized is not original for normalized, original in zip(planes, original_planes)
+    )
+    return view, planes

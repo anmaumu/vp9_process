@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Generate low-level language bindings from the canonical public C header."""
+
 from __future__ import annotations
 
 import argparse
@@ -24,6 +25,7 @@ DOTNET_END_MARKER = "    // END MKVC GENERATED PINVOKE DECLARATIONS"
 _PYTHON_TYPES = {
     "mkvc_backend_capability": "BackendCapability",
     "mkvc_copy_policy": "CopyPolicy",
+    "mkvc_copy_edge_metrics": "CopyEdgeMetrics",
     "mkvc_cpu_layout_policy": "CpuLayoutPolicy",
     "mkvc_cpu_buffer": "CpuBufferHandle",
     "mkvc_cpu_buffer_desc": "CpuBufferDesc",
@@ -78,13 +80,20 @@ _PYTHON_FIELD_TYPES = {
     "mkvc_gpu_external_release_callback": "ct.c_void_p",
 }
 _OPAQUE_TYPES = {
-    "mkvc_cpu_buffer", "mkvc_cpu_frame_pool", "mkvc_decoder", "mkvc_encoder",
-    "mkvc_frame", "mkvc_gpu_frame", "mkvc_gpu_resource_pool",
-    "mkvc_gpu_resource_reservation", "mkvc_submission",
+    "mkvc_cpu_buffer",
+    "mkvc_cpu_frame_pool",
+    "mkvc_decoder",
+    "mkvc_encoder",
+    "mkvc_frame",
+    "mkvc_gpu_frame",
+    "mkvc_gpu_resource_pool",
+    "mkvc_gpu_resource_reservation",
+    "mkvc_submission",
 }
 _DOTNET_TYPES = {
     "mkvc_backend_capability": "MkvBackendCapability",
     "mkvc_copy_policy": "NativeCopyPolicy",
+    "mkvc_copy_edge_metrics": "MkvCopyEdgeMetrics",
     "mkvc_cpu_layout_policy": "NativeCpuLayoutPolicy",
     "mkvc_cpu_buffer_desc": "MkvCpuBufferDescriptor",
     "mkvc_cpu_frame_pool_config": "NativeCpuFramePoolConfig",
@@ -109,74 +118,107 @@ _DOTNET_TYPES = {
     "mkvc_video_info": "MkvVideoInfo",
 }
 _DOTNET_ENUMS = {
-    "mkvc_result": ("MkvResult", {
-        "MKVC_OK": "Ok",
-        "MKVC_ERROR_INVALID_ARGUMENT": "InvalidArgument",
-        "MKVC_ERROR_BUFFER_TOO_SMALL": "BufferTooSmall",
-        "MKVC_ERROR_NOT_SUPPORTED": "NotSupported",
-        "MKVC_ERROR_INTERNAL": "Internal",
-        "MKVC_ERROR_INVALID_STATE": "InvalidState",
-        "MKVC_ERROR_IO": "Io",
-        "MKVC_ERROR_CODEC": "Codec",
-        "MKVC_END_OF_STREAM": "EndOfStream",
-        "MKVC_WOULD_BLOCK": "WouldBlock",
-        "MKVC_ERROR_TIMEOUT": "Timeout",
-        "MKVC_ERROR_CANCELLED": "Cancelled",
-    }),
-    "mkvc_backend": ("MkvBackend", {
-        "MKVC_BACKEND_CPU": "Cpu",
-        "MKVC_BACKEND_NVIDIA": "Nvidia",
-        "MKVC_BACKEND_INTEL": "Intel",
-    }),
-    "mkvc_codec": ("MkvCodecKind", {
-        "MKVC_CODEC_AUTO": "Auto",
-        "MKVC_CODEC_VP9": "Vp9",
-        "MKVC_CODEC_AV1": "Av1",
-    }),
-    "mkvc_pixel_format": ("MkvPixelFormat", {
-        "MKVC_PIXEL_FORMAT_I420": "I420",
-        "MKVC_PIXEL_FORMAT_NV12": "Nv12",
-        "MKVC_PIXEL_FORMAT_BGR24": "Bgr24",
-        "MKVC_PIXEL_FORMAT_RGB24": "Rgb24",
-        "MKVC_PIXEL_FORMAT_BGRA32": "Bgra32",
-        "MKVC_PIXEL_FORMAT_P010": "P010",
-    }),
-    "mkvc_gpu_memory_type": ("MkvGpuMemoryType", {
-        "MKVC_GPU_MEMORY_D3D11_TEXTURE": "D3D11Texture",
-        "MKVC_GPU_MEMORY_VA_SURFACE": "VaSurface",
-        "MKVC_GPU_MEMORY_CUDA_POINTER": "CudaPointer",
-        "MKVC_GPU_MEMORY_CUDA_ARRAY": "CudaArray",
-        "MKVC_GPU_MEMORY_USM": "Usm",
-    }),
-    "mkvc_gpu_native_handle_type": ("MkvGpuNativeHandleType", {
-        "MKVC_GPU_NATIVE_D3D11_TEXTURE": "D3D11Texture",
-        "MKVC_GPU_NATIVE_VA_SURFACE": "VaSurface",
-        "MKVC_GPU_NATIVE_CUDA_POINTER": "CudaPointer",
-        "MKVC_GPU_NATIVE_CUDA_ARRAY": "CudaArray",
-        "MKVC_GPU_NATIVE_USM_POINTER": "UsmPointer",
-    }),
-    "mkvc_submission_status": ("MkvSubmissionStatus", {
-        "MKVC_SUBMISSION_PENDING": "Pending",
-        "MKVC_SUBMISSION_COMPLETE": "Complete",
-        "MKVC_SUBMISSION_FAILED": "Failed",
-        "MKVC_SUBMISSION_CANCELLED": "Cancelled",
-    }),
-    "mkvc_cpu_memory_mode": ("MkvCpuMemoryMode", {
-        "MKVC_CPU_MEMORY_PAGEABLE": "Pageable",
-        "MKVC_CPU_MEMORY_PAGE_LOCKED": "PageLocked",
-    }),
-    "mkvc_cpu_layout_mode": ("MkvCpuLayoutMode", {
-        "MKVC_CPU_LAYOUT_ALLOW_COPY": "AllowCopy",
-        "MKVC_CPU_LAYOUT_STRICT": "Strict",
-    }),
+    "mkvc_result": (
+        "MkvResult",
+        {
+            "MKVC_OK": "Ok",
+            "MKVC_ERROR_INVALID_ARGUMENT": "InvalidArgument",
+            "MKVC_ERROR_BUFFER_TOO_SMALL": "BufferTooSmall",
+            "MKVC_ERROR_NOT_SUPPORTED": "NotSupported",
+            "MKVC_ERROR_INTERNAL": "Internal",
+            "MKVC_ERROR_INVALID_STATE": "InvalidState",
+            "MKVC_ERROR_IO": "Io",
+            "MKVC_ERROR_CODEC": "Codec",
+            "MKVC_END_OF_STREAM": "EndOfStream",
+            "MKVC_WOULD_BLOCK": "WouldBlock",
+            "MKVC_ERROR_TIMEOUT": "Timeout",
+            "MKVC_ERROR_CANCELLED": "Cancelled",
+        },
+    ),
+    "mkvc_backend": (
+        "MkvBackend",
+        {
+            "MKVC_BACKEND_CPU": "Cpu",
+            "MKVC_BACKEND_NVIDIA": "Nvidia",
+            "MKVC_BACKEND_INTEL": "Intel",
+        },
+    ),
+    "mkvc_codec": (
+        "MkvCodecKind",
+        {
+            "MKVC_CODEC_AUTO": "Auto",
+            "MKVC_CODEC_VP9": "Vp9",
+            "MKVC_CODEC_AV1": "Av1",
+        },
+    ),
+    "mkvc_pixel_format": (
+        "MkvPixelFormat",
+        {
+            "MKVC_PIXEL_FORMAT_I420": "I420",
+            "MKVC_PIXEL_FORMAT_NV12": "Nv12",
+            "MKVC_PIXEL_FORMAT_BGR24": "Bgr24",
+            "MKVC_PIXEL_FORMAT_RGB24": "Rgb24",
+            "MKVC_PIXEL_FORMAT_BGRA32": "Bgra32",
+            "MKVC_PIXEL_FORMAT_P010": "P010",
+        },
+    ),
+    "mkvc_gpu_memory_type": (
+        "MkvGpuMemoryType",
+        {
+            "MKVC_GPU_MEMORY_D3D11_TEXTURE": "D3D11Texture",
+            "MKVC_GPU_MEMORY_VA_SURFACE": "VaSurface",
+            "MKVC_GPU_MEMORY_CUDA_POINTER": "CudaPointer",
+            "MKVC_GPU_MEMORY_CUDA_ARRAY": "CudaArray",
+            "MKVC_GPU_MEMORY_USM": "Usm",
+        },
+    ),
+    "mkvc_gpu_native_handle_type": (
+        "MkvGpuNativeHandleType",
+        {
+            "MKVC_GPU_NATIVE_D3D11_TEXTURE": "D3D11Texture",
+            "MKVC_GPU_NATIVE_VA_SURFACE": "VaSurface",
+            "MKVC_GPU_NATIVE_CUDA_POINTER": "CudaPointer",
+            "MKVC_GPU_NATIVE_CUDA_ARRAY": "CudaArray",
+            "MKVC_GPU_NATIVE_USM_POINTER": "UsmPointer",
+        },
+    ),
+    "mkvc_submission_status": (
+        "MkvSubmissionStatus",
+        {
+            "MKVC_SUBMISSION_PENDING": "Pending",
+            "MKVC_SUBMISSION_COMPLETE": "Complete",
+            "MKVC_SUBMISSION_FAILED": "Failed",
+            "MKVC_SUBMISSION_CANCELLED": "Cancelled",
+        },
+    ),
+    "mkvc_cpu_memory_mode": (
+        "MkvCpuMemoryMode",
+        {
+            "MKVC_CPU_MEMORY_PAGEABLE": "Pageable",
+            "MKVC_CPU_MEMORY_PAGE_LOCKED": "PageLocked",
+        },
+    ),
+    "mkvc_cpu_layout_mode": (
+        "MkvCpuLayoutMode",
+        {
+            "MKVC_CPU_LAYOUT_ALLOW_COPY": "AllowCopy",
+            "MKVC_CPU_LAYOUT_STRICT": "Strict",
+        },
+    ),
 }
 _DOTNET_PUBLIC_STRUCTS = {
-    "mkvc_backend_capability", "mkvc_cpu_buffer_desc", "mkvc_cpu_frame_pool_stats",
+    "mkvc_backend_capability",
+    "mkvc_cpu_buffer_desc",
+    "mkvc_cpu_frame_pool_stats",
     "mkvc_gpu_frame_desc",
-    "mkvc_gpu_native_handle_desc", "mkvc_gpu_resource_pool_stats",
-    "mkvc_gpu_resource_reservation_desc", "mkvc_pipeline_metrics",
+    "mkvc_gpu_native_handle_desc",
+    "mkvc_gpu_resource_pool_stats",
+    "mkvc_gpu_resource_reservation_desc",
+    "mkvc_pipeline_metrics",
     "mkvc_pipeline_component_metrics",
-    "mkvc_pipeline_stage_metrics", "mkvc_version",
+    "mkvc_copy_edge_metrics",
+    "mkvc_pipeline_stage_metrics",
+    "mkvc_version",
     "mkvc_video_info",
 }
 _DOTNET_FIELD_TYPES = {
@@ -224,14 +266,25 @@ _DOTNET_HANDLES = {
     "mkvc_submission": "MkvSubmissionHandle",
 }
 _DOTNET_RAW_HANDLES = {
-    "mkvc_cpu_buffer_release", "mkvc_cpu_frame_pool_destroy",
-    "mkvc_decoder_close", "mkvc_decoder_destroy", "mkvc_decoder_get_info",
-    "mkvc_decoder_get_metrics", "mkvc_decoder_get_stage_metrics",
+    "mkvc_cpu_buffer_release",
+    "mkvc_cpu_frame_pool_destroy",
+    "mkvc_decoder_close",
+    "mkvc_decoder_destroy",
+    "mkvc_decoder_get_info",
+    "mkvc_decoder_get_metrics",
+    "mkvc_decoder_get_stage_metrics",
     "mkvc_decoder_get_component_metrics",
-    "mkvc_encoder_close", "mkvc_encoder_destroy", "mkvc_encoder_get_metrics",
-    "mkvc_encoder_get_stage_metrics", "mkvc_encoder_get_component_metrics",
-    "mkvc_frame_release", "mkvc_gpu_frame_release",
-    "mkvc_gpu_resource_pool_destroy", "mkvc_gpu_resource_reservation_release",
+    "mkvc_decoder_get_copy_edge_metrics",
+    "mkvc_encoder_close",
+    "mkvc_encoder_destroy",
+    "mkvc_encoder_get_metrics",
+    "mkvc_encoder_get_stage_metrics",
+    "mkvc_encoder_get_component_metrics",
+    "mkvc_encoder_get_copy_edge_metrics",
+    "mkvc_frame_release",
+    "mkvc_gpu_frame_release",
+    "mkvc_gpu_resource_pool_destroy",
+    "mkvc_gpu_resource_reservation_release",
     "mkvc_submission_release",
 }
 
@@ -244,8 +297,11 @@ def _split_signature(signature: str) -> tuple[str, str, list[str]]:
     match = re.fullmatch(r"(.+?)\s+(mkvc_\w+)\((.*)\)", signature)
     if match is None:
         raise BindingGenerationError(f"invalid function signature: {signature}")
-    arguments = [] if match.group(3).strip() in ("", "void") else [
-        value.strip() for value in match.group(3).split(",")]
+    arguments = (
+        []
+        if match.group(3).strip() in ("", "void")
+        else [value.strip() for value in match.group(3).split(",")]
+    )
     return match.group(1), match.group(2), arguments
 
 
@@ -324,8 +380,7 @@ def render_python(header: Path = abi_guard.HEADER) -> str:
     ]
     for signature in functions.values():
         return_type, name, arguments = _split_signature(signature)
-        rendered_arguments = [
-            _ctypes_type(_argument_type(argument)) for argument in arguments]
+        rendered_arguments = [_ctypes_type(_argument_type(argument)) for argument in arguments]
         single_line = f"    lib.{name}.argtypes = [{', '.join(rendered_arguments)}]"
         if len(single_line) <= 99:
             lines.append(single_line)
@@ -341,8 +396,10 @@ def _struct_field(field: str) -> tuple[str, str, int | None]:
     match = re.fullmatch(r"(.+?[*\s])\s*(\w+)(?:\[(\d+)\])?", field)
     if match is None:
         raise BindingGenerationError(f"invalid C ABI struct field: {field}")
-    return " ".join(match.group(1).split()), match.group(2), (
-        int(match.group(3)) if match.group(3) else None
+    return (
+        " ".join(match.group(1).split()),
+        match.group(2),
+        (int(match.group(3)) if match.group(3) else None),
     )
 
 
@@ -385,8 +442,7 @@ def render_python_types(header: Path = abi_guard.HEADER) -> str:
             progressed = True
         if not progressed:
             raise BindingGenerationError(
-                "cyclic or unresolved C ABI struct dependencies: "
-                + ", ".join(sorted(pending))
+                "cyclic or unresolved C ABI struct dependencies: " + ", ".join(sorted(pending))
             )
     exported = ["MKVC_ABI_VERSION"]
     lines = [
@@ -396,7 +452,7 @@ def render_python_types(header: Path = abi_guard.HEADER) -> str:
         "",
         "import ctypes as ct",
         "",
-        f'MKVC_ABI_VERSION = {surface["abi_version"]}',
+        f"MKVC_ABI_VERSION = {surface['abi_version']}",
     ]
     for values in enums.values():
         for name, value in values.items():
@@ -410,9 +466,7 @@ def render_python_types(header: Path = abi_guard.HEADER) -> str:
         lines.extend(("", "", f"class {class_name}(ct.Structure):", "    _fields_ = ["))
         for field in fields:
             c_type, name, array_size = _struct_field(field)
-            lines.append(
-                f'        ("{name}", {_python_field_type(c_type, array_size)}),'
-            )
+            lines.append(f'        ("{name}", {_python_field_type(c_type, array_size)}),')
         lines.append("    ]")
     lines.extend(("", "", "__all__ = ["))
     lines.extend(f'    "{name}",' for name in exported)
@@ -430,9 +484,7 @@ def _dotnet_field_name(struct_name: str, field_name: str) -> str:
     return _DOTNET_FIELD_NAMES.get(field_name, _pascal_case(field_name))
 
 
-def _dotnet_struct_scalar_type(
-    struct_name: str, c_type: str, field_name: str
-) -> str:
+def _dotnet_struct_scalar_type(struct_name: str, c_type: str, field_name: str) -> str:
     override = _DOTNET_FIELD_TYPES.get((struct_name, field_name))
     if override is not None:
         return override
@@ -455,9 +507,7 @@ def _dotnet_struct_scalar_type(
     raise BindingGenerationError(f"unmapped .NET ABI struct field type: {c_type}")
 
 
-def _render_dotnet_struct_field(
-    struct_name: str, field: str, access: str
-) -> list[str]:
+def _render_dotnet_struct_field(struct_name: str, field: str, access: str) -> list[str]:
     c_type, field_name, array_size = _struct_field(field)
     name = _dotnet_field_name(struct_name, field_name)
     if array_size is None:
@@ -501,7 +551,9 @@ def render_dotnet_types(header: Path = abi_guard.HEADER) -> str:
         if managed_name is None:
             raise BindingGenerationError(f"unmapped .NET ABI struct: {c_name}")
         access = "public" if c_name in _DOTNET_PUBLIC_STRUCTS else "internal"
-        lines.extend(("", "[StructLayout(LayoutKind.Sequential)]", f"{access} struct {managed_name}", "{"))
+        lines.extend(
+            ("", "[StructLayout(LayoutKind.Sequential)]", f"{access} struct {managed_name}", "{")
+        )
         for field in fields:
             lines.extend(_render_dotnet_struct_field(c_name, field, access))
         lines.append("}")
@@ -544,14 +596,16 @@ def _dotnet_argument(function: str, c_type: str, name: str) -> str:
     if base == "char" and pointer_depth == 1:
         return f"nint {name}"
     scalars = {
-        "int64_t": "long", "mkvc_gpu_dependency_callback": "nint",
-        "mkvc_result": "MkvResult", "uint32_t": "uint", "uint64_t": "ulong",
+        "int64_t": "long",
+        "mkvc_gpu_dependency_callback": "nint",
+        "mkvc_result": "MkvResult",
+        "uint32_t": "uint",
+        "uint64_t": "ulong",
     }
     if pointer_depth == 0 and base in scalars:
         return f"{scalars[base]} {name}"
     qualifier = "const " if is_const else ""
-    raise BindingGenerationError(
-        f"unmapped .NET argument type: {qualifier}{normalized} {name}")
+    raise BindingGenerationError(f"unmapped .NET argument type: {qualifier}{normalized} {name}")
 
 
 def render_dotnet(header: Path = abi_guard.HEADER) -> str:
@@ -568,12 +622,8 @@ def render_dotnet(header: Path = abi_guard.HEADER) -> str:
     ]
     for signature in functions.values():
         return_type, name, arguments = _split_signature(signature)
-        rendered = [
-            _dotnet_argument(name, *_argument_parts(argument))
-            for argument in arguments]
-        lines.extend((
-            "    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]",
-        ))
+        rendered = [_dotnet_argument(name, *_argument_parts(argument)) for argument in arguments]
+        lines.extend(("    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]",))
         declaration = f"    internal static extern {_dotnet_return(return_type)} {name}"
         if not rendered:
             lines.extend((declaration + "();", ""))
@@ -581,22 +631,24 @@ def render_dotnet(header: Path = abi_guard.HEADER) -> str:
         lines.append(declaration + "(")
         lines.extend(
             f"        {argument}{',' if index + 1 < len(rendered) else ');'}"
-            for index, argument in enumerate(rendered))
+            for index, argument in enumerate(rendered)
+        )
         lines.append("")
     lines.append("}")
     return "\n".join(lines) + "\n"
 
 
 def _native_loader(source: str) -> str:
-    replacement = "\n".join((
-        START_MARKER,
-        "from ._native_signatures import configure as _configure_signatures",
-        "_configure_signatures(lib, globals())",
-        "del _configure_signatures",
-        END_MARKER,
-    ))
-    pattern = re.compile(
-        re.escape(START_MARKER) + r".*?" + re.escape(END_MARKER), re.DOTALL)
+    replacement = "\n".join(
+        (
+            START_MARKER,
+            "from ._native_signatures import configure as _configure_signatures",
+            "_configure_signatures(lib, globals())",
+            "del _configure_signatures",
+            END_MARKER,
+        )
+    )
+    pattern = re.compile(re.escape(START_MARKER) + r".*?" + re.escape(END_MARKER), re.DOTALL)
     rewritten, count = pattern.subn(replacement, source)
     if count != 1:
         raise BindingGenerationError("ctypes generated-region markers are invalid")
@@ -605,8 +657,8 @@ def _native_loader(source: str) -> str:
 
 def _dotnet_loader(source: str) -> str:
     pattern = re.compile(
-        re.escape(DOTNET_START_MARKER) + r".*?" +
-        re.escape(DOTNET_END_MARKER), re.DOTALL)
+        re.escape(DOTNET_START_MARKER) + r".*?" + re.escape(DOTNET_END_MARKER), re.DOTALL
+    )
     replacement = DOTNET_START_MARKER + "\n" + DOTNET_END_MARKER
     rewritten, count = pattern.subn(replacement, source)
     if count != 1:
@@ -628,25 +680,34 @@ def generate() -> None:
 
 def check() -> None:
     """Fail when checked-in generated artifacts differ from canonical output."""
-    if not PYTHON_SIGNATURES.exists() or PYTHON_SIGNATURES.read_text(
-            encoding="utf-8") != render_python():
+    if (
+        not PYTHON_SIGNATURES.exists()
+        or PYTHON_SIGNATURES.read_text(encoding="utf-8") != render_python()
+    ):
         raise BindingGenerationError(
-            "generated Python signatures are stale; run tools/generate_bindings.py generate")
-    if not PYTHON_TYPES.exists() or PYTHON_TYPES.read_text(
-            encoding="utf-8") != render_python_types():
+            "generated Python signatures are stale; run tools/generate_bindings.py generate"
+        )
+    if (
+        not PYTHON_TYPES.exists()
+        or PYTHON_TYPES.read_text(encoding="utf-8") != render_python_types()
+    ):
         raise BindingGenerationError(
-            "generated Python types are stale; run tools/generate_bindings.py generate")
+            "generated Python types are stale; run tools/generate_bindings.py generate"
+        )
     source = PYTHON_NATIVE.read_text(encoding="utf-8")
     if source != _native_loader(source):
         raise BindingGenerationError("_native.py contains hand-edited generated declarations")
-    if not DOTNET_METHODS.exists() or DOTNET_METHODS.read_text(
-            encoding="utf-8") != render_dotnet():
+    if not DOTNET_METHODS.exists() or DOTNET_METHODS.read_text(encoding="utf-8") != render_dotnet():
         raise BindingGenerationError(
-            "generated .NET methods are stale; run tools/generate_bindings.py generate")
-    if not DOTNET_TYPES.exists() or DOTNET_TYPES.read_text(
-            encoding="utf-8") != render_dotnet_types():
+            "generated .NET methods are stale; run tools/generate_bindings.py generate"
+        )
+    if (
+        not DOTNET_TYPES.exists()
+        or DOTNET_TYPES.read_text(encoding="utf-8") != render_dotnet_types()
+    ):
         raise BindingGenerationError(
-            "generated .NET types are stale; run tools/generate_bindings.py generate")
+            "generated .NET types are stale; run tools/generate_bindings.py generate"
+        )
     dotnet_source = DOTNET_NATIVE.read_text(encoding="utf-8")
     if dotnet_source != _dotnet_loader(dotnet_source):
         raise BindingGenerationError("NativeMethods.cs contains generated declarations")

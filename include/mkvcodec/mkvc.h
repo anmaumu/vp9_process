@@ -280,6 +280,28 @@ typedef struct mkvc_pipeline_component_metrics {
     uint64_t gpu_wait_time_ns;   /**< Exclusive host time waiting for GPU completion. */
 } mkvc_pipeline_component_metrics;
 
+/**
+ * Operations observed at library-controlled copy/share boundaries.
+ *
+ * Counts describe API-visible frame edges, not bytes transferred. A zero
+ * counter means no matching operation was observed; it is not proof that a
+ * vendor driver performed no internal copy. driver_internal_observed remains
+ * zero unless a future backend can provide complete driver-level attribution.
+ */
+typedef struct mkvc_copy_edge_metrics {
+    uint32_t struct_size;                /**< Size of this struct. */
+    uint32_t struct_version;             /**< Must be 1. */
+    uint64_t shared_surface_frames;      /**< GPU surfaces shared across an API edge. */
+    uint64_t zero_copy_frames;           /**< CPU/GPU storage exposed without materialization. */
+    uint64_t gpu_copy_frames;            /**< Explicit device-local copies requested by mkvcodec. */
+    uint64_t cpu_upload_frames;          /**< CPU frames submitted to a GPU backend. */
+    uint64_t cpu_readback_frames;        /**< GPU decode results materialized in CPU memory. */
+    uint64_t cpu_normalization_frames;   /**< CPU layouts copied into owned/canonical storage. */
+    uint64_t pixel_conversion_frames;    /**< Pixel-format conversions producing new storage. */
+    uint32_t driver_internal_observed;   /**< Zero: vendor-driver internal copies are unobserved. */
+    uint32_t reserved;                   /**< Must be ignored by readers. */
+} mkvc_copy_edge_metrics;
+
 /** Runtime copy/fallback policy; set before the first frame operation. */
 typedef struct mkvc_copy_policy {
     uint32_t struct_size;          /**< Size of this struct. */
@@ -553,6 +575,9 @@ MKVC_API mkvc_result mkvc_encoder_get_stage_metrics(
 /** Snapshot exclusive conversion/codec/container/GPU-wait timing. */
 MKVC_API mkvc_result mkvc_encoder_get_component_metrics(
     const mkvc_encoder* encoder, mkvc_pipeline_component_metrics* out_metrics);
+/** Snapshot explicitly observed encoder copy/share edges. */
+MKVC_API mkvc_result mkvc_encoder_get_copy_edge_metrics(
+    const mkvc_encoder* encoder, mkvc_copy_edge_metrics* out_metrics);
 /** Destroy an encoder handle; NULL is accepted. */
 MKVC_API void mkvc_encoder_destroy(mkvc_encoder* encoder);
 
@@ -639,6 +664,9 @@ MKVC_API mkvc_result mkvc_decoder_get_stage_metrics(
 /** Snapshot exclusive conversion/codec/container/GPU-wait timing. */
 MKVC_API mkvc_result mkvc_decoder_get_component_metrics(
     const mkvc_decoder* decoder, mkvc_pipeline_component_metrics* out_metrics);
+/** Snapshot explicitly observed decoder copy/share edges. */
+MKVC_API mkvc_result mkvc_decoder_get_copy_edge_metrics(
+    const mkvc_decoder* decoder, mkvc_copy_edge_metrics* out_metrics);
 /** Return immutable video information resolved when the decoder was created. */
 MKVC_API mkvc_result mkvc_decoder_get_info(const mkvc_decoder* decoder, mkvc_video_info* out_info);
 /** Destroy a decoder handle; NULL is accepted. */

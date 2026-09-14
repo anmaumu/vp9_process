@@ -12,10 +12,19 @@ from ._capabilities import _select_backend
 from ._cpu import BorrowedCpuFrame
 from ._frame_outputs import copy_i420, copy_nv12, copy_packed, get_frame_view
 from ._gpu import GpuFrame
-from ._io_common import _read_component_metrics, _read_metrics, _read_stage_metrics
+from ._io_common import (
+    _read_component_metrics,
+    _read_copy_edge_metrics,
+    _read_metrics,
+    _read_stage_metrics,
+)
 from ._processing_plan import build_process_config
 from ._types import (
-    CpuFrame, PipelineComponentMetrics, PipelineMetrics, PipelineStageMetrics,
+    CopyEdgeMetrics,
+    CpuFrame,
+    PipelineComponentMetrics,
+    PipelineMetrics,
+    PipelineStageMetrics,
     U8Plane,
 )
 from ._video_info import probe_video, read_decoder_info
@@ -62,6 +71,7 @@ class VideoCapture(Iterator[U8Plane]):
     last_pts_ns : int or None
         Presentation timestamp of the most recently returned frame.
     """
+
     def __init__(
         self,
         path: str | Path,
@@ -82,13 +92,9 @@ class VideoCapture(Iterator[U8Plane]):
         if prefetch is None:
             prefetch = 0 if require_gpu_resident else 4
         if require_gpu_resident and backend not in ("intel", "nvidia"):
-            raise ValueError(
-                "require_gpu_resident requires the Intel or NVIDIA backend"
-            )
+            raise ValueError("require_gpu_resident requires the Intel or NVIDIA backend")
         if require_gpu_resident and prefetch != 0:
-            raise ValueError(
-                "require_gpu_resident currently requires prefetch=0"
-            )
+            raise ValueError("require_gpu_resident currently requires prefetch=0")
         encoded_path = str(Path(path)).encode("utf-8")
         config = native.DecoderConfig()
         config.struct_size = ct.sizeof(config)
@@ -99,9 +105,11 @@ class VideoCapture(Iterator[U8Plane]):
             "vp9": native.MKVC_CODEC_VP9,
             "av1": native.MKVC_CODEC_AV1,
         }[codec]
-        config.backend = ({"cpu": native.MKVC_BACKEND_CPU,
-                           "intel": native.MKVC_BACKEND_INTEL,
-                           "nvidia": native.MKVC_BACKEND_NVIDIA}[backend])
+        config.backend = {
+            "cpu": native.MKVC_BACKEND_CPU,
+            "intel": native.MKVC_BACKEND_INTEL,
+            "nvidia": native.MKVC_BACKEND_NVIDIA,
+        }[backend]
         config.threads = threads
         if prefetch < 0:
             raise ValueError("prefetch must be zero or positive")
@@ -119,9 +127,9 @@ class VideoCapture(Iterator[U8Plane]):
                 policy.require_gpu_resident = 1
                 policy.allow_gpu_copy = 1
                 policy.allow_cpu_copy = 0
-                native.check(native.lib.mkvc_decoder_set_copy_policy(
-                    self._handle, ct.byref(policy)
-                ))
+                native.check(
+                    native.lib.mkvc_decoder_set_copy_policy(self._handle, ct.byref(policy))
+                )
         except Exception:
             native.lib.mkvc_decoder_destroy(self._handle)
             self._handle = native.DecoderHandle()
@@ -139,6 +147,7 @@ class VideoCapture(Iterator[U8Plane]):
         self._last_metrics: PipelineMetrics | None = None
         self._last_stage_metrics: PipelineStageMetrics | None = None
         self._last_component_metrics: PipelineComponentMetrics | None = None
+        self._last_copy_edge_metrics: CopyEdgeMetrics | None = None
         self.last_pts_ns: int | None = None
 
     @property
@@ -166,15 +175,21 @@ class VideoCapture(Iterator[U8Plane]):
             if self._last_component_metrics is None:
                 raise RuntimeError("capture component metrics are unavailable")
             return self._last_component_metrics
-        return _read_component_metrics(
-            self._handle, native.lib.mkvc_decoder_get_component_metrics
-        )
+        return _read_component_metrics(self._handle, native.lib.mkvc_decoder_get_component_metrics)
+
+    @property
+    def copy_edge_metrics(self) -> CopyEdgeMetrics:
+        """Copy/share operations observed at mkvcodec-controlled boundaries."""
+        if self._closed:
+            if self._last_copy_edge_metrics is None:
+                raise RuntimeError("capture copy-edge metrics are unavailable")
+            return self._last_copy_edge_metrics
+        return _read_copy_edge_metrics(self._handle, native.lib.mkvc_decoder_get_copy_edge_metrics)
 
     def _read_handle(self) -> native.FrameHandle | None:
         if self._require_gpu_resident:
             raise RuntimeError(
-                "CPU frame reads are disabled by require_gpu_resident=True; "
-                "use read_surface()"
+                "CPU frame reads are disabled by require_gpu_resident=True; use read_surface()"
             )
         if self._closed:
             raise RuntimeError("capture is closed")
@@ -199,16 +214,14 @@ class VideoCapture(Iterator[U8Plane]):
             if view.pixel_format != native.MKVC_PIXEL_FORMAT_I420:
                 raise RuntimeError("native decoder returned a non-I420 frame")
             self.last_pts_ns = view.pts
-            return copy_i420(view)
+            return copy_i420(handle, view)
         finally:
             native.lib.mkvc_frame_release(handle)
 
     def read_borrowed(self, *, format: str = "i420") -> BorrowedCpuFrame | None:
         """Return read-only NumPy views sharing the native decoded allocation."""
         if format != "i420":
-            raise ValueError(
-                "zero-copy borrowed decode currently supports only native I420"
-            )
+            raise ValueError("zero-copy borrowed decode currently supports only native I420")
         handle = self._read_handle()
         if handle is None:
             return None
@@ -284,13 +297,15 @@ class VideoCapture(Iterator[U8Plane]):
             return None
         processed_handle = native.FrameHandle()
         try:
-            native.check(native.lib.mkvc_frame_process(
-                source_handle, ct.byref(config), ct.byref(processed_handle)
-            ))
+            native.check(
+                native.lib.mkvc_frame_process(
+                    source_handle, ct.byref(config), ct.byref(processed_handle)
+                )
+            )
             view = self._get_view(processed_handle)
             self.last_pts_ns = view.pts
             if format == "i420":
-                return copy_i420(view)
+                return copy_i420(processed_handle, view)
             if format == "nv12":
                 output, _ = copy_nv12(processed_handle, view)
                 return output
@@ -379,9 +394,7 @@ class VideoCapture(Iterator[U8Plane]):
             reader = readers[format]
         except KeyError as exc:
             raise ValueError("unsupported batch format") from exc
-        deadline = (
-            time.monotonic() + timeout_ms / 1000.0 if timeout_ms > 0 else None
-        )
+        deadline = time.monotonic() + timeout_ms / 1000.0 if timeout_ms > 0 else None
         frames: list[U8Plane | CpuFrame | tuple[U8Plane, U8Plane] | GpuFrame] = []
         while len(frames) < max_size:
             if frames and deadline is not None and time.monotonic() >= deadline:
@@ -400,14 +413,15 @@ class VideoCapture(Iterator[U8Plane]):
             return
         result = native.lib.mkvc_decoder_close(self._handle)
         try:
-            self._last_metrics = _read_metrics(
-                self._handle, native.lib.mkvc_decoder_get_metrics
-            )
+            self._last_metrics = _read_metrics(self._handle, native.lib.mkvc_decoder_get_metrics)
             self._last_stage_metrics = _read_stage_metrics(
                 self._handle, native.lib.mkvc_decoder_get_stage_metrics
             )
             self._last_component_metrics = _read_component_metrics(
                 self._handle, native.lib.mkvc_decoder_get_component_metrics
+            )
+            self._last_copy_edge_metrics = _read_copy_edge_metrics(
+                self._handle, native.lib.mkvc_decoder_get_copy_edge_metrics
             )
         finally:
             native.lib.mkvc_decoder_destroy(self._handle)

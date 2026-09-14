@@ -11,7 +11,10 @@ def main(input_path: str, output_path: str, codec: str) -> None:
     output.unlink(missing_ok=True)
     count = 0
     with mkvcodec.VideoCapture(
-        input_path, codec=codec, backend="intel", prefetch=0,
+        input_path,
+        codec=codec,
+        backend="intel",
+        prefetch=0,
         require_gpu_resident=True,
     ) as capture:
         first = capture.read_surface()
@@ -21,20 +24,25 @@ def main(input_path: str, output_path: str, codec: str) -> None:
             raise AssertionError("strict capture accepted a CPU read")
         except RuntimeError as exc:
             assert "require_gpu_resident" in str(exc)
+        assert capture.copy_edge_metrics.shared_surface_frames == 1
+        assert capture.copy_edge_metrics.cpu_readback_frames == 0
         descriptor = first.descriptor
         with mkvcodec.VideoWriter(
-            output, codec=codec, backend="intel", fps=30,
+            output,
+            codec=codec,
+            backend="intel",
+            fps=30,
             frame_size=(descriptor["width"], descriptor["height"]),
             queue_size=0,
             require_gpu_resident=True,
         ) as writer:
             try:
-                writer.write_bgr(np.zeros(
-                    (descriptor["height"], descriptor["width"], 3), np.uint8
-                ))
+                writer.write_bgr(np.zeros((descriptor["height"], descriptor["width"], 3), np.uint8))
                 raise AssertionError("strict writer accepted a CPU frame")
             except RuntimeError as exc:
                 assert "require_gpu_resident" in str(exc)
+            assert writer.copy_edge_metrics.cpu_upload_frames == 0
+            assert writer.copy_edge_metrics.cpu_normalization_frames == 0
             surface = first
             while surface is not None:
                 writer.write_surface(surface)
@@ -42,13 +50,16 @@ def main(input_path: str, output_path: str, codec: str) -> None:
                 count += 1
                 surface = capture.read_surface()
             assert writer.metrics.copy_path == "zero_copy"
+            assert writer.copy_edge_metrics.shared_surface_frames == count
+            assert writer.copy_edge_metrics.zero_copy_frames == count
+            assert writer.copy_edge_metrics.cpu_upload_frames == 0
+        assert capture.copy_edge_metrics.shared_surface_frames == count
+        assert capture.copy_edge_metrics.cpu_readback_frames == 0
     assert count > 0
     assert output.stat().st_size > 0
 
     decoded = 0
-    with mkvcodec.VideoCapture(
-        output, codec=codec, backend="intel", prefetch=0
-    ) as verification:
+    with mkvcodec.VideoCapture(output, codec=codec, backend="intel", prefetch=0) as verification:
         while True:
             surface = verification.read_surface()
             if surface is None:

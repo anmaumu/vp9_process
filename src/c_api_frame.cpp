@@ -27,6 +27,11 @@ mkvc_result copy_frame(const mkvc_frame* frame, mkvc_mutable_frame_view* destina
         std::string error;
         const mkvc_result result =
             mkvc::copy_frame_to(*frame->implementation, *destination, error, conversion_threads);
+        if (result == MKVC_OK && frame->copy_edge_metrics) {
+            frame->copy_edge_metrics->add(mkvc::CopyEdge::kCpuNormalization);
+            if (destination->pixel_format != MKVC_PIXEL_FORMAT_I420)
+                frame->copy_edge_metrics->add(mkvc::CopyEdge::kPixelConversion);
+        }
         return result == MKVC_OK ? result : fail(result, std::move(error));
     });
 }
@@ -61,6 +66,7 @@ mkvc_result mkvc_frame_get_view(const mkvc_frame* frame, mkvc_frame_view* out_vi
     out_view->planes[3] = nullptr;
     out_view->strides[3] = 0;
     out_view->pts = source.pts_ns;
+    if (frame->copy_edge_metrics) frame->copy_edge_metrics->add(mkvc::CopyEdge::kZeroCopy);
     return MKVC_OK;
 }
 
@@ -109,6 +115,10 @@ mkvc_result mkvc_frame_process(const mkvc_frame* frame, const mkvc_frame_process
         auto handle = std::make_unique<mkvc_frame>();
         handle->implementation = std::move(processed);
         handle->component_metrics = frame->component_metrics;
+        handle->copy_edge_metrics = frame->copy_edge_metrics;
+        if (frame->copy_edge_metrics) {
+            frame->copy_edge_metrics->add(mkvc::CopyEdge::kCpuNormalization);
+        }
         *out_frame = handle.release();
         return MKVC_OK;
     } catch (const std::exception& exception) {

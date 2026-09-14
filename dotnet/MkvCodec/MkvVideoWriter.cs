@@ -12,6 +12,7 @@ public sealed class MkvVideoWriter : IDisposable
     private MkvPipelineMetrics? finalMetrics;
     private MkvPipelineStageMetrics? finalStageMetrics;
     private MkvPipelineComponentMetrics? finalComponentMetrics;
+    private MkvCopyEdgeMetrics? finalCopyEdgeMetrics;
 
     public MkvVideoWriter(string path, uint width, uint height,
         uint fpsNumerator = 30, uint fpsDenominator = 1,
@@ -253,6 +254,22 @@ public sealed class MkvVideoWriter : IDisposable
     public MkvPipelineComponentMetrics ComponentMetrics =>
         finalComponentMetrics ?? ReadComponentMetrics();
 
+    /// <summary>Copy/share operations observed at mkvcodec-controlled boundaries.</summary>
+    public MkvCopyEdgeMetrics CopyEdgeMetrics =>
+        finalCopyEdgeMetrics ?? ReadCopyEdgeMetrics();
+
+    private MkvCopyEdgeMetrics ReadCopyEdgeMetrics()
+    {
+        ObjectDisposedException.ThrowIf(handle is null || handle.IsClosed, this);
+        var metrics = new MkvCopyEdgeMetrics {
+            StructSize = checked((uint)Marshal.SizeOf<MkvCopyEdgeMetrics>()),
+            StructVersion = 1
+        };
+        MkvCodecInfo.ThrowIfFailed(NativeMethods.mkvc_encoder_get_copy_edge_metrics(
+            handle!.DangerousGetHandle(), ref metrics));
+        return metrics;
+    }
+
     private MkvPipelineComponentMetrics ReadComponentMetrics()
     {
         ObjectDisposedException.ThrowIf(handle is null || handle.IsClosed, this);
@@ -299,6 +316,7 @@ public sealed class MkvVideoWriter : IDisposable
                 finalMetrics = ReadMetrics();
                 finalStageMetrics = ReadStageMetrics();
                 finalComponentMetrics = ReadComponentMetrics();
+                finalCopyEdgeMetrics = ReadCopyEdgeMetrics();
             }
             finally
             {

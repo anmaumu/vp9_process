@@ -1,9 +1,9 @@
 {
   "abi_version": 1,
   "enum_count": 13,
-  "function_count": 68,
-  "struct_count": 24,
-  "surface_sha256": "7bddf2228eadeffd3b55dd98b2247b1c758212c038dca8cb358f18d93d1dec21",
+  "function_count": 70,
+  "struct_count": 25,
+  "surface_sha256": "4a7d325b9196791a08e0aae06155de9d7122c4fc039937a8867d9ea94c3198ae",
   "symbols": [
     "mkvc_cpu_buffer_get_desc",
     "mkvc_cpu_buffer_get_view",
@@ -17,6 +17,7 @@
     "mkvc_decoder_create",
     "mkvc_decoder_destroy",
     "mkvc_decoder_get_component_metrics",
+    "mkvc_decoder_get_copy_edge_metrics",
     "mkvc_decoder_get_info",
     "mkvc_decoder_get_metrics",
     "mkvc_decoder_get_stage_metrics",
@@ -30,6 +31,7 @@
     "mkvc_encoder_destroy",
     "mkvc_encoder_flush",
     "mkvc_encoder_get_component_metrics",
+    "mkvc_encoder_get_copy_edge_metrics",
     "mkvc_encoder_get_metrics",
     "mkvc_encoder_get_stage_metrics",
     "mkvc_encoder_set_copy_policy",

@@ -14,6 +14,7 @@
 #include <thread>
 #include <utility>
 
+#include "copy_edge_metrics.hpp"
 #include "cpu_av1_decoder.hpp"
 #include "cpu_frame_pool.hpp"
 #include "cpu_vp9_decoder.hpp"
@@ -51,6 +52,8 @@ struct mkvc_decoder {
     mkvc_pipeline_stage_metrics stage_metrics{};
     std::shared_ptr<mkvc::ComponentMetricsAccumulator> component_metrics =
         std::make_shared<mkvc::ComponentMetricsAccumulator>();
+    std::shared_ptr<mkvc::CopyEdgeMetricsAccumulator> copy_edge_metrics =
+        std::make_shared<mkvc::CopyEdgeMetricsAccumulator>();
     uint32_t peak_queue_depth = 0;
     uint32_t hardware_pending_peak = 0;
     bool gpu_path_exercised = false;
@@ -65,6 +68,7 @@ struct mkvc_frame {
     std::atomic<uint32_t> references{1};
     std::unique_ptr<mkvc::DecodedFrame> implementation;
     std::shared_ptr<mkvc::ComponentMetricsAccumulator> component_metrics;
+    std::shared_ptr<mkvc::CopyEdgeMetricsAccumulator> copy_edge_metrics;
 };
 
 /** @brief Opaque asynchronous CPU submission completion handle. */

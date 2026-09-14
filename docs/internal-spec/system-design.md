@@ -307,7 +307,7 @@ Source layoutは共通所有権・同期を`src/gpu/`、将来のvendor実装を
   Linux DMA-BUF経路では実exportのDRM modifier、object extent、plane offset/pitchを検証し、非linear modifierのままstrided DLPackを作らない。allocatorへのlinear要求だけを根拠にしない。Level Zeroのexport fdはdriver所有なのでdupして自分の複製だけをcloseする。device USMはexport flag付き専用allocationを基本とし、任意pool allocationの物理offsetを推測しない。SYCL contextとdeviceの一致、実consumer queueの完了、VA owner→USM allocation→contextの寿命を束縛する。共有USMのhost migrationをstrict device-resident保証に代用しない。
   USM poolはallocation機能とlease/backpressure機能を分離する。Python/oneAPI adapterがexportable linear device-USMを事前確保し、共通native reservation poolはslot/generation/occupancy/condition-variableだけを管理する。Python slot leaseは`WRITABLE -> TRANSFERRED`または`WRITABLE -> RELEASED`の単方向状態機械とし、二重移譲と返却後の利用を拒否する。移譲または返却時はslot自身が保持するallocation ownerとdependency registrarへの冗長な参照を除去し、移譲時のownerはframe側だけに保持する。producer投入前にslotを予約し、Level Zero event付きUSM frameへreservationをownerとして移譲する。DLPack処理後にVA frameへ戻す場合もUSM frame leaseをVA ownerへ保持させ、oneVPL consumerが解放する前にslotを再利用しない。pool満杯時のflush/retryは上位pipelineが明示し、native poolがdevice-wide syncを行わない。
 - `INT-GPU-012`: Python wrapperはGPU待機中GILを解放し、GC/finalizerは例外を出さず、interpreter shutdown後にPython APIへcallbackしない。
-- `INT-GPU-013`: copy-path recorderは各edgeを`shared_surface/zero_copy/gpu_copy/cpu_upload/cpu_readback`として実測記録し、要求値から推測しない。
+- `INT-GPU-013`: lock-freeなcopy-path recorderは各edgeを`shared_surface/zero_copy/gpu_copy/cpu_upload/cpu_readback/cpu_normalization/pixel_conversion`としてframe単位で実測記録し、要求値から推測しない。GPU surface decode/encodeは共有とzero-copyを、hardware decoderのCPU readはreadbackを、hardware encoderのCPU inputはuploadを記録する。decoded frameはrecorder ownerを共有保持し、後段copy/convertをdecoder sessionへ帰属させる。driver内部観測fieldは完全なattributionがない限り0に固定する。
 - `INT-GPU-014`: device lost/cancel/timeout時は全completionをterminal failureへ遷移させ、waiterを起床し、resourceを依存順に一度だけ解放する。
 - `INT-GPU-015`: copy policyは既存create configのABI sizeを変更せずversioned setterで設定し、最初のframe受理後の変更を拒否する。strict指定時はCPU read/write APIをbackend呼出前に拒否する。
 - `INT-GPU-016`: GPU import descriptorはresource owner、memory type/layout、device/context、producer completion、release callbackを保持し、validation失敗時を含めcallbackを高々一度だけ呼ぶ。
@@ -339,7 +339,7 @@ pool slot lease -> producer submit -> producer completion
 
 Status: `PROPOSED`
 
-- `INT-OBS-001`: aggregateとは別のversioned component metricsでconversion、codec/backend、container、GPU completion waitのcall数と排他的host時間を公開する。decoded CPU frameはmetrics ownerを共有保持し、decoder close後のcopy/convertも元sessionへ帰属させる。より細かなdemux/decode/export/import/upload/downloadのedge分類はcopy traceで補う。
+- `INT-OBS-001`: aggregateとは別のversioned component metricsでconversion、codec/backend、container、GPU completion waitのcall数と排他的host時間を公開する。さらにversioned copy-edge metricsをC ABIのdecoder/encoder getterとC++/Python/.NET facadeから公開する。decoded CPU frameはcomponent/copy recorder ownerを共有保持し、decoder close後のcopy/convertも元sessionへ帰属させる。counterは実行operationだけを加算し、byte転送量やdriver内部動作を推定しない。
 - `INT-OBS-002`: CPU host timerとGPU device event timerを区別する。versioned stage metricsはframe、flush、closeのcall数・host時間とframe処理のcaller/worker内訳を公開する。component timerはnested child実行中にparentを停止して二重計上を避ける。codec/backend時間はinstrument済みconversion/container/GPU waitを除いたbackend call残余であり、GPU waitはsession pipeline内のhost blocking時間であるため、いずれもdevice kernel/event実行時間として扱わない。session外から独立に呼ぶframe waitはsessionへ帰属させない。
 - `INT-OBS-003`: input/encoded fps、drop、peak queue、prefetch hit/miss、RAM/VRAM概算を公開する。
 - `INT-OBS-004`: copy path判定は実際に実行したoperationから設定し、requested pathから推測しない。

@@ -43,4 +43,10 @@ inline bool valid_component_metrics_output(
            metrics->struct_version == 1;
 }
 
+/** Return whether a copy-edge destination is safe to overwrite. */
+inline bool valid_copy_edge_metrics_output(const mkvc_copy_edge_metrics* metrics) noexcept {
+    return metrics != nullptr && metrics->struct_size >= sizeof(mkvc_copy_edge_metrics) &&
+           metrics->struct_version == 1;
+}
+
 }  // namespace mkvc::capi

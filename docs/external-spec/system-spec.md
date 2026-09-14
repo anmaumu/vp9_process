@@ -399,7 +399,7 @@ Status: `PROPOSED`
 - `EXT-PERF-004`: zero-copy報告時、映像pixelのCPU round-tripがない。
 - `EXT-PERF-005`: Pythonの長時間処理・待機中はGILを解放する。
 - `EXT-PERF-006`: 1080p30/60、4K30、対応時4K60のbackend別baselineを記録し、理由のない重大回帰をrelease gateとする。
-- `EXT-OBS-001`: queue wait、convert、codec/backend、container、GPU completion wait、fps、drop、peak queue、copy pathを観測できる。C ABI/C++/Python/.NETからframe、flush、closeのhost境界時間、同期/worker frame処理内訳、およびconversion/codec/container/GPU-waitの相互に二重計上しない排他的host時間をversioned snapshotとして取得できる。decoded frameの後段native copy/convertはdecoder close後でも元sessionへ帰属する。GPU-wait値はhost blocking時間であり、device kernel/event時間やdriver内部copyを意味しない。
+- `EXT-OBS-001`: queue wait、convert、codec/backend、container、GPU completion wait、fps、drop、peak queue、copy pathを観測できる。C ABI/C++/Python/.NETからframe、flush、closeのhost境界時間、同期/worker frame処理内訳、およびconversion/codec/container/GPU-waitの相互に二重計上しない排他的host時間をversioned snapshotとして取得できる。さらに`copy_edge_metrics`は`shared_surface`、`zero_copy`、`gpu_copy`、`cpu_upload`、`cpu_readback`、`cpu_normalization`、`pixel_conversion`をframe単位で個別集計する。decoded frameの後段native copy/convertはdecoder close後でも元sessionへ帰属する。Python bindingがC ABIへ渡す前に行ったnegative/non-unit-stride正規化もPython snapshotへ加算する。GPU-wait値はhost blocking時間であり、device kernel/event時間やdriver内部copyを意味しない。`driver_internal_observed=0`と各edgeの0件はdriver内部zero-copyの証明ではなく「mkvcodecの観測範囲外」を表す。
 
 絶対fps目標は対象hardwareのbaseline採取後に確定する。それまでは性能数値に関するStatusを`PROPOSED`とする。
 
@@ -443,7 +443,7 @@ Status: `PROPOSED`
 | `AC-ABI-001` | C/C#/Pythonから同じCoreのcreate/read-write/destroyが成立する | EXT-ABI-001..005, EXT-CS-001..004 |
 | `AC-ERR-001` | 全失敗でexception leak、double free、resource leakがない | EXT-ERR-001..006 |
 | `AC-PERF-001` | bounded resource、pipeline並行性、GIL解放、baseline回帰gateを満たす | EXT-PERF-001..006 |
-| `AC-OBS-001` | backend別時間内訳とcopy pathを取得できる | EXT-OBS-001 |
+| `AC-OBS-001` | backend別時間内訳、aggregate copy path、edge別copy/share count、driver内部の未観測状態を取得できる | EXT-OBS-001 |
 | `AC-PKG-001` | Windowsでは通常/delay-load PE importの再帰閉包、全platformではnative依存を含むartifact内容検査、隔離環境load、license gateがPASSする。qualification-only artifactは明示的な試験modeだけで受理され、release gateでは拒否される | EXT-PKG-001..006 |
 
 詳細なtestとの対応は`../traceability.md`を正とする。

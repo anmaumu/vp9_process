@@ -64,6 +64,11 @@ internal static partial class NativeMethods
         ref MkvPipelineComponentMetrics out_metrics);
 
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern MkvResult mkvc_decoder_get_copy_edge_metrics(
+        nint decoder,
+        ref MkvCopyEdgeMetrics out_metrics);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
     internal static extern MkvResult mkvc_decoder_get_info(
         nint decoder,
         ref MkvVideoInfo out_info);
@@ -122,6 +127,11 @@ internal static partial class NativeMethods
     internal static extern MkvResult mkvc_encoder_get_component_metrics(
         nint encoder,
         ref MkvPipelineComponentMetrics out_metrics);
+
+    [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
+    internal static extern MkvResult mkvc_encoder_get_copy_edge_metrics(
+        nint encoder,
+        ref MkvCopyEdgeMetrics out_metrics);
 
     [DllImport(LibraryName, CallingConvention = CallingConvention.Cdecl)]
     internal static extern MkvResult mkvc_encoder_get_metrics(

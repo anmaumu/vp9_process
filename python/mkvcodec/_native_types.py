@@ -75,6 +75,22 @@ class BackendCapability(ct.Structure):
     ]
 
 
+class CopyEdgeMetrics(ct.Structure):
+    _fields_ = [
+        ("struct_size", ct.c_uint32),
+        ("struct_version", ct.c_uint32),
+        ("shared_surface_frames", ct.c_uint64),
+        ("zero_copy_frames", ct.c_uint64),
+        ("gpu_copy_frames", ct.c_uint64),
+        ("cpu_upload_frames", ct.c_uint64),
+        ("cpu_readback_frames", ct.c_uint64),
+        ("cpu_normalization_frames", ct.c_uint64),
+        ("pixel_conversion_frames", ct.c_uint64),
+        ("driver_internal_observed", ct.c_uint32),
+        ("reserved", ct.c_uint32),
+    ]
+
+
 class CopyPolicy(ct.Structure):
     _fields_ = [
         ("struct_size", ct.c_uint32),
@@ -444,6 +460,7 @@ __all__ = [
     "MKVC_SUBMISSION_FAILED",
     "MKVC_SUBMISSION_CANCELLED",
     "BackendCapability",
+    "CopyEdgeMetrics",
     "CopyPolicy",
     "CpuBufferDesc",
     "CpuFramePoolConfig",

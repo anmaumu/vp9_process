@@ -10,6 +10,7 @@
 #include <thread>
 
 #include "../encoder_session.hpp"
+#include "copy_edge_metrics.hpp"
 #include "cpu_frame_copy.hpp"
 #include "encoder_backend.hpp"
 #include "pipeline_component_metrics.hpp"
@@ -57,9 +58,11 @@ struct EncoderSession::Impl {
     uint64_t backend_time_ns = 0;
     mkvc_pipeline_stage_metrics stage_metrics{};
     ComponentMetricsAccumulator component_metrics;
+    CopyEdgeMetricsAccumulator copy_edge_metrics;
     uint32_t peak_queue_depth = 0;
     uint32_t hardware_pending_peak = 0;
     uint32_t copy_path = MKVC_COPY_PATH_UNKNOWN;
+    bool hardware_backend = false;
     bool require_gpu_resident = false;
     bool allow_gpu_copy = true;
     bool allow_cpu_copy = true;

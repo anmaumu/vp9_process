@@ -44,6 +44,8 @@ void worker(mkvc_decoder* decoder) noexcept {
             decoder->hardware_pending_peak = std::max(decoder->hardware_pending_peak, pending);
             if (decoder->stop_requested) return;
             if (result == MKVC_OK) {
+                if (decoder->intel_implementation || decoder->nvidia_implementation)
+                    decoder->copy_edge_metrics->add(CopyEdge::kCpuReadback);
                 decoder->queue.push_back(std::move(frame));
                 ++decoder->accepted_frames;
                 decoder->peak_queue_depth = std::max<uint32_t>(

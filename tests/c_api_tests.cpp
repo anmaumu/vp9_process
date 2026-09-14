@@ -188,6 +188,16 @@ int main() {
     component_metrics.struct_version = 0;
     assert(mkvc_decoder_get_component_metrics(nullptr, &component_metrics) ==
            MKVC_ERROR_INVALID_ARGUMENT);
+    mkvc_copy_edge_metrics copy_edges{};
+    copy_edges.struct_size = sizeof(copy_edges);
+    copy_edges.struct_version = 1;
+    assert(mkvc_encoder_get_copy_edge_metrics(nullptr, &copy_edges) == MKVC_ERROR_INVALID_ARGUMENT);
+    assert(mkvc_decoder_get_copy_edge_metrics(nullptr, &copy_edges) == MKVC_ERROR_INVALID_ARGUMENT);
+    copy_edges.struct_size = sizeof(copy_edges) - 1;
+    assert(mkvc_encoder_get_copy_edge_metrics(nullptr, &copy_edges) == MKVC_ERROR_INVALID_ARGUMENT);
+    copy_edges.struct_size = sizeof(copy_edges);
+    copy_edges.struct_version = 0;
+    assert(mkvc_decoder_get_copy_edge_metrics(nullptr, &copy_edges) == MKVC_ERROR_INVALID_ARGUMENT);
 
     assert(std::strcmp(mkvc_result_string(MKVC_OK), "ok") == 0);
     assert(std::strcmp(mkvc_result_string(MKVC_WOULD_BLOCK), "would block") == 0);

@@ -9,6 +9,25 @@
 [implementation-status.md](implementation-status.md)を使用する。この履歴には
 過去の判断、測定値、詳細なverification matrixを粒度を落とさず保持する。
 
+## 2026-09-14: Explicit copy-edge observability
+
+Status: `IMPLEMENTED`
+
+Added an additive versioned `mkvc_copy_edge_metrics` C ABI and matching
+C++/Python/.NET accessors. The recorder counts library-observed shared surface,
+zero-copy exposure, explicit GPU copy, CPU upload/readback, CPU normalization
+and pixel-format conversion edges independently. Hardware CPU decode and encode
+paths now report readback/upload; GPU surface decode/encode reports shared
+zero-copy edges; decoded frames retain the recorder through downstream copy and
+conversion. Python-owned I420 output uses the native measured copy path, and a
+binding-side negative/non-unit-stride normalization is merged into the Python
+snapshot. Strict GPU-resident tests verify rejected CPU operations do not add
+copy counters. `driver_internal_observed=0` explicitly prevents an unobserved
+vendor-driver path or a zero counter from being presented as zero-copy proof.
+Windows all-backend CTest passed 36/36 with eight expected hardware skips,
+Python CPU round-trip and .NET build/smoke passed, and ABI/binding/doc/compliance
+checks passed. This closes release item `RC-02`.
+
 ## 2026-09-13: Strict-or-copy CPU input layout contract
 
 Status: `IMPLEMENTED`

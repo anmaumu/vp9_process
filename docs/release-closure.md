@@ -16,7 +16,7 @@ sanitizer/fuzz、対象platform testが成功すればv0.1を完成とする。�
 | ID | 状態 | 必要な対応 | 完了条件 |
 |---|---|---|---|
 | `RC-01` | `DONE` | CPU入力layout契約 | plane数、dtype、寸法、stride、必要alignmentをC ABI/Python/.NETで一貫して検証する。strict modeは不一致を拒否し、copy許可時だけ明示的に正規化する。parameterized testが成功する |
-| `RC-02` | `OPEN` | copy経路の説明可能性 | GPU→NumPy download、色変換、CPU正規化をedge別metricsへ記録する。`require_gpu_resident`時のCPU copy拒否を回帰試験し、driver内部copyは「未観測」と区別する |
+| `RC-02` | `DONE` | copy経路の説明可能性 | GPU→NumPy download、色変換、CPU正規化をedge別metricsへ記録する。`require_gpu_resident`時のCPU copy拒否を回帰試験し、driver内部copyは「未観測」と区別する |
 | `RC-03` | `OPEN` | Intel Linux USMの公開判定 | cross-context/device不一致、producer event、fault、pool backpressureと30分soakを`linux-machine`で通す。満たせない場合はUSM APIをpreview表示に固定する |
 | `RC-04` | `BLOCKED_HARDWARE` | Intel Windows D3D11認定 | Intel GPU実機でdecode→D3D11 external processing→encodeをC++/Python/.NETから確認し、同期、lease、画素、PTS、copy policyを検証する。実機を用意しない場合はWindows Intelをpreview扱いにする |
 | `RC-05` | `BLOCKED_HARDWARE` | NVIDIA AV1認定 | AV1対応NVIDIA GPUでNVDEC→外部CUDA処理→NVENCを確認する。現RTX 2060では実行不能。対応実機を用意しない場合はNVIDIA AV1をpreview扱いにする |

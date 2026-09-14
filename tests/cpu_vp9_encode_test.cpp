@@ -174,6 +174,14 @@ int main(int argc, char** argv) {
     assert(encoder_metrics.peak_queue_depth > 0 && encoder_metrics.peak_queue_depth <= 2);
     assert(encoder_metrics.backend_time_ns > 0);
     assert(encoder_metrics.copy_path == MKVC_COPY_PATH_CPU);
+    mkvc_copy_edge_metrics encoder_copy_edges{};
+    encoder_copy_edges.struct_size = sizeof(encoder_copy_edges);
+    encoder_copy_edges.struct_version = 1;
+    require_ok(mkvc_encoder_get_copy_edge_metrics(encoder, &encoder_copy_edges));
+    assert(encoder_copy_edges.cpu_normalization_frames > 0);
+    assert(encoder_copy_edges.cpu_upload_frames == 0);
+    assert(encoder_copy_edges.cpu_readback_frames == 0);
+    assert(encoder_copy_edges.driver_internal_observed == 0);
 
     mkvc_frame_view closed_frame{};
     closed_frame.struct_size = sizeof(closed_frame);
@@ -193,6 +201,12 @@ int main(int argc, char** argv) {
     // The synchronous call has consumed its input; caller memory is reusable.
     image[0] ^= 0xff;
     require_ok(mkvc_encoder_close(encoder));
+    mkvc_copy_edge_metrics borrowed_copy_edges{};
+    borrowed_copy_edges.struct_size = sizeof(borrowed_copy_edges);
+    borrowed_copy_edges.struct_version = 1;
+    require_ok(mkvc_encoder_get_copy_edge_metrics(encoder, &borrowed_copy_edges));
+    assert(borrowed_copy_edges.zero_copy_frames == 1);
+    assert(borrowed_copy_edges.cpu_normalization_frames == 1);
     mkvc_encoder_destroy(encoder);
     assert(std::filesystem::exists(borrowed_output));
     assert(std::filesystem::file_size(borrowed_output) > 0);
@@ -266,6 +280,13 @@ int main(int argc, char** argv) {
     assert(decoder_metrics.peak_queue_depth > 0 && decoder_metrics.peak_queue_depth <= 2);
     assert(decoder_metrics.backend_time_ns > 0);
     assert(decoder_metrics.copy_path == MKVC_COPY_PATH_CPU);
+    mkvc_copy_edge_metrics decoder_copy_edges{};
+    decoder_copy_edges.struct_size = sizeof(decoder_copy_edges);
+    decoder_copy_edges.struct_version = 1;
+    require_ok(mkvc_decoder_get_copy_edge_metrics(decoder, &decoder_copy_edges));
+    assert(decoder_copy_edges.zero_copy_frames == frame_count);
+    assert(decoder_copy_edges.cpu_readback_frames == 0);
+    assert(decoder_copy_edges.driver_internal_observed == 0);
     mkvc_decoder_destroy(decoder);
     std::filesystem::remove(borrowed_output);
     return 0;

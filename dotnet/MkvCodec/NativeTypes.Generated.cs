@@ -94,6 +94,22 @@ public struct MkvBackendCapability
 }
 
 [StructLayout(LayoutKind.Sequential)]
+public struct MkvCopyEdgeMetrics
+{
+    public uint StructSize;
+    public uint StructVersion;
+    public ulong SharedSurfaceFrames;
+    public ulong ZeroCopyFrames;
+    public ulong GpuCopyFrames;
+    public ulong CpuUploadFrames;
+    public ulong CpuReadbackFrames;
+    public ulong CpuNormalizationFrames;
+    public ulong PixelConversionFrames;
+    public uint DriverInternalObserved;
+    public uint Reserved;
+}
+
+[StructLayout(LayoutKind.Sequential)]
 internal struct NativeCopyPolicy
 {
     internal uint StructSize;

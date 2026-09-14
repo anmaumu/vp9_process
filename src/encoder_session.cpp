@@ -41,6 +41,7 @@ std::unique_ptr<EncoderSession> EncoderSession::create(const mkvc_encoder_config
     impl->width = config.width;
     impl->height = config.height;
     impl->capacity = config.queue_size;
+    impl->hardware_backend = config.backend != MKVC_BACKEND_CPU;
 #if defined(MKVC_ENABLE_TEST_HOOKS)
     if (const char* value = std::getenv("MKVC_TEST_ENCODER_FAIL_AFTER")) {
         char* end = nullptr;
@@ -94,10 +95,20 @@ mkvc_result EncoderSession::write(const mkvc_frame_view& frame, bool block, std:
             impl_->cpu_required_alignment, error);
         if (layout != MKVC_OK) return layout;
     }
-    if (impl_->capacity == 0) {
-        return write_cpu_sync(*impl_, frame, error);
+    const bool synchronous = impl_->capacity == 0;
+    const mkvc_result result = synchronous ? write_cpu_sync(*impl_, frame, error)
+                                           : enqueue_owned(*impl_, frame, block, error);
+    if (result == MKVC_OK) {
+        impl_->copy_edge_metrics.add(CopyEdge::kCpuNormalization);
+        if (synchronous) {
+            if (impl_->hardware_backend) impl_->copy_edge_metrics.add(CopyEdge::kCpuUpload);
+            const uint32_t native_format =
+                impl_->hardware_backend ? MKVC_PIXEL_FORMAT_NV12 : MKVC_PIXEL_FORMAT_I420;
+            if (frame.pixel_format != native_format)
+                impl_->copy_edge_metrics.add(CopyEdge::kPixelConversion);
+        }
     }
-    return enqueue_owned(*impl_, frame, block, error);
+    return result;
 }
 
 mkvc_result EncoderSession::write_borrowed(const mkvc_frame_view& frame, std::string& error) {
@@ -116,7 +127,17 @@ mkvc_result EncoderSession::write_borrowed(const mkvc_frame_view& frame, std::st
             return impl_->canceled ? MKVC_ERROR_CANCELLED : MKVC_ERROR_INVALID_STATE;
         }
     }
-    return write(frame, true, error);
+    const mkvc_result result = write_cpu_sync(*impl_, frame, error);
+    if (result == MKVC_OK) {
+        impl_->copy_edge_metrics.add(CopyEdge::kZeroCopy);
+        impl_->copy_edge_metrics.add(CopyEdge::kCpuNormalization);
+        if (impl_->hardware_backend) impl_->copy_edge_metrics.add(CopyEdge::kCpuUpload);
+        const uint32_t native_format =
+            impl_->hardware_backend ? MKVC_PIXEL_FORMAT_NV12 : MKVC_PIXEL_FORMAT_I420;
+        if (frame.pixel_format != native_format)
+            impl_->copy_edge_metrics.add(CopyEdge::kPixelConversion);
+    }
+    return result;
 }
 
 mkvc_result EncoderSession::submit_borrowed(const mkvc_frame_view& frame,
@@ -129,7 +150,11 @@ mkvc_result EncoderSession::submit_borrowed(const mkvc_frame_view& frame,
             impl_->cpu_required_alignment, error);
         if (layout != MKVC_OK) return layout;
     }
-    return enqueue_borrowed(*impl_, frame, submission, error);
+    const mkvc_result result = enqueue_borrowed(*impl_, frame, submission, error);
+    if (result == MKVC_OK) {
+        impl_->copy_edge_metrics.add(CopyEdge::kZeroCopy);
+    }
+    return result;
 }
 
 mkvc_result EncoderSession::set_copy_policy(const mkvc_copy_policy& policy, std::string& error) {
@@ -212,6 +237,10 @@ void EncoderSession::get_stage_metrics(mkvc_pipeline_stage_metrics& metrics) con
 
 void EncoderSession::get_component_metrics(mkvc_pipeline_component_metrics& metrics) const {
     metrics = impl_->component_metrics.snapshot();
+}
+
+void EncoderSession::get_copy_edge_metrics(mkvc_copy_edge_metrics& metrics) const {
+    metrics = impl_->copy_edge_metrics.snapshot();
 }
 
 mkvc_result EncoderSession::flush(std::string& error) {

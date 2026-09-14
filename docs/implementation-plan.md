@@ -148,7 +148,7 @@
 - [x] .NET page-locked poolのGC pressure/memory soak harness、bounded JSON、短時間CI smoke
 - [x] .NET page-locked poolの30分release soak認定（107,178 frames、managed pin増分0、最終slot 0）
 - [x] strict layout/stride/alignment validation and explicit copy-path fallback
-- [ ] GPU decode→NumPy download/conversion edge tracing
+- [x] GPU decode→NumPy download/conversion and CPU normalization edge metrics
 - [ ] `TEST-CPUINT-001..007` lifetime, GC, fault, copy-path and soak qualification
 
 ## Phase 4: language bindings and distribution

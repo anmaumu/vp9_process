@@ -1,10 +1,10 @@
-#include "mkvcodec/mkvcodec.hpp"
-
 #include <cassert>
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>
 #include <vector>
+
+#include "mkvcodec/mkvcodec.hpp"
 
 namespace {
 
@@ -28,8 +28,7 @@ int main(int argc, char** argv) {
     assert(argc == 5);
     const uint32_t backend = static_cast<uint32_t>(std::strtoul(argv[3], nullptr, 10));
     const uint32_t output_codec = static_cast<uint32_t>(std::strtoul(argv[4], nullptr, 10));
-    if (!supports(backend, MKVC_CODEC_VP9, false) ||
-        !supports(backend, output_codec, true))
+    if (!supports(backend, MKVC_CODEC_VP9, false) || !supports(backend, output_codec, true))
         return 77;
 
     mkvc_video_info info{};
@@ -67,6 +66,26 @@ int main(int argc, char** argv) {
     decoder.set_copy_policy(strict);
     encoder.set_copy_policy(strict);
 
+    bool cpu_read_rejected = false;
+    try {
+        (void)decoder.read();
+    } catch (const mkvcodec::ResultError& error) {
+        cpu_read_rejected = error.result() == MKVC_ERROR_NOT_SUPPORTED;
+    }
+    assert(cpu_read_rejected);
+    mkvc_frame_view prohibited_cpu_frame{};
+    prohibited_cpu_frame.struct_size = sizeof(prohibited_cpu_frame);
+    prohibited_cpu_frame.struct_version = 1;
+    bool cpu_write_rejected = false;
+    try {
+        encoder.write(prohibited_cpu_frame);
+    } catch (const mkvcodec::ResultError& error) {
+        cpu_write_rejected = error.result() == MKVC_ERROR_NOT_SUPPORTED;
+    }
+    assert(cpu_write_rejected);
+    assert(decoder.copy_edge_metrics().cpu_readback_frames == 0);
+    assert(encoder.copy_edge_metrics().cpu_upload_frames == 0);
+
     uint64_t count = 0;
     while (auto frame = decoder.read_gpu()) {
         const auto descriptor = frame->descriptor();
@@ -80,6 +99,16 @@ int main(int argc, char** argv) {
     assert(count == info.frame_count);
     assert(decoder.metrics().copy_path == MKVC_COPY_PATH_ZERO_COPY);
     assert(encoder.metrics().copy_path == MKVC_COPY_PATH_ZERO_COPY);
+    const auto decoder_edges = decoder.copy_edge_metrics();
+    const auto encoder_edges = encoder.copy_edge_metrics();
+    assert(decoder_edges.shared_surface_frames == count);
+    assert(decoder_edges.zero_copy_frames == count);
+    assert(decoder_edges.cpu_readback_frames == 0);
+    assert(encoder_edges.shared_surface_frames == count);
+    assert(encoder_edges.zero_copy_frames == count);
+    assert(encoder_edges.cpu_upload_frames == 0);
+    assert(decoder_edges.driver_internal_observed == 0);
+    assert(encoder_edges.driver_internal_observed == 0);
     assert(std::filesystem::file_size(argv[2]) > 0);
     return 0;
 }

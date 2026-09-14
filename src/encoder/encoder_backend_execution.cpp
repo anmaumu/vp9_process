@@ -85,6 +85,8 @@ mkvc_result write_gpu_sync_locked(EncoderSession::Impl& impl,
         ++impl.accepted_frames;
         ++impl.completed_frames;
         observe_copy_path(impl, MKVC_COPY_PATH_ZERO_COPY);
+        impl.copy_edge_metrics.add(CopyEdge::kSharedSurface);
+        impl.copy_edge_metrics.add(CopyEdge::kZeroCopy);
     }
     return result;
 }

@@ -13,6 +13,7 @@ from ._types import (
     GpuInteropInfo,
     GpuResourcePoolStats,
     PipelineMetrics,
+    CopyEdgeMetrics,
     PipelineComponentMetrics,
     PipelineStageMetrics,
     VideoInfo,

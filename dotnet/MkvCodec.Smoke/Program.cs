@@ -14,6 +14,8 @@ if (Marshal.SizeOf<MkvPipelineStageMetrics>() != 88)
     throw new InvalidOperationException("MkvPipelineStageMetrics ABI layout mismatch");
 if (Marshal.SizeOf<MkvPipelineComponentMetrics>() != 72)
     throw new InvalidOperationException("MkvPipelineComponentMetrics ABI layout mismatch");
+if (Marshal.SizeOf<MkvCopyEdgeMetrics>() != 72)
+    throw new InvalidOperationException("MkvCopyEdgeMetrics ABI layout mismatch");
 if (Marshal.SizeOf<MkvGpuFrameDescriptor>() != 136)
     throw new InvalidOperationException("MkvGpuFrameDescriptor ABI layout mismatch");
 if (Marshal.SizeOf<MkvGpuNativeHandleDescriptor>() != 64)
@@ -105,6 +107,10 @@ try
             writer.ComponentMetrics.ContainerCalls < 10 ||
             writer.ComponentMetrics.ConversionCalls < 10)
             throw new InvalidOperationException(".NET encoder component metrics mismatch");
+        if (writer.CopyEdgeMetrics.CpuNormalizationFrames != 10 ||
+            writer.CopyEdgeMetrics.PixelConversionFrames != 0 ||
+            writer.CopyEdgeMetrics.DriverInternalObserved != 0)
+            throw new InvalidOperationException(".NET encoder copy-edge metrics mismatch");
     }
     using var capture = new MkvVideoCapture(path, prefetch: 2);
     var probed = MkvCodecInfo.ProbeVideo(path);
@@ -133,6 +139,11 @@ try
     if (capture.ComponentMetrics.CodecCalls < 10 ||
         capture.ComponentMetrics.ContainerCalls < 10)
         throw new InvalidOperationException(".NET decoder component metrics mismatch");
+    if (capture.CopyEdgeMetrics.ZeroCopyFrames != 10 ||
+        capture.CopyEdgeMetrics.CpuNormalizationFrames != 10 ||
+        capture.CopyEdgeMetrics.CpuReadbackFrames != 0 ||
+        capture.CopyEdgeMetrics.DriverInternalObserved != 0)
+        throw new InvalidOperationException(".NET decoder copy-edge metrics mismatch");
     using (var packedCapture = new MkvVideoCapture(
         path, prefetch: 0, decodeThreads: 1, conversionThreads: 1))
     {

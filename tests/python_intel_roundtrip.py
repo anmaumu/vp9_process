@@ -61,10 +61,11 @@ def main() -> None:
             assert writer.metrics.completed_frames == 30
             assert writer.metrics.hardware_pending_peak == 4
             assert writer.metrics.copy_path == "cpu"
+            assert writer.copy_edge_metrics.cpu_upload_frames == 30
+            assert writer.copy_edge_metrics.cpu_normalization_frames == 30
+            assert writer.copy_edge_metrics.pixel_conversion_frames == 24
 
-            capture = mkvcodec.VideoCapture(
-                path, codec=codec, backend="intel", prefetch=0
-            )
+            capture = mkvcodec.VideoCapture(path, codec=codec, backend="intel", prefetch=0)
             surface = capture.read_surface()
             assert surface is not None
             surface.wait(5000)
@@ -78,13 +79,17 @@ def main() -> None:
             assert native_handle["handles"][0] != 0
             capture.close()
             assert capture.metrics.copy_path == "zero_copy"
+            assert capture.copy_edge_metrics.shared_surface_frames == 1
+            assert capture.copy_edge_metrics.zero_copy_frames == 1
+            assert capture.copy_edge_metrics.cpu_readback_frames == 0
             assert surface.descriptor["generation"] == descriptor["generation"]
             surface.close()
 
             for backend, prefetch in (("intel", 0), ("intel", 4), ("cpu", 4)):
-                if backend == "cpu" and os.environ.get(
-                    f"MKVC_TEST_CPU_{codec.upper()}", "1"
-                ) == "0":
+                if (
+                    backend == "cpu"
+                    and os.environ.get(f"MKVC_TEST_CPU_{codec.upper()}", "1") == "0"
+                ):
                     print(f"CPU {codec} reference decoder disabled in this build")
                     continue
                 with mkvcodec.VideoCapture(
@@ -93,10 +98,13 @@ def main() -> None:
                     frames = list(capture)
                 assert capture.metrics.accepted_frames == 30
                 assert capture.metrics.completed_frames == 30
-                assert capture.metrics.hardware_pending_peak == (
-                    4 if backend == "intel" else 0
-                )
+                assert capture.metrics.hardware_pending_peak == (4 if backend == "intel" else 0)
                 assert capture.metrics.copy_path == "cpu"
+                assert capture.copy_edge_metrics.cpu_readback_frames == (
+                    30 if backend == "intel" else 0
+                )
+                assert capture.copy_edge_metrics.pixel_conversion_frames == 30
+                assert capture.copy_edge_metrics.cpu_normalization_frames == 30
                 assert len(frames) == 30
                 assert frames[0].shape == (height, width, 3)
                 assert frames[-1].shape == (height, width, 3)

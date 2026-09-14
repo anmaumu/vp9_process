@@ -65,6 +65,8 @@ class EncoderSession {
     void get_stage_metrics(mkvc_pipeline_stage_metrics& metrics) const;
     /** Snapshot exclusive implementation-component timings. */
     void get_component_metrics(mkvc_pipeline_component_metrics& metrics) const;
+    /** Snapshot explicitly observed copy and sharing operations. */
+    void get_copy_edge_metrics(mkvc_copy_edge_metrics& metrics) const;
 
    private:
     explicit EncoderSession(std::unique_ptr<Impl> impl);

@@ -42,6 +42,8 @@ void run_encoder_worker(EncoderSession::Impl* impl) noexcept {
 
             std::string error;
             mkvc_result result = MKVC_OK;
+            uint32_t frame_format = 0;
+            const bool borrowed_frame = item.submission != nullptr;
             const auto backend_started = std::chrono::steady_clock::now();
             if (item.type == EncoderSession::Impl::ItemType::kFrame) {
 #if defined(MKVC_ENABLE_TEST_HOOKS)
@@ -55,6 +57,7 @@ void run_encoder_worker(EncoderSession::Impl* impl) noexcept {
                 } else {
                     const mkvc_frame_view view =
                         item.submission ? item.borrowed : item.frame->view();
+                    frame_format = view.pixel_format;
                     result = backend_write(*impl, view, error);
                 }
             } else {
@@ -96,6 +99,12 @@ void run_encoder_worker(EncoderSession::Impl* impl) noexcept {
                     impl->completed_flush_token = item.flush_token;
                     impl->state_changed.notify_all();
                 } else {
+                    if (borrowed_frame) impl->copy_edge_metrics.add(CopyEdge::kCpuNormalization);
+                    if (impl->hardware_backend) impl->copy_edge_metrics.add(CopyEdge::kCpuUpload);
+                    const uint32_t native_format =
+                        impl->hardware_backend ? MKVC_PIXEL_FORMAT_NV12 : MKVC_PIXEL_FORMAT_I420;
+                    if (frame_format != native_format)
+                        impl->copy_edge_metrics.add(CopyEdge::kPixelConversion);
                     if (item.submission) item.submission->complete(MKVC_OK, {});
                     ++impl->completed_frames;
                     observe_copy_path(*impl, MKVC_COPY_PATH_CPU);

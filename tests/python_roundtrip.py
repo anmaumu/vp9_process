@@ -25,7 +25,9 @@ def main() -> None:
         padded_bgr = np.zeros((height, width + 1, 3), np.uint8)[:, :width, :]
         strict_path = os.path.join(directory, "strict-layout.webm")
         with mkvcodec.VideoWriter(
-            strict_path, fps=30, frame_size=(width, height),
+            strict_path,
+            fps=30,
+            frame_size=(width, height),
             strict_cpu_layout=True,
         ) as strict_writer:
             expect_value_error(lambda: strict_writer.write_bgr(padded_bgr))
@@ -37,13 +39,26 @@ def main() -> None:
         ) as copied_layout_writer:
             copied_layout_writer.write_bgr(padded_bgr)
             copied_layout_writer.write_bgr(padded_bgr[:, :, ::-1])
-        expect_value_error(lambda: mkvcodec.VideoWriter(
-            os.path.join(directory, "bad-alignment.webm"), fps=30,
-            frame_size=(width, height), required_alignment=3,
-        ))
+        assert copied_layout_writer.copy_edge_metrics.cpu_normalization_frames == 2
+        assert copied_layout_writer.copy_edge_metrics.pixel_conversion_frames == 2
+        assert not copied_layout_writer.copy_edge_metrics.driver_internal_observed
+        borrowed_normalized_path = os.path.join(directory, "borrowed-normalized.webm")
         with mkvcodec.VideoWriter(
-            path, fps=30, frame_size=(width, height), quality=32
-        ) as writer:
+            borrowed_normalized_path, fps=30, frame_size=(width, height), queue_size=0
+        ) as borrowed_normalized_writer:
+            borrowed_normalized_writer.write_borrowed(padded_bgr[:, :, ::-1], format="bgr")
+        assert borrowed_normalized_writer.copy_edge_metrics.zero_copy_frames == 1
+        assert borrowed_normalized_writer.copy_edge_metrics.cpu_normalization_frames == 2
+        assert borrowed_normalized_writer.copy_edge_metrics.pixel_conversion_frames == 1
+        expect_value_error(
+            lambda: mkvcodec.VideoWriter(
+                os.path.join(directory, "bad-alignment.webm"),
+                fps=30,
+                frame_size=(width, height),
+                required_alignment=3,
+            )
+        )
+        with mkvcodec.VideoWriter(path, fps=30, frame_size=(width, height), quality=32) as writer:
             for index in range(30):
                 rows, columns = np.indices((height, width))
                 y = ((columns * 3 + rows * 2 + index * 7) & 0xFF).astype(np.uint8)
@@ -58,9 +73,7 @@ def main() -> None:
         assert info.fps is not None and abs(info.fps - 30.0) < 0.001
         assert info.frame_count == 30
         assert info.duration_ns is not None and info.duration_ns > 0
-        expect_value_error(
-            lambda: mkvcodec.VideoCapture(path, codec="av1", prefetch=0)
-        )
+        expect_value_error(lambda: mkvcodec.VideoCapture(path, codec="av1", prefetch=0))
 
         with mkvcodec.VideoCapture(path, prefetch=0) as capture:
             assert capture.info == info
@@ -75,12 +88,14 @@ def main() -> None:
                 if frame is None:
                     break
                 frames.append(frame)
+        assert capture.copy_edge_metrics.cpu_normalization_frames == 30
+        assert capture.copy_edge_metrics.zero_copy_frames == 30
+        assert capture.copy_edge_metrics.cpu_readback_frames == 0
+        assert not capture.copy_edge_metrics.driver_internal_observed
         assert len(frames) == 30
         assert frames[0].y.shape == (height, width)
         assert frames[0].u.shape == (height // 2, width // 2)
-        assert [frame.pts_ns for frame in frames] == sorted(
-            frame.pts_ns for frame in frames
-        )
+        assert [frame.pts_ns for frame in frames] == sorted(frame.pts_ns for frame in frames)
         ssim = []
         rows, columns = np.indices((height, width))
         for index, frame in enumerate(frames):
@@ -93,13 +108,14 @@ def main() -> None:
         with mkvcodec.VideoWriter(
             batch_path, fps=30, frame_size=(width, height), queue_size=2
         ) as writer:
-            expect_value_error(
-                lambda: writer.write_batch(batch_input, pts=[0])
+            expect_value_error(lambda: writer.write_batch(batch_input, pts=[0]))
+            assert (
+                writer.write_batch(
+                    batch_input,
+                    pts=[frame.pts_ns for frame in frames[:7]],
+                )
+                == 7
             )
-            assert writer.write_batch(
-                batch_input,
-                pts=[frame.pts_ns for frame in frames[:7]],
-            ) == 7
         with mkvcodec.VideoCapture(batch_path, prefetch=4) as capture:
             expect_value_error(lambda: capture.read_batch(0))
             expect_value_error(lambda: capture.read_batch(1, -1))
@@ -128,9 +144,11 @@ def main() -> None:
         mismatched_path = os.path.join(directory, "mismatched.mkv")
         shutil.copyfile(path, mismatched_path)
         expect_value_error(lambda: mkvcodec.VideoCapture(mismatched_path, prefetch=0))
-        expect_value_error(lambda: mkvcodec.VideoWriter(
-            os.path.join(directory, "unsupported.mp4"), fps=30,
-            frame_size=(width, height)))
+        expect_value_error(
+            lambda: mkvcodec.VideoWriter(
+                os.path.join(directory, "unsupported.mp4"), fps=30, frame_size=(width, height)
+            )
+        )
 
         with mkvcodec.VideoCapture(path, prefetch=0) as capture:
             borrowed = capture.read_borrowed()
@@ -169,9 +187,9 @@ def main() -> None:
         with mkvcodec.VideoWriter(
             borrowed_path, fps=30, frame_size=(width, height), queue_size=0
         ) as writer:
-            writer.write_borrowed(
-                borrowed_planes, format="i420", pts=borrowed.pts_ns
-            )
+            writer.write_borrowed(borrowed_planes, format="i420", pts=borrowed.pts_ns)
+        assert writer.copy_edge_metrics.zero_copy_frames == 1
+        assert writer.copy_edge_metrics.cpu_normalization_frames == 1
         borrowed.close()
         del borrowed_planes
         del retained_y, retained_u, retained_v
@@ -184,7 +202,9 @@ def main() -> None:
 
         with mkvcodec.VideoWriter(
             os.path.join(directory, "borrowed-invalid.webm"),
-            fps=30, frame_size=(width, height), queue_size=1,
+            fps=30,
+            frame_size=(width, height),
+            queue_size=1,
         ) as writer:
             expect_value_error(
                 lambda: writer.write_borrowed(
@@ -199,11 +219,12 @@ def main() -> None:
         async_v = np.full((height // 2, width // 2), 128, np.uint8)
         async_y_ref = weakref.ref(async_y)
         with mkvcodec.VideoWriter(
-            async_borrowed_path, fps=30, frame_size=(width, height), queue_size=1,
+            async_borrowed_path,
+            fps=30,
+            frame_size=(width, height),
+            queue_size=1,
         ) as writer:
-            submission = writer.submit_borrowed(
-                (async_y, async_u, async_v), format="i420", pts=0
-            )
+            submission = writer.submit_borrowed((async_y, async_u, async_v), format="i420", pts=0)
             del async_y, async_u, async_v
             gc.collect()
             assert async_y_ref() is not None
@@ -220,12 +241,16 @@ def main() -> None:
         os.environ["MKVC_TEST_ENCODER_DELAY_MS"] = "250"
         try:
             with mkvcodec.VideoWriter(
-                canceled_path, fps=30, frame_size=(width, height), queue_size=2,
+                canceled_path,
+                fps=30,
+                frame_size=(width, height),
+                queue_size=2,
             ) as writer:
                 canceled_submissions = [
                     writer.submit_borrowed(
                         (frames[0].y, frames[0].u, frames[0].v),
-                        format="i420", pts=index,
+                        format="i420",
+                        pts=index,
                     )
                     for index in range(3)
                 ]
@@ -261,7 +286,10 @@ def main() -> None:
         v[:] = 128
         assert pool.try_acquire() is None
         with mkvcodec.VideoWriter(
-            pool_path, fps=30, frame_size=(width, height), queue_size=1,
+            pool_path,
+            fps=30,
+            frame_size=(width, height),
+            queue_size=1,
         ) as writer:
             submission = writer.submit_buffer(buffer, pts=0)
             buffer.close()
@@ -309,25 +337,17 @@ def main() -> None:
             "bgra": ((height, width, 4),),
         }
         for format_name, expected_shapes in pool_layouts.items():
-            with mkvcodec.CpuFramePool(
-                format_name, (width, height), capacity=1
-            ) as layout_pool:
+            with mkvcodec.CpuFramePool(format_name, (width, height), capacity=1) as layout_pool:
                 with layout_pool.acquire() as layout_buffer:
                     assert layout_buffer.format == format_name
-                    assert tuple(
-                        plane.shape for plane in layout_buffer.planes
-                    ) == expected_shapes
-                    assert all(
-                        plane.flags.writeable for plane in layout_buffer.planes
-                    )
+                    assert tuple(plane.shape for plane in layout_buffer.planes) == expected_shapes
+                    assert all(plane.flags.writeable for plane in layout_buffer.planes)
 
         with mkvcodec.VideoCapture(path, prefetch=0) as capture:
             expect_value_error(lambda: capture.read_processed(fit="invalid"))
             expect_value_error(lambda: capture.read_processed(rotate=45))
             expect_value_error(lambda: capture.read_processed(format="gray"))
-            expect_value_error(
-                lambda: capture.read_processed(background=(0, 0, 256))
-            )
+            expect_value_error(lambda: capture.read_processed(background=(0, 0, 256)))
             assert capture.last_pts_ns is None
             processed = capture.read_processed(
                 crop=(8, 4, 48, 40),
@@ -381,25 +401,16 @@ def main() -> None:
 
         expected_blue_y = 41
         packed_cases = {
-            "bgr": (np.full((height, width + 4, 3), (255, 0, 0), np.uint8)[:, :width],
-                    "write_bgr"),
-            "rgb": (np.full((height, width, 3), (0, 0, 255), np.uint8),
-                    "write_rgb"),
-            "bgra": (np.full((height, width, 4), (255, 0, 0, 255), np.uint8),
-                     "write_bgra"),
+            "bgr": (np.full((height, width + 4, 3), (255, 0, 0), np.uint8)[:, :width], "write_bgr"),
+            "rgb": (np.full((height, width, 3), (0, 0, 255), np.uint8), "write_rgb"),
+            "bgra": (np.full((height, width, 4), (255, 0, 0, 255), np.uint8), "write_bgra"),
         }
         for name, (image, method_name) in packed_cases.items():
             packed_path = os.path.join(directory, f"{name}.webm")
-            with mkvcodec.VideoWriter(
-                packed_path, fps=30, frame_size=(width, height)
-            ) as writer:
+            with mkvcodec.VideoWriter(packed_path, fps=30, frame_size=(width, height)) as writer:
                 if name == "bgr":
-                    expect_value_error(
-                        lambda: writer.write_bgr(image.astype(np.float32))
-                    )
-                    expect_value_error(
-                        lambda: writer.write_bgr(image[:, :-1])
-                    )
+                    expect_value_error(lambda: writer.write_bgr(image.astype(np.float32)))
+                    expect_value_error(lambda: writer.write_bgr(image[:, :-1]))
                 getattr(writer, method_name)(image)
             with mkvcodec.VideoCapture(packed_path) as capture:
                 decoded = capture.read_i420()
@@ -408,9 +419,7 @@ def main() -> None:
             assert abs(float(decoded.y.mean()) - expected_blue_y) <= 5
 
             if name == "bgr":
-                expect_value_error(
-                    lambda: mkvcodec.VideoCapture(packed_path, conversion_threads=5)
-                )
+                expect_value_error(lambda: mkvcodec.VideoCapture(packed_path, conversion_threads=5))
                 with mkvcodec.VideoCapture(packed_path) as capture:
                     bgr = capture.read_bgr()
                     assert bgr is not None
@@ -418,9 +427,7 @@ def main() -> None:
                     assert float(bgr[..., 0].mean()) > 240
                     assert float(bgr[..., 2].mean()) < 15
                     assert capture.last_pts_ns == 0
-                with mkvcodec.VideoCapture(
-                    packed_path, conversion_threads=1
-                ) as capture:
+                with mkvcodec.VideoCapture(packed_path, conversion_threads=1) as capture:
                     single_thread_bgr = capture.read_bgr()
                     assert single_thread_bgr is not None
                     assert np.array_equal(single_thread_bgr, bgr)
@@ -445,9 +452,7 @@ def main() -> None:
         nv12_uv = np.empty((height // 2, width), np.uint8)
         nv12_uv[:, 0::2] = 240
         nv12_uv[:, 1::2] = 110
-        with mkvcodec.VideoWriter(
-            nv12_path, fps=30, frame_size=(width, height)
-        ) as writer:
+        with mkvcodec.VideoWriter(nv12_path, fps=30, frame_size=(width, height)) as writer:
             writer.write_nv12(nv12_y, nv12_uv)
         with mkvcodec.VideoCapture(nv12_path) as capture:
             decoded = capture.read_i420()

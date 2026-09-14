@@ -1,4 +1,5 @@
 """Public immutable value types shared by the Python API modules."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -174,6 +175,25 @@ class PipelineComponentMetrics:
     container_time_ns: int
     gpu_wait_calls: int
     gpu_wait_time_ns: int
+
+
+@dataclass(frozen=True)
+class CopyEdgeMetrics:
+    """Counts of copy/share operations observed by mkvcodec.
+
+    A zero count does not prove that a vendor driver performed no internal
+    copy. ``driver_internal_observed`` is currently always false because only
+    library-controlled public boundaries are attributed.
+    """
+
+    shared_surface_frames: int
+    zero_copy_frames: int
+    gpu_copy_frames: int
+    cpu_upload_frames: int
+    cpu_readback_frames: int
+    cpu_normalization_frames: int
+    pixel_conversion_frames: int
+    driver_internal_observed: bool
 
 
 @dataclass(frozen=True)

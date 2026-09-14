@@ -64,6 +64,7 @@ mkvc_result mkvc_decoder_read(mkvc_decoder* decoder, mkvc_frame** out_frame) {
         auto frame = std::make_unique<mkvc_frame>();
         frame->implementation = std::move(decoded);
         frame->component_metrics = decoder->component_metrics;
+        frame->copy_edge_metrics = decoder->copy_edge_metrics;
         *out_frame = frame.release();
         return MKVC_OK;
     });
@@ -127,6 +128,15 @@ mkvc_result mkvc_decoder_get_component_metrics(const mkvc_decoder* decoder,
     if (decoder == nullptr || !mkvc::capi::valid_component_metrics_output(out_metrics))
         return fail(MKVC_ERROR_INVALID_ARGUMENT, "invalid decoder component-metrics output");
     *out_metrics = decoder->component_metrics->snapshot();
+    return MKVC_OK;
+}
+
+mkvc_result mkvc_decoder_get_copy_edge_metrics(const mkvc_decoder* decoder,
+                                               mkvc_copy_edge_metrics* out_metrics) {
+    last_error.clear();
+    if (decoder == nullptr || !mkvc::capi::valid_copy_edge_metrics_output(out_metrics))
+        return fail(MKVC_ERROR_INVALID_ARGUMENT, "invalid decoder copy-edge metrics output");
+    *out_metrics = decoder->copy_edge_metrics->snapshot();
     return MKVC_OK;
 }
 
