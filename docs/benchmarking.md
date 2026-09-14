@@ -39,7 +39,10 @@ Run separate records for 1080p30, 1080p60, 4K30 and hardware-supported 4K60.
 Keep the native library, driver, CPU/GPU model, power policy and build type stable
 when comparing results. Absolute release thresholds remain unset until approved
 hardware-class baselines exist. Once a result is approved, add
-`"performance_gate": {"max_regression_fraction": 0.10}` to that baseline and run:
+`"performance_gate": {"max_regression_fraction": 0.10}` to that baseline and run.
+Environment-sensitive first-frame or memory gates may add reviewed
+`metric_regression_fractions` overrides; unknown metrics and values outside
+`[0, 1)` fail closed:
 
 ```shell
 python tools/check_performance_baseline.py \
@@ -52,8 +55,37 @@ throughput/latency regression beyond the reviewed fraction. Baselines must be
 kept per hardware/driver/build class; the tool deliberately does not normalize
 results from unlike machines.
 
+`gpu_transcode_benchmark.py` records the strict Intel decode-surface→encode
+profile separately. Input and output codecs are independent so hardware such as
+Arc B580 can exercise VP9 decode→AV1 encode without claiming unsupported VP9
+encode. For this profile the same gate compares transcode fps, surface-submit
+p95 latency, and process peak RSS, and requires `require_gpu_resident=true` on
+both records. Exact input/output codecs and the input SHA-256 must match.
+
 Device kernel/event duration and driver-internal transfers still require vendor
 profilers or OS tracing and must not be inferred from these host measurements.
+
+## Approved 1080p CPU baseline
+
+The Windows Xeon E5-2697 v2 CPU VP9 baseline is stored in
+`benchmarks/baselines/windows-xeon-e5-2697-v2-cpu-vp9-1080p.json`. It is the
+median of three fresh-process runs over 120 BGR frames at 1920x1080, quality 32,
+queue size 8 and prefetch 4. Throughput and steady write latency allow 15%, peak
+RSS allows 20%, and noisier first-frame latency allows 30% regression. This gate
+applies only to the recorded hardware/OS/build class and must not be used to
+approve a different machine.
+
+## Approved 1080p Intel GPU baseline
+
+The Linux Intel Arc B580 VP9 decode→AV1 encode baseline is stored in
+`benchmarks/baselines/linux-arc-b580-intel-vp9-av1-1080p.json`. It is the median
+of three fresh-process runs over the same 120-frame 1920x1080 input, quality 32,
+using strict GPU-resident surfaces. The result was 183.81 fps, 1.888 ms p95
+surface-submit latency and 79,339,520 bytes peak RSS. Both native stages reported
+`zero_copy`; this is library-edge evidence and does not claim visibility into
+all driver-internal transfers. Throughput allows 15% regression; submit latency
+and peak RSS allow 20%. The gate applies only to the recorded input hash,
+Arc B580/driver/OS/build class.
 
 ## Packed BGR qualification observation
 

@@ -3,14 +3,27 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import platform
 import statistics
+import sys
 import time
 from dataclasses import asdict
 from pathlib import Path
 
 import mkvcodec
+
+
+def peak_rss_bytes() -> int | None:
+    """Return process peak resident memory on supported Unix platforms."""
+    try:
+        import resource
+
+        value = int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
+        return value if sys.platform == "darwin" else value * 1024
+    except (ImportError, AttributeError, OSError):
+        return None
 
 
 def percentile(values: list[float], fraction: float) -> float:
@@ -30,7 +43,7 @@ def run(args: argparse.Namespace) -> dict[str, object]:
     frames = 0
     started = time.perf_counter()
     with mkvcodec.VideoCapture(
-        args.input, codec=args.codec, backend="intel", prefetch=0,
+        args.input, codec=args.input_codec, backend="intel", prefetch=0,
         require_gpu_resident=True,
     ) as capture:
         surface = capture.read_surface()
@@ -38,7 +51,7 @@ def run(args: argparse.Namespace) -> dict[str, object]:
             raise RuntimeError("input contains no frames")
         descriptor = surface.descriptor
         with mkvcodec.VideoWriter(
-            output, codec=args.codec, backend="intel", fps=args.fps,
+            output, codec=args.output_codec, backend="intel", fps=args.fps,
             frame_size=(descriptor["width"], descriptor["height"]),
             quality=args.quality, queue_size=0, require_gpu_resident=True,
         ) as writer:
@@ -60,13 +73,15 @@ def run(args: argparse.Namespace) -> dict[str, object]:
         "schema_version": 1,
         "case": {
             "backend": "intel",
-            "codec": args.codec,
+            "input_codec": args.input_codec,
+            "output_codec": args.output_codec,
             "width": descriptor["width"],
             "height": descriptor["height"],
             "frames": frames,
             "fps_nominal": args.fps,
             "quality": args.quality,
             "require_gpu_resident": True,
+            "input_sha256": hashlib.sha256(Path(args.input).read_bytes()).hexdigest(),
         },
         "environment": {
             "system": platform.system(),
@@ -82,6 +97,7 @@ def run(args: argparse.Namespace) -> dict[str, object]:
             "submit_latency_ms_p95": percentile(latencies, 0.95) * 1000,
             "submit_latency_ms_max": max(latencies) * 1000,
             "encoded_bytes": output.stat().st_size,
+            "process_peak_rss_bytes": peak_rss_bytes(),
         },
         "observed_path": {
             "decode_output": "onevpl_video_memory_surface",
@@ -101,7 +117,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input", required=True)
     parser.add_argument("--media-output", required=True)
-    parser.add_argument("--codec", choices=("vp9", "av1"), default="vp9")
+    parser.add_argument("--input-codec", choices=("vp9", "av1"), default="vp9")
+    parser.add_argument("--output-codec", choices=("vp9", "av1"), default="av1")
     parser.add_argument("--frames", type=int, default=0,
                         help="zero processes the complete input")
     parser.add_argument("--fps", type=int, default=30)

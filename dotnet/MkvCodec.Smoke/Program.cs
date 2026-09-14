@@ -326,6 +326,7 @@ try
         if (imported.Descriptor.Width != width)
             throw new InvalidOperationException(".NET external GPU import failed");
         if (imported.Interop.Backend != MkvBackend.Nvidia ||
+            imported.Interop.ApiStability != "stable" ||
             !imported.SupportsInterop("CUDA") || imported.SupportsInterop("d3d11"))
             throw new InvalidOperationException(".NET GPU interop discovery failed");
         try

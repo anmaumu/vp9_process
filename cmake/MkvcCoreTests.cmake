@@ -68,6 +68,12 @@ function(mkvc_add_core_tests)
     target_link_libraries(mkvc_gpu_resource_pool_test PRIVATE mkvcodec)
     add_test(NAME mkvc_gpu_resource_pool COMMAND mkvc_gpu_resource_pool_test)
 
+    add_executable(mkvc_pipeline_component_metrics_test
+        tests/pipeline_component_metrics_test.cpp)
+    target_compile_features(mkvc_pipeline_component_metrics_test PRIVATE cxx_std_17)
+    target_include_directories(mkvc_pipeline_component_metrics_test PRIVATE src include)
+    add_test(NAME mkvc_pipeline_component_metrics COMMAND mkvc_pipeline_component_metrics_test)
+
     if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SIZEOF_VOID_P EQUAL 8)
         include(CheckCSourceCompiles)
         check_c_source_compiles("#include <features.h>
@@ -243,6 +249,7 @@ function(mkvc_add_dotnet_tests vp9_fixture)
         COMMAND "${MKVC_DOTNET_EXECUTABLE}" build
             "${CMAKE_CURRENT_SOURCE_DIR}/dotnet/MkvCodec.Smoke/MkvCodec.Smoke.csproj"
             --configuration Release)
+    set_tests_properties(mkvc_dotnet_build PROPERTIES RESOURCE_LOCK dotnet_build)
     add_test(NAME mkvc_dotnet_smoke
         COMMAND ${CMAKE_COMMAND} -E env
             "MKVC_LIBRARY_PATH=$<TARGET_FILE:mkvcodec>"

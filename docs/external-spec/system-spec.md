@@ -183,8 +183,14 @@ C#は同じC ABI queryを`MkvCodecInfo.SelectBackend`として公開する。
   Windows D3D11 NV12の`mkvc_gpu_frame_import_d3d11_fence`はhandles=(texture, subresource=0, fence, target)を受け取り、targetは1..UINT64_MAX-1、queryはnull必須とする。同一device、GPU-only、single-subresource、寸法一致を検査しCOM参照を保持する。producerは処理後のSignalとcommand dispatchを完了させ、fenceの巻戻し/target再利用やconsumer完了前の書込みを禁止する。library側ではfence値のみpollし、Flush/Map/copy/device-wide waitを行わない。非WindowsはNOT_SUPPORTED、descriptor不正はINVALID_ARGUMENT、device removalはCODECとし、失敗時はownerを受け取らない。C++/Python/.NETに同等入口を設ける。oneVPL encoderの対応可否は同期の対応可否と独立に判定する。
   Linux Intel NV12 VA surfaceは`mkvc_gpu_frame_import_va_surface`でVAに投入済みのproducer処理をnative同期できる。query callbackはnull必須。C++/Python/.NETにも同等入口を公開する。surface ID 0は有効、`UINT32_MAX`は無効とし、ownerはdisplayとsurfaceの両方を最終leaseまで保持する。未対応platform/build、libva symbol不足、driver未実装は`NOT_SUPPORTED`で失敗し、失敗時にowner/release callbackの所有権を受け取らない。import後の追加書込みは禁止。VA同期はOpenCL/SYCL等の独立した処理を保証せず、汎用producer queryまたは明示的な外部同期を必要とする。Pythonの`producer_synchronized=True`は利用者がその同期を完了した場合だけ許可する。
 - `EXT-GPU-010`: `require_gpu_resident=True`、`allow_gpu_copy`、`allow_cpu_copy`をdecode/export/import/encode全体へ適用し、edge別copy-pathとfallback理由を返す。
-- Python `GpuFrame.interop`はbackend、memory/native-handle type、外部処理adapter family、DLPack export可否、必要なcompletion方式を正規化して返す。これは実frame表現の照会であり、未生成のIntel USMやdriver内部zero-copyをcapabilityとして広告しない。`supports_interop(name)`はadapter選択用で、外部runtime/kernelの存在やencode対応をprobeした結果ではない。
+- Python `GpuFrame.interop`はbackend、memory/native-handle type、外部処理adapter family、DLPack export可否、必要なcompletion方式、`api_stability`を正規化して返す。Intel USMはv0.1で`preview`、その他の表現はAPI契約として`stable`を返す。これは実frame表現の照会であり、未生成のIntel USMやdriver内部zero-copyをcapabilityとして広告しない。`supports_interop(name)`はadapter選択用で、外部runtime/kernelの存在やencode対応をprobeした結果ではない。
 - C#は同じframe表現を`MkvGpuFrame.Interop` / `SupportsInterop`で照会する。言語bindingに直接存在しないDLPack機能は広告しない。
+
+Intel USM importはv0.1 previewとする。C ABIはSYCL C++ ABIへlinkせず、context/queueを
+opaque identityとして保持するので、allocationが指定context/deviceに属することを
+独立には検証しない。callerはoneAPI runtimeのallocation queryを通したresourceだけを
+渡す。cross-context/device provenanceをcore側でfail-closedに検証できるportable ABIを
+追加するまでは、実機往復・producer event・pool soakが成功してもstableへ格上げしない。
 
 検証結果の説明では、library境界のcopy metric、公開APIの独立観測、driver内部まで含む
 完全なtraceを区別する。監視対象APIのCPU転送0件だけで経路全体のzero-copy保証へ

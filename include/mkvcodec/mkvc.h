@@ -765,6 +765,10 @@ MKVC_API mkvc_result mkvc_gpu_frame_import_d3d11_fence(const mkvc_gpu_external_f
  * the library never destroys or resets it. Keep the event/context/queue and USM
  * allocation valid through final release. The generic import rejects a nonzero
  * USM event so asynchronous dependency cannot be silently treated as complete.
+ * @warning Intel USM interop is a v0.1 preview. The core ABI treats SYCL
+ * context/queue values as opaque identities and cannot independently reject an
+ * allocation from a different context or device. Validate provenance in the
+ * caller's oneAPI runtime before import.
  */
 MKVC_API mkvc_result mkvc_gpu_frame_import_level_zero_event(
     const mkvc_gpu_external_frame_config* config, mkvc_gpu_frame** out_frame);
@@ -788,6 +792,8 @@ MKVC_API mkvc_result mkvc_gpu_frame_import_cuda_event(const mkvc_gpu_external_fr
  * stream is accepted only when the producer dependency can be satisfied.
  * Linear Intel device-USM is exported as kDLOneAPI after producer completion;
  * no VA/D3D11 surface is ever represented as a false linear tensor.
+ * Intel USM DLPack export remains a v0.1 preview for the provenance reason
+ * documented by mkvc_gpu_frame_import_level_zero_event().
  */
 MKVC_API mkvc_result mkvc_gpu_frame_export_dlpack(mkvc_gpu_frame* frame, uint32_t plane_index,
                                                   uint64_t consumer_stream,

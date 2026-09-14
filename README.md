@@ -233,7 +233,11 @@ kDLOneAPI DLPackへ公開できます。borrowed Level Zero eventも受け付け
 consumer SYCL queueへのevent dependency登録、dpnp処理とVA→oneVPL AV1 encodeまで
 確認済みです。`dependency_registrar`を指定しない場合は安全なhost待機へ戻ります。
 decode tiled imageからlinear USMへのmaterializationはGPU copyです。Windows Intelの
-encode実機検証と長時間fault/soak検証は未完了です。
+encode実機検証は未完了です。Intel USM interopはv0.1では`preview`です。
+`frame.interop.api_stability`でも判別できます。native coreはSYCL C++ ABIへ依存せず
+context/queueをopaque identityとして保持するため、pointerが同じcontext/deviceに属する
+ことをcaller側oneAPI runtimeで検証してからimportしてください。VA surface経路の
+実機認定とUSM previewの区別は維持します。
 
 反復処理では`IntelUsmFramePool`へcaller側で事前確保した`(USM pointer, owner)`を
 登録できます。`acquire_slot()`でproducer処理前に排他的slotを確保し、処理投入後に
@@ -365,7 +369,8 @@ Intel GPU-resident transcode benchmark:
 
 ```bash
 python benchmarks/gpu_transcode_benchmark.py \
-  --input input.webm --media-output output.webm --codec vp9 \
+  --input input.webm --media-output output.webm \
+  --input-codec vp9 --output-codec av1 \
   --output gpu-result.json
 ```
 

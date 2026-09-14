@@ -6,6 +6,7 @@
  */
 
 #include <atomic>
+#include <array>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -54,6 +55,50 @@ class ComponentMetricsAccumulator {
 
 inline thread_local ComponentMetricsAccumulator* active_component_metrics = nullptr;
 
+namespace detail {
+
+using ComponentClock = std::chrono::steady_clock;
+
+struct ComponentTimerEntry {
+    ComponentMetricsAccumulator* accumulator = nullptr;
+    PipelineComponent component = PipelineComponent::kConversion;
+    ComponentClock::time_point started{};
+    uint64_t elapsed_ns = 0;
+    bool running = false;
+};
+
+// Pipeline component scopes are shallow in normal operation. Keeping their
+// mutable state in thread-local storage avoids retaining pointers to automatic
+// ScopedComponentTimer objects and makes the LIFO lifetime explicit to GCC.
+struct ComponentTimerStack {
+    static constexpr size_t kCapacity = 32;
+    std::array<ComponentTimerEntry, kCapacity> entries{};
+    size_t depth = 0;
+};
+
+inline thread_local ComponentTimerStack component_timer_stack;
+
+inline uint64_t component_duration(ComponentClock::time_point begin,
+                                   ComponentClock::time_point end) noexcept {
+    return static_cast<uint64_t>(
+        std::chrono::duration_cast<std::chrono::nanoseconds>(end - begin).count());
+}
+
+inline void pause_component_timer(ComponentTimerEntry& entry,
+                                  ComponentClock::time_point now) noexcept {
+    if (!entry.running) return;
+    entry.elapsed_ns += component_duration(entry.started, now);
+    entry.running = false;
+}
+
+inline void resume_component_timer(ComponentTimerEntry& entry,
+                                   ComponentClock::time_point now) noexcept {
+    entry.started = now;
+    entry.running = true;
+}
+
+}  // namespace detail
+
 /** Bind component timers on the current thread to one pipeline accumulator. */
 class ActiveComponentMetrics {
    public:
@@ -72,51 +117,37 @@ class ActiveComponentMetrics {
 /** Measure exclusive wall time, pausing an enclosing component timer. */
 class ScopedComponentTimer {
    public:
-    explicit ScopedComponentTimer(PipelineComponent component) noexcept
-        : accumulator_(active_component_metrics), component_(component), parent_(current_) {
-        if (accumulator_ == nullptr) return;
-        const auto now = Clock::now();
-        if (parent_ != nullptr) parent_->pause(now);
-        started_ = now;
-        running_ = true;
-        current_ = this;
+    explicit ScopedComponentTimer(PipelineComponent component) noexcept {
+        auto& stack = detail::component_timer_stack;
+        if (active_component_metrics == nullptr || stack.depth == stack.kCapacity) return;
+        const auto now = detail::ComponentClock::now();
+        if (stack.depth != 0) {
+            detail::pause_component_timer(stack.entries[stack.depth - 1], now);
+        }
+        index_ = stack.depth++;
+        stack.entries[index_] = {active_component_metrics, component, now, 0, true};
+        active_ = true;
     }
 
     ~ScopedComponentTimer() {
-        if (!running_) return;
-        const auto now = Clock::now();
-        elapsed_ns_ += duration(started_, now);
-        accumulator_->add(component_, elapsed_ns_);
-        current_ = parent_;
-        if (parent_ != nullptr) parent_->resume(now);
+        if (!active_) return;
+        auto& stack = detail::component_timer_stack;
+        auto& entry = stack.entries[index_];
+        const auto now = detail::ComponentClock::now();
+        detail::pause_component_timer(entry, now);
+        entry.accumulator->add(entry.component, entry.elapsed_ns);
+        stack.depth = index_;
+        if (stack.depth != 0) {
+            detail::resume_component_timer(stack.entries[stack.depth - 1], now);
+        }
     }
 
     ScopedComponentTimer(const ScopedComponentTimer&) = delete;
     ScopedComponentTimer& operator=(const ScopedComponentTimer&) = delete;
 
    private:
-    using Clock = std::chrono::steady_clock;
-    ComponentMetricsAccumulator* accumulator_ = nullptr;
-    PipelineComponent component_;
-    ScopedComponentTimer* parent_ = nullptr;
-    Clock::time_point started_{};
-    uint64_t elapsed_ns_ = 0;
-    bool running_ = false;
-    inline static thread_local ScopedComponentTimer* current_ = nullptr;
-
-    static uint64_t duration(Clock::time_point begin, Clock::time_point end) noexcept {
-        return static_cast<uint64_t>(
-            std::chrono::duration_cast<std::chrono::nanoseconds>(end - begin).count());
-    }
-    void pause(Clock::time_point now) noexcept {
-        if (!running_) return;
-        elapsed_ns_ += duration(started_, now);
-        running_ = false;
-    }
-    void resume(Clock::time_point now) noexcept {
-        started_ = now;
-        running_ = true;
-    }
+    size_t index_ = 0;
+    bool active_ = false;
 };
 
 }  // namespace mkvc

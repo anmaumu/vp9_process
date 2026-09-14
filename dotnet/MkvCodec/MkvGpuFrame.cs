@@ -61,6 +61,8 @@ public sealed class MkvGpuFrame : IDisposable
     /// Imports linear Intel device-USM with a borrowed Level Zero event.
     /// Handles=(pointer, SYCL context, SYCL queue, ze_event_handle_t). Native
     /// code queries but never resets or destroys the caller-owned event.
+    /// This v0.1 preview treats context and queue as opaque identities; validate
+    /// pointer provenance in the caller's oneAPI runtime before import.
     /// </summary>
     public static MkvGpuFrame ImportLevelZeroEvent(
         MkvGpuFrameDescriptor descriptor,
@@ -251,7 +253,8 @@ public sealed class MkvGpuFrame : IDisposable
             };
             return new MkvGpuInteropInfo(
                 descriptor.Backend, descriptor.MemoryType, native.Type,
-                interfaces, completion);
+                interfaces, completion,
+                descriptor.MemoryType == MkvGpuMemoryType.Usm ? "preview" : "stable");
         }
     }
 

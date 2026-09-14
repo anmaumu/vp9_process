@@ -12,13 +12,13 @@ v0.1に必要な残件は[release-closure.md](release-closure.md)だけを正本
 |---|---:|---|
 | Windows x64 / NVIDIA-enabled build | 38 tests | pass、GPU capability不足による想定内skip 2 |
 | Windows x64 / CPU VP9+AV1、Intel、NVIDIA同時build | 36 tests | pass、実hardware capability不足による想定内skip 8 |
-| Linux x64 / Intel GPU required | 53 tests | pass、C++/.NET GPU round-tripを含む |
+| Linux x64 / Intel GPU required | 59 tests | pass、C++/.NET GPU round-trip、USM fault report、component timer回帰を含む |
 | Linux x64 / CPU VP9 and AV1 | 32 tests | pass |
 | GitHub Ubuntu / ASan+UBSan | 27 tests + 60秒libFuzzer | pass、11,888,127 inputs |
 
 各refactorではABI guard、Python/.NET binding generation、docgen、source
-compliance gate、対象PythonのRuff検査も通す。性能値は環境依存であり、承認済み
-regression thresholdではない。
+compliance gate、対象PythonのRuff検査も通す。性能値は環境依存であり、Windows
+Xeon CPUとLinux Arc B580だけを機種・driver・入力hash固定の承認済みbaselineとする。
 
 ## Current capability matrix
 
@@ -27,9 +27,9 @@ regression thresholdではない。
 | Container | libwebmによるWebM/Matroska mux・demux、拡張子とDocTypeの整合、VP9/AV1自動判別、decode不要の動画情報probe、共通入力上限、固定破損＋seeded mutation smoke、ASan/UBSan＋辞書付きlibFuzzer CI、run別corpus/crash artifact保存 | 最初の対応映像trackを選択。hardware-class間のcorpus統合は継続課題 |
 | CPU codec | libvpx VP9 encode/decode、SVT-AV1 encode、libaom AV1 decode、PSNR＋block SSIM受け入れ | 現行は8-bit I420/NV12/packed入力。10-bitは将来範囲 |
 | CPU Python | OpenCV風Capture/Writer、owned/borrowed NumPy、strict/copy-normalized layout policy、pageable/page-locked native buffer pool、async submission、pool occupancy/wait/lease metrics、edge別copy/share metrics | driver内部copy attributionは観測範囲外 |
-| Intel Linux | oneVPL VP9/AV1、VA surface、OpenCL/Level Zero、device-USM DLPack、pool/backpressure | direct oneVPL USM consumptionと30分cross-context soakは残件 |
-| Intel Windows | D3D11 handle/fence契約と外部import実装 | 実GPUでのdecode→external processing→encode総合認定が残件 |
-| NVIDIA Windows | NVDEC VP9 CUDA surface、CUDA pointer/array/event interop、NVENC AV1実装 | RTX 2060はAV1 encode非対応。対応GPUでのpositive NVENC試験が必要 |
+| Intel Linux | oneVPL VP9/AV1、認定済みVA surface、OpenCL/Level Zero、preview device-USM DLPack、pool/backpressure | USMはopaque context/device provenanceをcore単独で検証できないためv0.1 preview。direct oneVPL USM consumptionは将来範囲 |
+| Intel Windows | D3D11 handle/fence契約と外部import実装（v0.1 preview/unqualified） | 実GPUでのdecode→external processing→encode総合認定後にstable対応表へ追加する |
+| NVIDIA Windows | NVDEC VP9 CUDA surface、CUDA pointer/array/event interop、NVENC AV1実装（AV1 encodeはv0.1 preview/unqualified） | RTX 2060はAV1 encode非対応。対応GPUでのpositive NVENC試験後にstable認定する |
 | GPU strict mode | 共通GpuFrame lease、native handle、DLPack、`require_gpu_resident`、aggregateおよびedge別copy-path metrics | driver内部まで含む完全copy proofは環境別に継続 |
 | C++ | move-only RAII facade、CPU/GPU frame、pool、submission、strict GPU transcode harness | Linux Intel round-trip認定済み。AV1対応NVIDIAでのpositive encode認定が残件 |
 | .NET | .NET 8 P/Invoke、SafeHandle、codec自動判別・動画情報probe、全8-bit CPU形式、pageable/page-locked native pool、Submit＋cancellable `WaitAsync`、GPU surface API、strict GPU transcode harness、GC/memory soak harness、30分CPU pool認定 | Windows Intel round-tripが残件。AV1対応NVIDIA実機認定は対応hardware待ち |
@@ -59,6 +59,8 @@ GPU vendor driver/runtimeはwheel/NuGetへ同梱せず、実行環境側の責�
   thread-local error detailで固定する。
 - Pythonは`VideoCapture`、`VideoWriter`、`VideoInfo`、`probe_video`、`GpuFrame`、`BorrowedCpuFrame`、
   `CpuFramePool`、`CpuBuffer`、`Submission`を公開する。
+- Python/.NETのnormalized GPU interop情報は表現ごとの`api_stability`を返し、Intel USMを
+  v0.1 previewとして機械判定可能にする。
 - C++はstable C ABI上のheader-only RAII facade、.NETは同じABI上のP/Invokeを使う。
 - Python public docstringはNumPy形式、C/C++宣言はDoxygen形式とし、docgenで検査する。
 
@@ -117,8 +119,8 @@ GPU vendor driver/runtimeはwheel/NuGetへ同梱せず、実行環境側の責�
 
 残件は[release-closure.md](release-closure.md)の`RC-01..07`へ統合した。
 10-bit、seek、全driver内部copy証明、全GPU世代・4K matrix等はv0.1完成条件から外す。
-実機を用意できないIntel Windows/NVIDIA AV1は、認定するかpreviewとして対応表から
-外すかを選択し、無期限のrelease blockerにはしない。
+実機を用意できないIntel Windows/NVIDIA AV1はv0.1でpreview/unqualifiedとしてstable
+対応表から外し、実機認定を将来backlogとして保持する。
 
 ## Verified dependency baseline
 

@@ -95,6 +95,8 @@ class GpuInteropInfo:
         Whether linear planes support the DLPack protocol.
     completion:
         Producer-completion mechanism associated with the frame.
+    api_stability:
+        ``"stable"`` or ``"preview"`` for this interop representation.
     """
 
     backend: str
@@ -103,6 +105,7 @@ class GpuInteropInfo:
     processing_interfaces: tuple[str, ...]
     dlpack_export: bool
     completion: str
+    api_stability: str
 
 
 @dataclass(frozen=True)

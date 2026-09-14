@@ -117,6 +117,7 @@ assert va_owner_ref() is not None
 assert va_frame.native_handle["handles"][:2] == (0x1000, 0)
 assert va_frame.interop.backend == "intel"
 assert va_frame.interop.memory_type == "va_surface"
+assert va_frame.interop.api_stability == "stable"
 assert va_frame.supports_interop("VA_API")
 assert not va_frame.supports_interop("dlpack")
 va_frame.close()
@@ -208,6 +209,7 @@ assert frame.descriptor["width"] == 64
 assert frame.native_handle["handles"][0] == 0x1000
 assert frame.interop.backend == "nvidia"
 assert frame.interop.dlpack_export
+assert frame.interop.api_stability == "stable"
 assert frame.supports_interop("cuda") and frame.supports_interop("dlpack")
 frame.wait(100)
 frame.close()
@@ -238,6 +240,7 @@ assert usm.descriptor["memory_type"] == api.native.MKVC_GPU_MEMORY_USM
 assert usm.native_handle["handles"][:3] == (0x3000, 0x4000, 0x5000)
 assert usm.interop.backend == "intel" and usm.interop.dlpack_export
 assert usm.interop.completion == "synchronized"
+assert usm.interop.api_stability == "preview"
 assert usm.supports_interop("sycl_usm") and usm.supports_interop("dlpack")
 assert usm.plane(0).__dlpack_device__() == (14, 0)
 usm.close()

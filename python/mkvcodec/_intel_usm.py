@@ -36,6 +36,11 @@ class IntelUsmFramePool:
         Row pitch in bytes, at least the frame width.
     dependency_registrar : callable, optional
         Registers a producer event dependency on a DLPack consumer stream.
+
+    Notes
+    -----
+    This is a v0.1 preview API. Validate every preallocated pointer against the
+    supplied oneAPI context and device before constructing the pool.
     """
     def __init__(
         self, resources: list[tuple[int, object]] | tuple[tuple[int, object], ...],

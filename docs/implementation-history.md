@@ -9,6 +9,47 @@
 [implementation-status.md](implementation-status.md)を使用する。この履歴には
 過去の判断、測定値、詳細なverification matrixを粒度を落とさず保持する。
 
+## 2026-09-14: Intel USM preview qualification and release baselines
+
+Status: `QUALIFIED_PREVIEW`
+
+The public Intel device-USM/DLPack path completed a strict 1,805.18-second soak
+on Linux and Arc B580: 8,288 frames in 259 batches with a capacity-one pool.
+Every batch exercised backpressure (31 rejected nonblocking acquisitions out of
+32), registered 32 Level Zero consumer dependencies, and released all owners,
+events and allocations. RSS grew 1,720,320 bytes; file descriptors and threads
+did not grow. Per-process DRM fdinfo sampling captured 518 active/post-close
+samples and stayed inside the 256 MiB growth budget. An independent report gate
+rejected partial or under-duration output.
+
+Hardware fault/provenance coverage confirms that two wrappers around the same
+native Level Zero context are accepted, an Arc allocation queried through the
+integrated-GPU context is rejected, a producer event is honored, and injected
+consumer-dependency registration failure reaches Python without losing leases.
+The core intentionally treats SYCL/Level Zero context and queue objects as
+opaque and therefore cannot independently prove every pointer's provenance.
+Intel USM is consequently published as `api_stability="preview"` in v0.1 rather
+than overstating stable cross-context safety.
+
+Approved release baselines now cover Windows Xeon E5-2697 v2 CPU VP9 and Linux
+Arc B580 strict VP9 decode→AV1 encode at 1920x1080. The Arc three-run medians are
+183.8066 fps, 1.8877 ms p95 surface submission, and 79,339,520-byte peak RSS.
+Both native stages reported `zero_copy`; the record fixes the input SHA-256,
+hardware/driver/build class, 15% throughput threshold, and 20% latency/memory
+thresholds. A real candidate passed the fail-closed baseline gate. The benchmark
+now models input and output codecs independently.
+
+Windows Intel D3D11 and NVIDIA AV1 positive qualification are explicitly
+waived to preview/unqualified for v0.1: the available Windows host has no Intel
+GPU and its RTX 2060 cannot encode AV1. Their implementations and negative/unit
+coverage remain, but neither is advertised as a stable hardware combination.
+
+GCC's dangling-pointer diagnostic also exposed the nested component timer's
+thread-local pointer to an automatic object. It was replaced by a fixed-capacity
+thread-local state stack with nested/restoration tests. Parallel CTest uncovered
+a .NET output-file race; every .NET build test now shares the `dotnet_build`
+resource lock.
+
 ## 2026-09-14: Explicit copy-edge observability
 
 Status: `IMPLEMENTED`

@@ -149,6 +149,12 @@ def _import_usm_nv12(
     set ``producer_synchronized=True``. This representation is for external
     processing; oneVPL encode still requires a shared VA/D3D11 resource and
     any tiled-to-linear materialization is a GPU copy.
+
+    Notes
+    -----
+    This is a v0.1 preview API. ``context`` and ``queue`` are opaque to the
+    native library, so the caller must validate that the pointer belongs to the
+    same oneAPI context and device before importing it.
     """
     if dlpack_extension() is None:
         raise RuntimeError("external USM import requires the mkvcodec stable-ABI extension")

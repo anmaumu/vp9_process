@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "recorded_at_utc": "2026-09-14T04:15:46.672408+00:00",
+  "case": {
+    "backend": "cpu",
+    "codec": "vp9",
+    "width": 1920,
+    "height": 1080,
+    "frames": 120,
+    "fps_nominal": 30,
+    "quality": 32,
+    "queue_size": 8,
+    "prefetch": 4,
+    "input_pixel_format": "bgr24",
+    "output_pixel_format": "bgr24"
+  },
+  "environment": {
+    "system": "Windows",
+    "release": "11",
+    "machine": "AMD64",
+    "processor": "Intel64 Family 6 Model 62 Stepping 4, GenuineIntel",
+    "python": "3.12.14",
+    "numpy": "2.3.5",
+    "build_type": "Release"
+  },
+  "sampling": {
+    "runs": 3,
+    "aggregation": "median",
+    "warm_process_per_run": false
+  },
+  "measurements": {
+    "encode_fps": 12.712168206012358,
+    "decode_fps": 159.85385094385273,
+    "write_latency_ms_p95": 362.54360002640135,
+    "decode_first_frame_ms": 35.39150004507974,
+    "process_peak_rss_bytes": 278110208
+  },
+  "performance_gate": {
+    "max_regression_fraction": 0.15,
+    "metric_regression_fractions": {
+      "decode_first_frame_ms": 0.30,
+      "process_peak_rss_bytes": 0.20
+    }
+  }
+}

@@ -28,6 +28,7 @@ def main() -> None:
         assert loaded["measurements"]["encode_fps"] > 0
         assert loaded["measurements"]["decode_fps"] > 0
         assert loaded["measurements"]["encoded_bytes"] > 0
+        assert loaded["measurements"]["process_peak_rss_bytes"] > 0
         assert loaded["observed_path"]["zero_copy"] is False
         encoder = loaded["native_metrics"]["encoder"]
         decoder = loaded["native_metrics"]["decoder"]

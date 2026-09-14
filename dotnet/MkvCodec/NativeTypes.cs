@@ -6,4 +6,5 @@ public sealed record MkvGpuInteropInfo(
     MkvGpuMemoryType MemoryType,
     MkvGpuNativeHandleType NativeHandleType,
     IReadOnlyList<string> ProcessingInterfaces,
-    string Completion);
+    string Completion,
+    string ApiStability);

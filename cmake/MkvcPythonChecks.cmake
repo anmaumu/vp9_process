@@ -114,6 +114,7 @@ function(mkvc_add_repository_python_checks)
     mkvc_add_python_script_test(
         mkvc_gpu_resource_monitor tests/test_gpu_resource_monitor.py)
     mkvc_add_python_script_test(mkvc_usm_soak_report tests/test_usm_soak_report.py)
+    mkvc_add_python_script_test(mkvc_usm_fault_report tests/test_usm_fault_report.py)
     mkvc_add_python_script_test(mkvc_intel_prime_layout tests/test_intel_prime_layout.py)
     mkvc_add_python_script_test(
         mkvc_intel_kernel_trace_report tests/test_intel_kernel_trace.py)

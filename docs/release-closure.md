@@ -17,10 +17,10 @@ sanitizer/fuzz、対象platform testが成功すればv0.1を完成とする。�
 |---|---|---|---|
 | `RC-01` | `DONE` | CPU入力layout契約 | plane数、dtype、寸法、stride、必要alignmentをC ABI/Python/.NETで一貫して検証する。strict modeは不一致を拒否し、copy許可時だけ明示的に正規化する。parameterized testが成功する |
 | `RC-02` | `DONE` | copy経路の説明可能性 | GPU→NumPy download、色変換、CPU正規化をedge別metricsへ記録する。`require_gpu_resident`時のCPU copy拒否を回帰試験し、driver内部copyは「未観測」と区別する |
-| `RC-03` | `OPEN` | Intel Linux USMの公開判定 | cross-context/device不一致、producer event、fault、pool backpressureと30分soakを`linux-machine`で通す。満たせない場合はUSM APIをpreview表示に固定する |
-| `RC-04` | `BLOCKED_HARDWARE` | Intel Windows D3D11認定 | Intel GPU実機でdecode→D3D11 external processing→encodeをC++/Python/.NETから確認し、同期、lease、画素、PTS、copy policyを検証する。実機を用意しない場合はWindows Intelをpreview扱いにする |
-| `RC-05` | `BLOCKED_HARDWARE` | NVIDIA AV1認定 | AV1対応NVIDIA GPUでNVDEC→外部CUDA処理→NVENCを確認する。現RTX 2060では実行不能。対応実機を用意しない場合はNVIDIA AV1をpreview扱いにする |
-| `RC-06` | `OPEN` | 性能基準の固定 | release対象CPUと認定済みGPUについて最低1080pのthroughput/latency/memory baselineを保存し、許容regression率を決定する。4Kや全GPU世代は必須にしない |
+| `RC-03` | `DONE` | Intel Linux USMの公開判定 | Arc B580でcross-device拒否、同一native context許可、producer event、fault伝播、capacity 1 pool backpressure、30分soakを通した。core単独ではopaque USM provenanceを完全検証できないため、v0.1は`api_stability="preview"`に固定する |
+| `RC-04` | `WAIVED_PREVIEW` | Intel Windows D3D11認定 | Intel Windows実機がないためv0.1の認定対象外とし、D3D11契約・実装はpreview/unqualifiedとして保持する。stable対応表への追加にはdecode→external processing→encodeのC++/Python/.NET実機試験が必要 |
+| `RC-05` | `WAIVED_PREVIEW` | NVIDIA AV1認定 | 現RTX 2060はAV1 encode非対応のためv0.1の認定対象外とし、NVENC AV1実装はpreview/unqualifiedとして保持する。stable対応表への追加にはAV1対応NVIDIA実機でのNVDEC→外部CUDA処理→NVENC試験が必要 |
+| `RC-06` | `DONE` | 性能基準の固定 | Windows CPU VP9とLinux Arc B580 Intel VP9 decode→AV1 encodeについて、3回中央値の1080p throughput/latency/peak RSS baseline、入力hash、環境、15%の既定回帰率と個別閾値を保存し、fail-closed gateを実測候補へ適用した |
 | `RC-07` | `WAITING_DECISION` | release governance | project LICENSEを決定し、legal review後にwheel/NuGetのnative/legal/SBOM実artifact gateを通して公開する。vendor driver/runtimeは同梱しない |
 
 ## v0.1完成条件から外す項目

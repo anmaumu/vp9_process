@@ -53,4 +53,5 @@ def describe_interop(
         interfaces,
         dlpack,
         completion,
+        "preview" if memory == "usm" else "stable",
     )

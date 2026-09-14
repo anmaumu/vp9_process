@@ -37,6 +37,43 @@ def percentile(values: list[float], fraction: float) -> float:
 
 def peak_rss_bytes() -> int | None:
     """Return process peak RSS where the standard library exposes it."""
+    if sys.platform == "win32":
+        try:
+            import ctypes as ct
+
+            class ProcessMemoryCounters(ct.Structure):
+                """Windows PROCESS_MEMORY_COUNTERS layout."""
+
+                _fields_ = [
+                    ("cb", ct.c_uint32),
+                    ("PageFaultCount", ct.c_uint32),
+                    ("PeakWorkingSetSize", ct.c_size_t),
+                    ("WorkingSetSize", ct.c_size_t),
+                    ("QuotaPeakPagedPoolUsage", ct.c_size_t),
+                    ("QuotaPagedPoolUsage", ct.c_size_t),
+                    ("QuotaPeakNonPagedPoolUsage", ct.c_size_t),
+                    ("QuotaNonPagedPoolUsage", ct.c_size_t),
+                    ("PagefileUsage", ct.c_size_t),
+                    ("PeakPagefileUsage", ct.c_size_t),
+                ]
+
+            counters = ProcessMemoryCounters()
+            counters.cb = ct.sizeof(counters)
+            get_current_process = ct.windll.kernel32.GetCurrentProcess
+            get_current_process.restype = ct.c_void_p
+            get_process_memory_info = ct.windll.psapi.GetProcessMemoryInfo
+            get_process_memory_info.argtypes = (
+                ct.c_void_p,
+                ct.POINTER(ProcessMemoryCounters),
+                ct.c_uint32,
+            )
+            get_process_memory_info.restype = ct.c_int
+            if get_process_memory_info(
+                get_current_process(), ct.byref(counters), counters.cb
+            ):
+                return int(counters.PeakWorkingSetSize)
+        except (AttributeError, OSError, ValueError):
+            return None
     try:
         import resource
 

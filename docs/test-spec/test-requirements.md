@@ -146,6 +146,14 @@ Arc/USM追加検証（TEST-GPU-005/008/009/013/014/019/020）:
 - `validate_usm_soak_report.py --minimum-seconds 1800`は`validation=passed`、要求時間、batch/frame整合、RSS/FD/thread budget、最終batchの全owner/allocation/event/dependency数、処理GPUのactive VRAM証拠を独立に再検査する。途中reportやfield欠落を0または成功として解釈しない。
 - C ABI unitはproducer pending中でも成功registrar付きDLPack exportがhost待機せず返ること、event/stream値、callback必須条件を検証する。Python registrar例外は元例外を再送出し、native tensorを生成しない。registrarなしのevent付きUSMは従来どおりhost待機する。
 - pool由来でもphysical extent/offset不明、nonlinear export、違うdevice/context、host/shared USM、export失敗、fd枯渇、device loss、DLPack別consumerのshutdownは追加gateとする。固定slot/backpressureの成功だけではWindows USMや全pipelineの完全非同期化を完了としない。
+- v0.1ではnative coreがopaque SYCL context/queueからallocation provenanceをportableに
+  検証できないため、Intel USMをpreviewへ固定する。test-only oneAPI adapterで同一contextの
+  device allocation、別context/deviceの拒否を確認しても、core API自身のstable認定には
+  代用しない。`GpuFrame.interop.api_stability`および.NET同等propertyを回帰試験する。
+- `python_intel_usm_faults.py`はArcとintegrated GPUを持つ`linux-machine`で、同一deviceの
+  dpctl context aliasがnativeには同一contextであること、別device allocation queryの拒否、
+  Level Zero producer event完了、dependency registrar failureの例外伝播、preview metadataを
+  JSONへ記録する。異なるwrapper addressだけをcross-context不一致の証拠にしない。
 
 Optional USM実験の準備・実行例（Linux、oneVPL test build、Level Zero開発header/libraryが必要）:
 
@@ -227,7 +235,7 @@ process private-memory増分1,884,160 bytesで、独立gateを通過している
 
 | ID | Test requirement | Level | Environment |
 |---|---|---|---|
-| `TEST-PERF-001` | 1080p30/60、4K30、対応時4K60 baseline。approved JSONとcandidateのcase一致を確認し、fps低下・p95/first-frame latency増加がreview済み割合を超えた場合にfail closedとなる。JSONへconversion/codec/container/GPU-waitの排他的host component metricsを保存し、CPU round-tripのcall数、C ABI size/version拒否、C++/Python/.NET layoutとclose後snapshotを検証する | benchmark/release gate/API/ABI | CPU/Intel/NVIDIA |
+| `TEST-PERF-001` | release対象hardwareごとに最低1080p baselineを保存する。approved JSONとcandidateのprofile、codec、寸法、設定を一致させ、GPU profileではinput/output codec、strict residency、入力SHA-256も一致させる。fps低下、p95/first-frame latency、peak RSS増加がreview済み割合を超えた場合はfail closedとする。追加4K/世代matrixは将来範囲。JSONへconversion/codec/container/GPU-waitの排他的host component metricsを保存し、CPU round-tripのcall数、C ABI size/version拒否、C++/Python/.NET layoutとclose後snapshotを検証する | benchmark/release gate/API/ABI | CPU/Intel/NVIDIA |
 | `TEST-PERF-002` | prefetch/async depth別throughput/latency curve | benchmark | CPU/Intel/NVIDIA |
 | `TEST-PERF-003` | balanced pipelineにframe間overlapがある | trace | Intel/NVIDIA |
 | `TEST-PERF-004` | 30分以上と数百回open/closeでRAM/VRAM/handleが増加しない | soak | backend CI |
