@@ -66,7 +66,7 @@ with mkvcodec.VideoCapture(
 ```
 
 CPU WriterはBGR、RGB、BGRA、I420、NV12を受け付けます。CaptureもBGR/RGB/BGRA/
-I420/NV12を返せます。`threads`はdecoder内部thread数、`prefetch`はdecode済みframeの
+I420/NV12を返せます。`threads`はdecoder内部thread数（CPU VP9の0はbounded自動）、`prefetch`はdecode済みframeの
 先読み数、`conversion_threads`はpacked色変換のthread数で、それぞれ独立しています。
 
 ### CPUのcopyを減らす

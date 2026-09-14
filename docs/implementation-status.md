@@ -25,7 +25,7 @@ Xeon CPUとLinux Arc B580だけを機種・driver・入力hash固定の承認済
 | Area | Implemented | Current boundary |
 |---|---|---|
 | Container | libwebmによるWebM/Matroska mux・demux、拡張子とDocTypeの整合、VP9/AV1自動判別、decode不要の動画情報probe、共通入力上限、固定破損＋seeded mutation smoke、ASan/UBSan＋辞書付きlibFuzzer CI、run別corpus/crash artifact保存 | 最初の対応映像trackを選択。hardware-class間のcorpus統合は継続課題 |
-| CPU codec | libvpx VP9 encode/decode、SVT-AV1 encode、libaom AV1 decode、PSNR＋block SSIM受け入れ | 現行は8-bit I420/NV12/packed入力。10-bitは将来範囲 |
+| CPU codec | libvpx VP9 encode/decode（0指定時は1..16 bounded自動thread）、SVT-AV1 encode、libaom AV1 decode、PSNR＋block SSIM受け入れ | 現行は8-bit I420/NV12/packed入力。10-bitは将来範囲 |
 | CPU Python | OpenCV風Capture/Writer、owned/borrowed NumPy、strict/copy-normalized layout policy、pageable/page-locked native buffer pool、async submission、pool occupancy/wait/lease metrics、edge別copy/share metrics | driver内部copy attributionは観測範囲外 |
 | Intel Linux | oneVPL VP9/AV1、認定済みVA surface、OpenCL/Level Zero、preview device-USM DLPack、pool/backpressure | USMはopaque context/device provenanceをcore単独で検証できないためv0.1 preview。direct oneVPL USM consumptionは将来範囲 |
 | Intel Windows | D3D11 handle/fence契約と外部import実装（v0.1 preview/unqualified） | 実GPUでのdecode→external processing→encode総合認定後にstable対応表へ追加する |

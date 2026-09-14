@@ -1,6 +1,7 @@
 #include "cpu_vp9_decoder_runtime.hpp"
 
 #include "cpu_vp9_decoder_state.hpp"
+#include "cpu_vp9_decoder_threads.hpp"
 
 #if defined(MKVC_HAS_CPU_VP9)
 #include <vpx/vp8dx.h>
@@ -48,7 +49,7 @@ mkvc_result initialize(CpuVp9Decoder::Impl& impl, const mkvc_decoder_config& con
     impl.packet_reader = WebmPacketReader::open(config.input_path_utf8, MKVC_CODEC_VP9, error);
     if (!impl.packet_reader) return MKVC_ERROR_IO;
     vpx_codec_dec_cfg_t codec_config{};
-    codec_config.threads = config.threads;
+    codec_config.threads = resolve_thread_count(config.threads);
     if (vpx_codec_dec_init(&impl.codec, vpx_codec_vp9_dx(), &codec_config, 0) != VPX_CODEC_OK) {
         error = vpx_codec_error(&impl.codec);
         return MKVC_ERROR_CODEC;

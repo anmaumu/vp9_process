@@ -91,7 +91,8 @@ Arc B580/driver/OS/build class.
 
 The 2026-09-08 Windows qualification used a 600-frame, 1920x1080, 60 fps VP9
 test pattern, one full warm-up read and five timed full reads including
-open/close. The host was a 12-core/24-thread Xeon E5-2697 v2 with an RTX 2060.
+open/close. The host had two Xeon E5-2697 v2 processors (24 cores/48 logical
+processors in total) and an RTX 2060.
 
 | Python path | Before parallel conversion | After | Median speedup |
 |---|---:|---:|---:|
@@ -106,8 +107,8 @@ surface processing. The pixel regression compares conversion output against
 the unpartitioned libyuv function rather than accepting throughput alone.
 
 A newer controlled Python end-to-end comparison fixes both decoders to CPU,
-disables prefetch/hardware acceleration, includes BGR conversion, and measures
-one and 16 codec threads. See the
+disables prefetch/hardware acceleration, includes MKVCodec's bounded automatic
+BGR conversion, and measures one and 16 codec threads. See the
 [OpenCV FFmpeg VP9 decoder comparison](opencv-vp9-decode-comparison.md) for the
 method, reproducible benchmark, pixel-difference check, and results. The older
 136.5 fps observation above belongs to a different optimization experiment and

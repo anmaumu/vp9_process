@@ -99,7 +99,7 @@ Status: `CONFIRMED`
 ### 5.2 Decode
 
 - `EXT-DEC-001`: `VideoCapture`は`read`、iterator、context manager、idempotentな`close/release`を提供する。Python `VideoCapture`と.NET `MkvVideoCapture`はauto codecを既定とし、track情報と個別のcodec、width、height、fps、duration、frame count属性を公開する。明示codecがtrackと異なる場合は初期化時に拒否する。
-- `EXT-DEC-002`: `read_bgr`、`read_nv12`、`read_surface`を明示的に提供する。packed CPU出力はdecode用`threads`とは独立した`conversion_threads=0..4`を受け、0は自動、1は補助workerなし、2..4は呼出元を含む総変換thread数とする。
+- `EXT-DEC-002`: `read_bgr`、`read_nv12`、`read_surface`を明示的に提供する。CPU VP9 decode用`threads=0`は検出した論理CPU数を16以下に制限した自動値、正数は明示上限とする。packed CPU出力はdecode用`threads`とは独立した`conversion_threads=0..4`を受け、0は自動、1は補助workerなし、2..4は呼出元を含む総変換thread数とする。
 - `EXT-DEC-003`: Pythonはowned CPU frameまたはleased GPU surfaceを順序保持して最大`max_size`件返す`read_batch(max_size, timeout_ms=0, format=...)`を提供する。0はdeadlineなし、正数はbatch全体のbudgetとして各backend read間で判定し、進行中のdecodeは中断しない。timeoutまたはEOSでは短いlistを、EOS到達後は空listを返す。
 - `EXT-DEC-004`: `prefetch=0`の同期動作と、正数のbounded先読みを提供する。
 - `EXT-DEC-005`: end-of-streamではPython APIの単発readは`None`、iteratorは`StopIteration`とする。

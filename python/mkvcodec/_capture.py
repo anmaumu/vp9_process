@@ -42,7 +42,8 @@ class VideoCapture(Iterator[U8Plane]):
     backend : {"auto", "cpu", "intel", "nvidia"}, default: "cpu"
         Decoder implementation. ``"auto"`` selects a compatible backend.
     threads : int, default: 0
-        CPU worker count, or zero for backend selection.
+        CPU codec worker limit. Zero selects backend-defined automatic
+        threading; CPU VP9 uses a bounded count of at most 16.
     prefetch : int, optional
         Number of decoded CPU frames retained ahead of the reader. Zero
         disables read-ahead. The CPU default is four; GPU-resident mode is zero.

@@ -116,7 +116,7 @@ def run_opencv(path: Path, threads: int, _conversion_threads: int,
         if int(capture.get(cv2.CAP_PROP_BACKEND)) != cv2.CAP_FFMPEG:
             raise RuntimeError("OpenCV did not select the FFmpeg backend")
         reported_threads = int(capture.get(cv2.CAP_PROP_N_THREADS))
-        if reported_threads != threads:
+        if threads != 0 and reported_threads != threads:
             raise RuntimeError(
                 f"OpenCV reported {reported_threads} decoder threads; requested {threads}"
             )
@@ -284,8 +284,8 @@ def run(args: argparse.Namespace) -> dict[str, object]:
     }
     comparisons: list[dict[str, object]] = []
     for threads in args.threads:
-        if threads < 1:
-            raise ValueError("every thread count must be positive")
+        if threads < 0:
+            raise ValueError("every thread count must be zero or positive")
         for _ in range(args.warmup_runs):
             for runner in runners.values():
                 runner(path, threads, args.conversion_threads, info.width, info.height)
@@ -368,7 +368,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input", type=Path, required=True)
     parser.add_argument("--threads", type=int, nargs="+", default=[1, 16])
-    parser.add_argument("--conversion-threads", type=int, default=1)
+    parser.add_argument(
+        "--conversion-threads",
+        type=int,
+        default=0,
+        help="MKVCodec packed-color threads; zero uses its bounded automatic policy",
+    )
     parser.add_argument("--warmup-runs", type=int, default=1)
     parser.add_argument("--runs", type=int, default=5)
     parser.add_argument(

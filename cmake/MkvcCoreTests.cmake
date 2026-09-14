@@ -162,6 +162,20 @@ function(mkvc_add_core_tests)
     endif()
 
     if(MKVC_ENABLE_CPU_VP9)
+        add_executable(mkvc_cpu_vp9_decoder_threads_test
+            tests/cpu_vp9_decoder_threads_test.cpp)
+        target_compile_features(mkvc_cpu_vp9_decoder_threads_test PRIVATE cxx_std_17)
+        target_include_directories(mkvc_cpu_vp9_decoder_threads_test PRIVATE src)
+        if(MSVC)
+            target_compile_options(mkvc_cpu_vp9_decoder_threads_test PRIVATE
+                /W4 /permissive- /EHsc /UNDEBUG)
+        else()
+            target_compile_options(mkvc_cpu_vp9_decoder_threads_test PRIVATE
+                -Wall -Wextra -Wpedantic -Werror -UNDEBUG)
+        endif()
+        add_test(NAME mkvc_cpu_vp9_decoder_threads
+            COMMAND mkvc_cpu_vp9_decoder_threads_test)
+
         add_executable(mkvc_async_failure_test tests/async_failure_test.cpp)
         target_compile_features(mkvc_async_failure_test PRIVATE cxx_std_17)
         target_link_libraries(mkvc_async_failure_test PRIVATE mkvcodec)

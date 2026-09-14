@@ -9,6 +9,22 @@
 [implementation-status.md](implementation-status.md)を使用する。この履歴には
 過去の判断、測定値、詳細なverification matrixを粒度を落とさず保持する。
 
+## 2026-09-15: CPU VP9 automatic decoder threading and OpenCV comparison correction
+
+Status: `IMPLEMENTED`
+
+CPU VP9 decoderの公開`threads=0`をlibvpxの既定1 threadへそのまま渡していたため、
+1..16のbounded自動値へ解決するよう修正した。明示した正数は保持する。0 CPU検出時、
+1/8/16/48論理CPU、および明示値を独立unit testで固定した。Windows CPU-only Release
+buildの18 native testsは全件成功した。
+
+OpenCV比較もMKVCodecだけ`conversion_threads=1`へ制限していた診断条件を主結果から
+外し、既定のbounded自動変換へ訂正した。prefetchなし、16 decoder threadsでは
+MKVCodec 131.56 fps、OpenCV FFmpeg 131.61 fpsで差は0.04%だった。修正後の完全な
+既定値では同一600-frame 1080p60 VP9入力の5回中央値がMKVCodec 200.15 fps、OpenCV
+131.96 fpsとなった。前者は既定`prefetch=4`を含む利用者視点、後者のprefetchなし比較は
+backend処理比較として別々に記録する。
+
 ## 2026-09-14: Intel USM preview qualification and release baselines
 
 Status: `QUALIFIED_PREVIEW`
