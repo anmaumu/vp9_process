@@ -306,6 +306,12 @@ class GpuProcessor:
             discovered.append(NvidiaCupyProcessorAdapter())
         except (ImportError, OSError):
             pass
+        try:
+            from ..interop.dpnp_processor import IntelDpnpProcessorAdapter
+
+            discovered.append(IntelDpnpProcessorAdapter())
+        except (ImportError, OSError):
+            pass
         return tuple(discovered)
 
     def convert(
@@ -407,8 +413,6 @@ class GpuProcessor:
             request.layout,
             request.dtype,
             shape,
-            request.color_space,
-            request.color_range,
             int(descriptor.get("pts_ns", -1)),
             adapter_name,
         )
@@ -421,13 +425,19 @@ class GpuProcessor:
             info.layout,
             info.dtype,
             info.shape,
-            info.color_space,
-            info.color_range,
             info.pts_ns,
             info.adapter,
         )
         if observed != expected:
             raise ValueError("GPU processor adapter returned mismatched image metadata")
+        if info.color_space not in ("bt601", "bt709", "bt2020"):
+            raise ValueError("GPU processor adapter returned invalid effective color space")
+        if request.color_space != "auto" and info.color_space != request.color_space:
+            raise ValueError("GPU processor adapter changed the requested color space")
+        if info.color_range not in ("limited", "full"):
+            raise ValueError("GPU processor adapter returned invalid effective color range")
+        if request.color_range != "auto" and info.color_range != request.color_range:
+            raise ValueError("GPU processor adapter changed the requested color range")
         if info.copy_path != "gpu_copy":
             raise ValueError("packed GPU color conversion must report copy_path='gpu_copy'")
 

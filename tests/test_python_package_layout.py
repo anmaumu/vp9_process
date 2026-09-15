@@ -27,6 +27,7 @@ class PythonPackageLayoutTests(unittest.TestCase):
             "native/types.py": "DecoderConfig",
             "interop/common.py": "import_external_frame",
             "interop/cupy_processor.py": "NvidiaCupyProcessorAdapter",
+            "interop/dpnp_processor.py": "IntelDpnpProcessorAdapter",
             "interop/cuda.py": "_import_cuda_pointer",
             "interop/descriptor.py": "describe_interop",
             "interop/dlpack.py": "GpuPlane",

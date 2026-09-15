@@ -9,6 +9,22 @@
 [implementation-status.md](implementation-status.md)を使用する。この履歴には
 過去の判断、測定値、詳細なverification matrixを粒度を落とさず保持する。
 
+## 2026-09-16: Intel linear-USM dpnp RGB processor
+
+Status: `PARTIAL`
+
+optional `intel-dpnp` adapterを追加し、public importされた線形device-USM NV12の
+Y/UV planeを`dpnp.from_dlpack(copy=False)`でconsumeして、同じSYCL device上の
+uint8 RGB/BGR/RGBA/BGRA HWC/CHWへ変換する経路を実装した。auto colorは
+実効BT.601/BT.709とlimited rangeへ解決してoutput metadataへ保持する。
+
+linux-machineのIntel Arc B580、dpctl 0.22.1、dpnp 0.20.0で、device-USM import、
+RGB pixel oracle、PTS、output DLPack、original frameを先にcloseしたときのsource
+lease、consumerへ所有権移譲した後のoutput寿命を検証した。dpnp 0.20.0の
+float32→uint8直接castが127でsaturateする実機挙動を検出したため、明示的に
+int32を経由するGPU castで回避し、128を含む全uint8範囲を保持した。
+不透明なoneVPL VA/D3D11 decode surfaceから線形USMへのmaterializationは引き続き未実装である。
+
 ## 2026-09-16: Backend-neutral GPU RGB processor contract
 
 Status: `PARTIAL`
@@ -26,7 +42,7 @@ RGB/BGR/RGBA/BGRAのHWC/CHWへ変換する。RTX 2060、driver 610.74、CuPy 14.
 VP9 1920x1080 60 fpsの600 framesで、毎frame completion待ちを含む856.14 fpsを観測した。
 同じBT.709 limited matrixによるCPU oracleとの差は平均0.00000016、最大1であった。
 初回JITは約19秒なのでrelease baselineには未採用であり、cache/warm-up方針が残る。
-Intel VPP/SYCL/OpenCL adapterと両backendの長時間pool/VRAM認定も未実装である。
+Intel VPP/SYCL/OpenCL adapterと両backendの長時間pool/VRAM認定もこの時点では未実装である。
 
 ## 2026-09-15: Layered Python package boundary
 

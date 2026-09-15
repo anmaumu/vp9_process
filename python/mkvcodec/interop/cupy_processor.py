@@ -9,6 +9,7 @@ import numpy as np
 
 from ..api.processor import GpuConversionRequest, GpuImage, GpuImageInfo
 from ..native import library as native
+from ._color import resolve_yuv_conversion
 
 if TYPE_CHECKING:
     from ..api.frame import GpuFrame
@@ -66,32 +67,6 @@ extern "C" __global__ void mkvc_nv12_to_packed_u8(
 """
 
 
-def _conversion_coefficients(
-    color_space: str, color_range: str, height: int
-) -> tuple[float, float, float, float, float, float]:
-    """Return Y offset/multiplier and chroma coefficients for uint8 output."""
-    selected_space = ("bt709" if height >= 720 else "bt601") if color_space == "auto" else color_space
-    selected_range = "limited" if color_range == "auto" else color_range
-    kr, kb = {
-        "bt601": (0.2990, 0.1140),
-        "bt709": (0.2126, 0.0722),
-        "bt2020": (0.2627, 0.0593),
-    }[selected_space]
-    kg = 1.0 - kr - kb
-    if selected_range == "limited":
-        y_offset, y_multiplier, chroma_scale = 16.0, 255.0 / 219.0, 255.0 / 224.0
-    else:
-        y_offset, y_multiplier, chroma_scale = 0.0, 1.0, 1.0
-    return (
-        y_offset,
-        y_multiplier,
-        chroma_scale * 2.0 * (1.0 - kr),
-        -chroma_scale * 2.0 * kb * (1.0 - kb) / kg,
-        -chroma_scale * 2.0 * kr * (1.0 - kr) / kg,
-        chroma_scale * 2.0 * (1.0 - kb),
-    )
-
-
 class NvidiaCupyProcessorAdapter:
     """Convert NVIDIA linear NV12 frames with an asynchronous CuPy kernel.
 
@@ -140,7 +115,7 @@ class NvidiaCupyProcessorAdapter:
         y_plane = cp.from_dlpack(source.plane(0))
         uv_plane = cp.from_dlpack(source.plane(1))
         output = cp.empty(shape, dtype=cp.uint8)
-        coefficients = _conversion_coefficients(
+        color_space, color_range, coefficients = resolve_yuv_conversion(
             request.color_space, request.color_range, height
         )
         block = (16, 16, 1)
@@ -190,8 +165,8 @@ class NvidiaCupyProcessorAdapter:
             layout=request.layout,
             dtype=request.dtype,
             shape=shape,
-            color_space=request.color_space,
-            color_range=request.color_range,
+            color_space=color_space,
+            color_range=color_range,
             pts_ns=int(descriptor.get("pts_ns", -1)),
             adapter=self.name,
             completion="cuda_event",

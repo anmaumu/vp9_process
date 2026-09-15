@@ -153,3 +153,13 @@ BT.709 limited-range nearest-chroma matrix, mean absolute byte difference was
 took approximately 19 seconds and is excluded from steady-state throughput;
 release packaging must therefore include an explicit warm-up/cache policy before
 this observation becomes a release performance gate.
+
+## Intel device-USM RGB adapter observation
+
+The 2026-09-16 Linux qualification used an Intel Arc B580 with dpctl 0.22.1 and
+dpnp 0.20.0. A public linear device-USM NV12 frame was consumed with DLPack
+`copy=False`, converted to uint8 RGB HWC on the same SYCL device, and exported
+again through DLPack. The pixel, PTS, source lease, and post-consumption output
+lifetime checks passed. This is a functional qualification, not a throughput
+baseline and not a claim that an opaque VA decode surface is already connected;
+VA/D3D11-to-linear-USM materialization remains a separate GPU-copy stage.

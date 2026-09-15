@@ -166,7 +166,10 @@ with mkvcodec.VideoCapture(
 `GpuImage.info.copy_path`はNV12からpacked RGB系への書出しを`gpu_copy`と報告します。
 共通契約とadapter選択・lease保持に加え、optional CuPyが利用可能な環境では
 `nvidia-cupy` adapterを自動検出し、NV12からuint8 RGB/BGR/RGBA/BGRA（HWC/CHW）へ
-CUDA stream上で変換します。Intel VPP/SYCL変換adapterは未実装です。
+CUDA stream上で変換します。optional dpnpが利用可能な環境では
+`intel-dpnp` adapterを自動検出し、線形device-USM NV12を同じpacked形式へ
+SYCL device上で変換します。oneVPL decodeが返すVA/D3D11 surfaceは不透明なため、
+直接USMとして扱わず、別のGPU materialization層を必要とします。
 
 ## 画像処理の責務
 

@@ -33,6 +33,21 @@ function(mkvc_add_python_binding_tests)
             "${CMAKE_CURRENT_SOURCE_DIR}/tests/python_cupy_processor_contract.py"
             "$<TARGET_FILE:mkvcodec>"
             "${CMAKE_CURRENT_SOURCE_DIR}/python")
+    add_test(NAME mkvc_python_dpnp_processor_contract
+        COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/python_dpnp_processor_contract.py"
+            "$<TARGET_FILE:mkvcodec>"
+            "${CMAKE_CURRENT_SOURCE_DIR}/python")
+    if(MKVC_ENABLE_INTEL_ONEVPL)
+        add_test(NAME mkvc_python_intel_dpnp_processor
+            COMMAND "${Python3_EXECUTABLE}"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/python_intel_dpnp_processor.py"
+                "$<TARGET_FILE:mkvcodec>"
+                "$<TARGET_FILE_DIR:mkvc_python_dlpack>"
+                "${CMAKE_CURRENT_SOURCE_DIR}/python")
+        set_tests_properties(mkvc_python_intel_dpnp_processor PROPERTIES
+            SKIP_RETURN_CODE 77)
+    endif()
     if(MKVC_ENABLE_NVIDIA)
         add_test(NAME mkvc_python_nvidia_dlpack
             COMMAND "${Python3_EXECUTABLE}"

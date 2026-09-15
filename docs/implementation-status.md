@@ -81,7 +81,10 @@ GPU vendor driver/runtimeはwheel/NuGetへ同梱せず、実行環境側の責�
   Intel/NVIDIA adapterの選択、DLPack metadata、decode source retain、`gpu_copy`強制、
   CPU fallback禁止を共通化した。optional `nvidia-cupy` adapterはCUDA stream上の
   uint8 RGB/BGR/RGBA/BGRA HWC/CHW変換を実装し、RTX 2060のNVDEC 1080p60 600-frame
-  実測で856.14 fps、同一matrix CPU oracleとの差は最大1であった。Intel adapterは未実装である。
+  実測で856.14 fps、同一matrix CPU oracleとの差は最大1であった。optional
+  `intel-dpnp` adapterは線形device-USM NV12の`copy=False` DLPack inputと同一SYCL
+  device上のuint8 packed変換を実装し、Arc B580で画素・PTS・lease・output
+  DLPackを検証済み。VA/D3D11 decode surface→線形USM materializationは未実装である。
 - Container policy/finalizationは、bounded EBML header parse・size rewrite・atomic file
   replacementから分離した。
 - CPU AV1 encoderはpublic lifecycle、mutable state、SVT-AV1 runtime処理を分離し、
