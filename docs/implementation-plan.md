@@ -129,8 +129,9 @@
 - [x] backend-neutral Python `GpuProcessor`/`GpuImage` contract、`read_gpu` convenience、strict metadata/copy-path/source-lease unit qualification
 - [x] optional NVIDIA CuPy CUDA-kernel NV12-to-RGB(A) processor adapter、DLPack/event/画素実機認定
 - [x] optional Intel dpnp線形device-USM NV12-to-RGB(A) processor adapter、DLPack/画素/leaseのArc B580認定
+- [x] Intel Linux VA decode→exportable USM NV12のOpenCL GPU copy qualification、CPU oracleに対する6色変換条件の画素差検証
 - [ ] NVIDIA processor adapterのJIT cache/warm-up packagingとrelease performance baseline gate
-- [ ] Intel Linux VA decode surface→線形USMのVPP/OpenCL materialization adapterとdecode直結performance qualification
+- [ ] qualification用VA/OpenCL/Level Zero bridgeのoptional product adapter化、bounded pool/backpressureとdecode直結performance qualification
 - [ ] optional Intel Windows D3D11 processor adapter and DLPack-capable linear-USM materialization policy
 - [ ] Python CuPy/CUarray processed-resource→NVENC positive encode qualification on an AV1-capable GPU
 - [x] .NET GPU Frame SafeHandle, descriptor/native handle/wait and Capture.ReadSurface source API

@@ -25,6 +25,15 @@ float32→uint8直接castが127でsaturateする実機挙動を検出したた�
 int32を経由するGPU castで回避し、128を含む全uint8範囲を保持した。
 不透明なoneVPL VA/D3D11 decode surfaceから線形USMへのmaterializationは引き続き未実装である。
 
+Linux qualificationではその後、oneVPL decodeのVA NV12 surfaceをOpenCL media
+sharingでY/UVの両planeとして取得し、DMA-BUF export可能なLevel Zero device-USM
+の線形NV12 surfaceへGPU kernelでcopyする経路を追加した。Arc B580上でCPU
+software decodeをoracleとし、materialized NV12のmean/p99/max absolute differenceは
+すべて0であった。そのUSMを`intel-dpnp`へ渡し、BT.601/BT.709/BT.2020と
+limited/fullの6条件でRGB mean/p99/max/channel maxもすべて0であった。
+現時点のVA/OpenCL/Level Zero bridgeはqualification用であり、optional配布module、
+bounded resource pool、performance gateへの昇格が残る。
+
 ## 2026-09-16: Backend-neutral GPU RGB processor contract
 
 Status: `PARTIAL`

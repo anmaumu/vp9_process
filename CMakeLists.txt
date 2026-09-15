@@ -11,6 +11,8 @@ option(MKVC_ENABLE_CPU_VP9 "Enable the libvpx CPU VP9 backend" ON)
 option(MKVC_ENABLE_CPU_AV1 "Enable SVT-AV1 encode and libaom decode" ON)
 option(MKVC_ENABLE_INTEL_ONEVPL "Enable Intel oneVPL backend foundation" ON)
 option(MKVC_ENABLE_NVIDIA "Enable NVIDIA NVDEC/NVENC backend foundation" OFF)
+set(MKVC_INTEL_SYCL_HELPER "" CACHE FILEPATH
+    "Optional qualification-only SYCL/Level Zero bridge shared library")
 
 if(MKVC_ENABLE_CPU_VP9 OR MKVC_ENABLE_CPU_AV1 OR
    MKVC_ENABLE_INTEL_ONEVPL OR MKVC_ENABLE_NVIDIA)

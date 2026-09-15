@@ -281,7 +281,7 @@ Status: `PROPOSED`
 - `INT-PROC-009`: Python `GpuProcessor`はsourceのnormalized backendとadapterのbackend集合・`supports`結果から決定論的に一つを選び、autoでもdeviceを跨がない。adapter順をtie-breakとし、未選択時はGPU-only unavailable errorを返す。
 - `INT-PROC-010`: `GpuImage`はDLPack provider、immutable output metadata、adapter completion/release、追加ownerを束縛する。processorは変換前に`mkvc_gpu_frame_retain`した独立source leaseを出力へ移し、validation/adapter例外では逆順に一度だけ解放する。
 - `INT-PROC-011`: packed GPU conversion結果のbackend/device/dimensions/format/layout/dtype/shape/adapter名を要求値と照合し、NV12からの色変換に`copy_path=gpu_copy`以外を返すadapterを拒否する。Coreのcopy recorderへ外部kernelの内部時間・copyを推測加算しない。
-- `INT-PROC-012`: `intel-dpnp` adapterはUSM Y/UV planeを`dpnp.from_dlpack(copy=False)`でconsumeし、両planeのSYCL queue同一性を検査する。中間値とpacked出力は同じqueueのdevice-USMに確保し、close/例外時はqueue完了後にsource/intermediate leaseを解放する。VA/D3D11からUSMへのmaterializationはこのadapterの前段として別管理する。
+- `INT-PROC-012`: `intel-dpnp` adapterはUSM Y/UV planeを`dpnp.from_dlpack(copy=False)`でconsumeし、両planeのSYCL queue同一性を検査する。中間値とpacked出力は同じqueueのdevice-USMに確保し、close/例外時はqueue完了後にsource/intermediate leaseを解放する。VA/D3D11からUSMへのmaterializationはこのadapterの前段として別管理し、OpenCL media sharingでY/UVの両planeを取得・解放し、producer完了後だけUSMを公開する。
 
 GPU処理は外部library/optional adapterに委ねる。Coreは処理前resourceのexportと処理後resourceのimportだけを担当し、外部kernelの処理時間や内部copyをCore自身のzero-copyとして推測しない。
 

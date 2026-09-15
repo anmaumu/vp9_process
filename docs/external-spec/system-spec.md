@@ -222,7 +222,7 @@ consumer側deleterのどちらか一方だけがこのleaseを解放する。
 - `EXT-PROC-009`: GPU packed出力は`GpuImage`としてbackend/device/format/layout/dtype/shape/実効color space/実効color range/PTS/adapter/completion/copy pathを公開し、DLPack consumerへ渡せる。初期formatはRGB/BGR/RGBA/BGRA、layoutはHWC/CHW、dtypeはuint8/float16/float32とする。DLPackの`copy=True`は拒否し、暗黙のdevice/host copyを許容しない。
 - `EXT-PROC-010`: processor adapter未登録、backend不一致、format/layout/dtype非対応時は明示errorとし、CPU fallbackやGPU→CPU readbackを行わない。
 - `EXT-PROC-011`: NV12からpacked RGB系へのGPU書出しは`gpu_copy`と報告する。変換中は独立retainしたdecode surfaceを`GpuImage`が保持し、close、例外、DLPack所有権移譲の各経路でreleaseを高々一度にする。
-- `EXT-PROC-012`: optional `intel-dpnp` adapterは線形Intel device-USM NV12を`copy=False`のDLPackで受け、同一SYCL device上のuint8 RGB/BGR/RGBA/BGRA HWC/CHWへ変換する。不透明なVA-API/D3D11 surfaceはDLPack pointerとして偽装せず、別のGPU materialization adapterがなければ明示的に拒否する。
+- `EXT-PROC-012`: optional `intel-dpnp` adapterは線形Intel device-USM NV12を`copy=False`のDLPackで受け、同一SYCL device上のuint8 RGB/BGR/RGBA/BGRA HWC/CHWへ変換する。不透明なVA-API/D3D11 surfaceはDLPack pointerとして偽装せず、別のGPU materialization adapterがなければ明示的に拒否する。materializationと色変換はCPU readbackを禁止し、CPU参照変換との8-bit画素差を最大1以下とする。
 
 CPU convenience API:
 

@@ -141,7 +141,27 @@ def invert_luma(source, output, width, height, *, frame_index=None, session=None
         return _invert_luma(source, output, width, height, frame_index=frame_index, session=session)
 
 
-def _invert_luma(source, output, width, height, *, frame_index=None, session=None):
+def copy_nv12(source, output, width, height, *, frame_index=None, session=None):
+    """Copy shared NV12 planes entirely on the matching OpenCL GPU."""
+    if session is None:
+        return _invert_luma(
+            source, output, width, height, frame_index=frame_index, mode="copy"
+        )
+    with session.use():
+        return _invert_luma(
+            source,
+            output,
+            width,
+            height,
+            frame_index=frame_index,
+            session=session,
+            mode="copy",
+        )
+
+
+def _invert_luma(
+    source, output, width, height, *, frame_index=None, session=None, mode="invert"
+):
     """Write an inverted Y plane and neutral UV into another shared VA surface.
 
     Does not call read/map/write-buffer APIs; explicit clFinish covers the
@@ -222,6 +242,14 @@ def _invert_luma(source, output, width, height, *, frame_index=None, session=Non
         int2 p = (int2)(get_global_id(0), get_global_id(1));
         write_imagef(uv, p, (float4)(128.0f/255.0f, 128.0f/255.0f, 0, 1));
     }
+    __kernel void copy_y(read_only image2d_t src, write_only image2d_t dst) {
+        int2 p = (int2)(get_global_id(0), get_global_id(1));
+        write_imagef(dst, p, read_imagef(src, smp, p));
+    }
+    __kernel void copy_uv(read_only image2d_t src, write_only image2d_t dst) {
+        int2 p = (int2)(get_global_id(0), get_global_id(1));
+        write_imagef(dst, p, read_imagef(src, smp, p));
+    }
     """
     with ExitStack() as stack:
         error = I()
@@ -238,7 +266,7 @@ def _invert_luma(source, output, width, height, *, frame_index=None, session=Non
         stage("context_queue")
         cached = session.resources if session is not None else None
         if cached:
-            context, queue, invert, neutral = cached
+            context, queue, invert, neutral, copy_y, copy_uv = cached
         else:
             context = own(context_fn(props, 1, ct.byref(device), None, None, ct.byref(error)),
                           "clReleaseContext", True)
@@ -246,6 +274,12 @@ def _invert_luma(source, output, width, height, *, frame_index=None, session=Non
         source_id = U(source.native_handle["handles"][1])
         stage("image_share")
         src = own(create_image(context, 4, ct.byref(source_id), 0, ct.byref(error)), "clReleaseMemObject")
+        src_uv = None
+        if mode == "copy":
+            src_uv = own(
+                create_image(context, 4, ct.byref(source_id), 1, ct.byref(error)),
+                "clReleaseMemObject",
+            )
         dst = own(create_image(context, 2, ct.byref(output.surface), 0, ct.byref(error)), "clReleaseMemObject")
         uv = own(create_image(context, 2, ct.byref(output.surface), 1, ct.byref(error)), "clReleaseMemObject")
         if not cached:
@@ -260,24 +294,54 @@ def _invert_luma(source, output, width, height, *, frame_index=None, session=Non
             stage("kernel_create")
             invert = own(kernel_fn(program, b"invert", ct.byref(error)), "clReleaseKernel", True)
             neutral = own(kernel_fn(program, b"neutral", ct.byref(error)), "clReleaseKernel", True)
+            copy_y = own(kernel_fn(program, b"copy_y", ct.byref(error)), "clReleaseKernel", True)
+            copy_uv = own(kernel_fn(program, b"copy_uv", ct.byref(error)), "clReleaseKernel", True)
             if session is not None:
-                session.resources = context, queue, invert, neutral
+                session.resources = context, queue, invert, neutral, copy_y, copy_uv
                 session.builds += 1
-        for kernel, values in ((invert, (src, dst)), (neutral, (uv,))):
+        kernels = (
+            ((copy_y, (src, dst)), (copy_uv, (src_uv, uv)))
+            if mode == "copy"
+            else ((invert, (src, dst)), (neutral, (uv,)))
+        )
+        for kernel, values in kernels:
             for index, value in enumerate(values):
                 argument = P(value)
                 check(set_arg(kernel, index, ct.sizeof(argument), ct.byref(argument)))
-        objects = (P * 3)(src, dst, uv)
+        object_values = (src, src_uv, dst, uv) if mode == "copy" else (src, dst, uv)
+        objects = (P * len(object_values))(*object_values)
         stage("image_acquire")
-        check(acquire(queue, 3, objects, 0, None, None))
+        check(acquire(queue, len(object_values), objects, 0, None, None))
         try:
-            stage("enqueue_invert")
-            check(enqueue(queue, invert, 2, None, (Z * 2)(width, height), None, 0, None, None))
-            stage("enqueue_neutral")
-            check(enqueue(queue, neutral, 2, None, (Z * 2)(width // 2, height // 2), None, 0, None, None))
+            for kernel, size, name in (
+                (
+                    copy_y if mode == "copy" else invert,
+                    (width, height),
+                    "copy_y" if mode == "copy" else "invert",
+                ),
+                (
+                    copy_uv if mode == "copy" else neutral,
+                    (width // 2, height // 2),
+                    "copy_uv" if mode == "copy" else "neutral",
+                ),
+            ):
+                stage("enqueue_" + name)
+                check(
+                    enqueue(
+                        queue,
+                        kernel,
+                        2,
+                        None,
+                        (Z * 2)(*size),
+                        None,
+                        0,
+                        None,
+                        None,
+                    )
+                )
         finally:
             stage("image_release")
-            released = release(queue, 3, objects, 0, None, None)
+            released = release(queue, len(object_values), objects, 0, None, None)
             stage("finish")
             finished = finish(queue)
             check(released)

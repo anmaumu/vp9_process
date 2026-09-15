@@ -163,3 +163,13 @@ again through DLPack. The pixel, PTS, source lease, and post-consumption output
 lifetime checks passed. This is a functional qualification, not a throughput
 baseline and not a claim that an opaque VA decode surface is already connected;
 VA/D3D11-to-linear-USM materialization remains a separate GPU-copy stage.
+
+The subsequent Arc B580 qualification connected oneVPL VA decode to an
+exportable linear Level Zero USM allocation through OpenCL VA media sharing.
+Against the same frame decoded by the CPU reference backend, NV12
+materialization had mean, p99, and maximum absolute byte difference 0.
+BT.601, BT.709, and BT.2020, each in limited and full range, were then converted
+to RGB through `intel-dpnp`; all six cases reported mean, p99, maximum, and
+per-channel maximum absolute difference 0. This run qualifies pixel accuracy
+only. The bridge still requires product packaging, a bounded pool, and a
+throughput baseline.

@@ -221,7 +221,7 @@ process private-memory増分1,884,160 bytesで、独立gateを通過している
 | `TEST-PROC-007` | adapter未登録、backend固定不一致、request不正をsource retain前に拒否し、CPU fallbackしない | unit/API | Python CI |
 | `TEST-PROC-008` | adapter output metadata/copy path不一致とadapter例外でoutput、source retain、release callbackを高々一度で解放 | unit/fault | Python CI |
 | `TEST-PROC-009` | 実Intel/NVIDIA adapterでNV12 decode→RGB/RGBA GPU image→DLPack consumerを実行し、pixel oracle、event dependency、GPU-only copy audit、長時間lease boundを検証。NVIDIA CuPyのpixel/DLPack/eventはRTX 2060で合格、Intel VA/D3D11 materializationと長時間試験は継続 | hardware/integration/soak | Intel/NVIDIA |
-| `TEST-PROC-010` | Intel device-USM NV12をpublic importし、`intel-dpnp`の`copy=False` input、実効色metadata、uint8 RGB画素、PTS、DLPack output、source/output owner寿命をArc実機で検証する | Python/hardware | Intel Linux |
+| `TEST-PROC-010` | Intel device-USM NV12をpublic importし、`intel-dpnp`の`copy=False` input、実効色metadata、uint8 RGB画素、PTS、DLPack output、source/output owner寿命をArc実機で検証する。VA decode→USM materializationはCPU decodeのNV12とmean/p99/maxを比較し、BT.601/709/2020×limited/fullのRGBはmean/p99/max/channel maxを比較して最大1以下とする | Python/hardware | Intel Linux |
 
 ### 1.6 ABI / Language / Error
 

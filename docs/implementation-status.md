@@ -84,7 +84,9 @@ GPU vendor driver/runtimeはwheel/NuGetへ同梱せず、実行環境側の責�
   実測で856.14 fps、同一matrix CPU oracleとの差は最大1であった。optional
   `intel-dpnp` adapterは線形device-USM NV12の`copy=False` DLPack inputと同一SYCL
   device上のuint8 packed変換を実装し、Arc B580で画素・PTS・lease・output
-  DLPackを検証済み。VA/D3D11 decode surface→線形USM materializationは未実装である。
+  DLPackを検証済み。Linux VA decode surface→線形USMのOpenCL GPU copyはqualification
+  経路で実機成功し、CPU referenceに対するNV12および6色変換条件の差はすべて0であった。
+  このbridgeのoptional product adapter化、bounded pool、Windows D3D11経路は未実装である。
 - Container policy/finalizationは、bounded EBML header parse・size rewrite・atomic file
   replacementから分離した。
 - CPU AV1 encoderはpublic lifecycle、mutable state、SVT-AV1 runtime処理を分離し、

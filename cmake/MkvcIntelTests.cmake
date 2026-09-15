@@ -126,6 +126,17 @@ function(mkvc_add_intel_vp9_fixture_tests vp9_sample)
     set_tests_properties(mkvc_python_intel_opencl_roundtrip PROPERTIES
         FIXTURES_REQUIRED cpu_vp9_sample SKIP_RETURN_CODE 77 TIMEOUT 60)
 
+    if(MKVC_INTEL_SYCL_HELPER AND EXISTS "${MKVC_INTEL_SYCL_HELPER}")
+        add_test(NAME mkvc_python_intel_va_rgb_processor
+            COMMAND "${Python3_EXECUTABLE}"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/python_intel_va_rgb_processor.py"
+                "$<TARGET_FILE:mkvcodec>" "$<TARGET_FILE_DIR:mkvc_python_dlpack>"
+                "${CMAKE_CURRENT_SOURCE_DIR}/python" "${vp9_sample}"
+                "${MKVC_INTEL_SYCL_HELPER}")
+        set_tests_properties(mkvc_python_intel_va_rgb_processor PROPERTIES
+            FIXTURES_REQUIRED cpu_vp9_sample SKIP_RETURN_CODE 77 TIMEOUT 120)
+    endif()
+
     if(FFMPEG_EXECUTABLE AND FFPROBE_EXECUTABLE)
         set(intel_av1_source "${CMAKE_CURRENT_BINARY_DIR}/intel_av1_source.webm")
         add_test(NAME mkvc_intel_av1_source
