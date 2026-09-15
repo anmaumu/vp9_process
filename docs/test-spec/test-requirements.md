@@ -217,6 +217,10 @@ process private-memory増分1,884,160 bytesで、独立gateを通過している
 | `TEST-PROC-003` | 個別methodと`process`の結果が許容誤差内で一致し、CPU中間allocation数がbounded | integration/performance | CPU CI |
 | `TEST-PROC-004` | GPU frameへconvenience processingを要求するとinterop APIを示すunsupported errorを返し、CPU fallbackしない | API/hardware | Intel/NVIDIA |
 | `TEST-PROC-005` | unsupported補間・format・memory組合せを明示errorにし、黙ってfallbackしない | unit | CPU/all |
+| `TEST-PROC-006` | NVIDIA/Intel疑似adapterを同じ`GpuProcessor.convert`で選択し、RGB HWC output metadataとDLPack device/stream転送を照合 | unit/API | Python CI |
+| `TEST-PROC-007` | adapter未登録、backend固定不一致、request不正をsource retain前に拒否し、CPU fallbackしない | unit/API | Python CI |
+| `TEST-PROC-008` | adapter output metadata/copy path不一致とadapter例外でoutput、source retain、release callbackを高々一度で解放 | unit/fault | Python CI |
+| `TEST-PROC-009` | 実Intel/NVIDIA adapterでNV12 decode→RGB/RGBA GPU image→DLPack consumerを実行し、pixel oracle、event dependency、GPU-only copy audit、長時間lease boundを検証。NVIDIA CuPyのpixel/DLPack/eventはRTX 2060で合格、Intelと長時間試験は継続 | hardware/integration/soak | Intel/NVIDIA |
 
 ### 1.6 ABI / Language / Error
 

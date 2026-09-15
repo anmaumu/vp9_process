@@ -9,6 +9,25 @@
 [implementation-status.md](implementation-status.md)を使用する。この履歴には
 過去の判断、測定値、詳細なverification matrixを粒度を落とさず保持する。
 
+## 2026-09-16: Backend-neutral GPU RGB processor contract
+
+Status: `PARTIAL`
+
+Pythonに`GpuProcessor`、`GpuConversionRequest`、`GpuImage`と
+`VideoCapture.read_gpu()`を追加した。processorはsourceのnormalized backendから
+Intel/NVIDIA adapterを同じ呼出形で選び、adapter不在・backend不一致・unsupported requestを
+CPU fallbackなしで拒否する。変換前に`GpuFrame.retain()`で独立native leaseを取得し、
+adapter出力のmetadata、device、shape、`copy_path=gpu_copy`を検証してから出力ownerへ移す。
+adapter例外、validation失敗、二重closeを含むrelease順はpure-Python fault testで固定した。
+
+最初の実adapterとしてoptional CuPyによるNVIDIA NV12-to-packed uint8変換を実装した。
+NVDECのY/UV DLPack planeをCuPy current streamでconsumeし、CUDA event付きRawKernelで
+RGB/BGR/RGBA/BGRAのHWC/CHWへ変換する。RTX 2060、driver 610.74、CuPy 14.2.0、
+VP9 1920x1080 60 fpsの600 framesで、毎frame completion待ちを含む856.14 fpsを観測した。
+同じBT.709 limited matrixによるCPU oracleとの差は平均0.00000016、最大1であった。
+初回JITは約19秒なのでrelease baselineには未採用であり、cache/warm-up方針が残る。
+Intel VPP/SYCL/OpenCL adapterと両backendの長時間pool/VRAM認定も未実装である。
+
 ## 2026-09-15: Layered Python package boundary
 
 Status: `IMPLEMENTED`

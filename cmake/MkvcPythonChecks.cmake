@@ -28,6 +28,11 @@ function(mkvc_add_python_binding_tests)
             "$<TARGET_FILE:mkvcodec>"
             "$<TARGET_FILE_DIR:mkvc_python_dlpack>"
             "${CMAKE_CURRENT_SOURCE_DIR}/python")
+    add_test(NAME mkvc_python_cupy_processor_contract
+        COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/python_cupy_processor_contract.py"
+            "$<TARGET_FILE:mkvcodec>"
+            "${CMAKE_CURRENT_SOURCE_DIR}/python")
     if(MKVC_ENABLE_NVIDIA)
         add_test(NAME mkvc_python_nvidia_dlpack
             COMMAND "${Python3_EXECUTABLE}"
@@ -99,6 +104,17 @@ function(mkvc_add_python_integration_tests vp9_sample)
                 FIXTURES_REQUIRED cpu_vp9_sample SKIP_RETURN_CODE 77)
         endif()
     endif()
+    if(MKVC_ENABLE_NVIDIA AND MKVC_ENABLE_CPU_VP9 AND TARGET mkvc_python_dlpack)
+        add_test(NAME mkvc_python_nvidia_rgb_processor
+            COMMAND "${Python3_EXECUTABLE}"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/python_nvidia_rgb_processor.py"
+                "$<TARGET_FILE:mkvcodec>"
+                "$<TARGET_FILE_DIR:mkvc_python_dlpack>"
+                "${CMAKE_CURRENT_SOURCE_DIR}/python"
+                "${vp9_sample}")
+        set_tests_properties(mkvc_python_nvidia_rgb_processor PROPERTIES
+            FIXTURES_REQUIRED cpu_vp9_sample SKIP_RETURN_CODE 77)
+    endif()
 endfunction()
 
 function(mkvc_add_repository_python_checks)
@@ -111,6 +127,8 @@ function(mkvc_add_repository_python_checks)
         mkvc_generate_bindings tests/test_generate_bindings.py)
     mkvc_add_python_unittest(
         mkvc_python_package_layout tests/test_python_package_layout.py)
+    mkvc_add_python_unittest(
+        mkvc_gpu_processor_contract tests/test_gpu_processor_contract.py)
     mkvc_add_python_unittest(
         mkvc_dotnet_package_layout tests/test_dotnet_package_layout.py)
     mkvc_add_python_script_test(

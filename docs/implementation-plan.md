@@ -126,6 +126,11 @@
 - [x] strict GPU-resident rejection policy and public copy-path metrics
 - [ ] complete export/import edge and driver-internal copy-path trace
 - [x] Python CuPy contiguous-NV12 DLPack processed-resource import/export hardware qualification
+- [x] backend-neutral Python `GpuProcessor`/`GpuImage` contract、`read_gpu` convenience、strict metadata/copy-path/source-lease unit qualification
+- [x] optional NVIDIA CuPy CUDA-kernel NV12-to-RGB(A) processor adapter、DLPack/event/画素実機認定
+- [ ] NVIDIA processor adapterのJIT cache/warm-up packagingとrelease performance baseline gate
+- [ ] optional Intel Linux VPP/SYCL/OpenCL NV12-to-RGB(A) processor adapter and hardware pixel/performance qualification
+- [ ] optional Intel Windows D3D11 processor adapter and DLPack-capable linear-USM materialization policy
 - [ ] Python CuPy/CUarray processed-resource→NVENC positive encode qualification on an AV1-capable GPU
 - [x] .NET GPU Frame SafeHandle, descriptor/native handle/wait and Capture.ReadSurface source API
 - [x] .NET strict GPU-resident Capture/Writer and WriteSurface source API

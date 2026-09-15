@@ -278,6 +278,26 @@ class GpuFrame:
             raise IndexError("GPU plane index is out of range")
         return GpuPlane(self, index)
 
+    def retain(self) -> "GpuFrame":
+        """Return an independent lease over the same GPU resource.
+
+        Returns
+        -------
+        GpuFrame
+            A new Python owner backed by one native reference. Closing either
+            object does not invalidate the other.
+
+        Notes
+        -----
+        Processor adapters use this operation to keep a decoded surface alive
+        until asynchronous GPU conversion and every output lease have ended.
+        No pixel copy is performed.
+        """
+        if self._closed:
+            raise RuntimeError("GPU frame is released")
+        native.check(native.lib.mkvc_gpu_frame_retain(self._handle))
+        return GpuFrame(self._handle, self._dependency_registrar)
+
     def close(self) -> None:
         """Release this frame lease after external consumers are finished."""
         if not self._closed:

@@ -26,6 +26,14 @@ from .metrics import (
     PipelineMetrics,
     PipelineStageMetrics,
 )
+from .processor import (
+    GpuConversionRequest,
+    GpuImage,
+    GpuImageInfo,
+    GpuProcessingUnavailableError,
+    GpuProcessor,
+    GpuProcessorAdapter,
+)
 from .video import VideoInfo, probe_video
 from .capture import VideoCapture
 from .writer import VideoWriter
@@ -39,9 +47,15 @@ __all__ = [
     "CpuFramePool",
     "CpuFramePoolStatistics",
     "GpuFrame",
+    "GpuConversionRequest",
+    "GpuImage",
+    "GpuImageInfo",
     "GpuInteropInfo",
     "GpuPlane",
     "GpuResourcePoolStats",
+    "GpuProcessingUnavailableError",
+    "GpuProcessor",
+    "GpuProcessorAdapter",
     "IntelUsmFramePool",
     "IntelUsmPoolSlot",
     "PipelineComponentMetrics",

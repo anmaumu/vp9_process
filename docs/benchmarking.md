@@ -132,3 +132,24 @@ Each new value is the median of five runs after warm-up. Output bytes and
 checksums match the direct libyuv BGR/RGB reference, including non-vector-width
 tails and padded destination rows. These measurements qualify this machine and
 are not cross-platform release guarantees.
+
+## NVIDIA GPU-resident RGB adapter observation
+
+The 2026-09-16 Windows qualification used an RTX 2060 with driver 610.74 and
+CuPy 14.2.0. A 600-frame VP9 1920x1080 60 fps fixture was decoded by NVDEC,
+exported as two NV12 CUDA DLPack planes, converted by the optional CuPy adapter
+to uint8 RGB HWC, and synchronized once per frame. CUDA kernel JIT compilation
+was warmed before the timed pass.
+
+| Python path | Frames | Elapsed | Throughput |
+|---|---:|---:|---:|
+| `read_gpu(..., format="rgb")` | 600 | 0.701 s | 856.14 fps |
+
+The decoded source reported `copy_path=zero_copy`; the packed RGB output reports
+`GpuImage.info.copy_path=gpu_copy`, because color conversion writes a distinct
+GPU allocation. Against an independent CPU VP9 decode followed by the identical
+BT.709 limited-range nearest-chroma matrix, mean absolute byte difference was
+0.00000016 and maximum difference was 1. The first uncached CUDA JIT invocation
+took approximately 19 seconds and is excluded from steady-state throughput;
+release packaging must therefore include an explicit warm-up/cache policy before
+this observation becomes a release performance gate.

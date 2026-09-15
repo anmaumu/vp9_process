@@ -77,6 +77,11 @@ GPU vendor driver/runtimeはwheel/NuGetへ同梱せず、実行環境側の責�
   回帰テストで固定した。
 - CPU frame processorは処理フローとlibyuv I420 primitivesを別translation unitへ
   分離し、将来のGPU processor追加時にbackend境界を共有しやすくした。
+- Pythonは`GpuProcessor`/`GpuImage`/`VideoCapture.read_gpu`のbackend-neutral契約を公開し、
+  Intel/NVIDIA adapterの選択、DLPack metadata、decode source retain、`gpu_copy`強制、
+  CPU fallback禁止を共通化した。optional `nvidia-cupy` adapterはCUDA stream上の
+  uint8 RGB/BGR/RGBA/BGRA HWC/CHW変換を実装し、RTX 2060のNVDEC 1080p60 600-frame
+  実測で856.14 fps、同一matrix CPU oracleとの差は最大1であった。Intel adapterは未実装である。
 - Container policy/finalizationは、bounded EBML header parse・size rewrite・atomic file
   replacementから分離した。
 - CPU AV1 encoderはpublic lifecycle、mutable state、SVT-AV1 runtime処理を分離し、

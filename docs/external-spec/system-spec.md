@@ -217,8 +217,11 @@ consumer側deleterのどちらか一方だけがこのleaseを解放する。
 - `EXT-PROC-004`: NV12/P010/I420/BGR/RGB/BGRA間の基本色変換と、BT.601/BT.709/BT.2020、limited/full rangeのmetadata保持・変換を提供する。
 - `EXT-PROC-005`: 90/180/270度rotateとhorizontal/vertical flipを提供する。
 - `EXT-PROC-006`: letterbox/pillarboxを提供し、出力寸法、縦横比、配置、背景色を明示指定できる。
-- `EXT-PROC-007`: GPU frameに対する画像処理methodは本libraryのscope外とし、native handle/DLPack exportを案内する。
+- `EXT-PROC-007`: GPU kernel実装はcodec Coreのscope外とし、native handle/DLPackとoptional processor adapterへ委譲する。Python facadeはbackend-neutralな`GpuProcessor.convert`と`VideoCapture.read_gpu`を公開してIntel/NVIDIAの呼出形を統一する。
 - `EXT-PROC-008`: CPU便利処理の結果はowned frameとし、形式変換・allocationをzero-copyと報告しない。
+- `EXT-PROC-009`: GPU packed出力は`GpuImage`としてbackend/device/format/layout/dtype/shape/color space/color range/PTS/adapter/completion/copy pathを公開し、DLPack consumerへ渡せる。初期formatはRGB/BGR/RGBA/BGRA、layoutはHWC/CHW、dtypeはuint8/float16/float32とする。DLPackの`copy=True`は拒否し、暗黙のdevice/host copyを許容しない。
+- `EXT-PROC-010`: processor adapter未登録、backend不一致、format/layout/dtype非対応時は明示errorとし、CPU fallbackやGPU→CPU readbackを行わない。
+- `EXT-PROC-011`: NV12からpacked RGB系へのGPU書出しは`gpu_copy`と報告する。変換中は独立retainしたdecode surfaceを`GpuImage`が保持し、close、例外、DLPack所有権移譲の各経路でreleaseを高々一度にする。
 
 CPU convenience API:
 
@@ -446,6 +449,7 @@ Status: `PROPOSED`
 | `AC-ZC-001` | zero-copy対応経路をtraceで証明し、require時に降格しない | EXT-FRAME-003..004 |
 | `AC-GPU-001` | Intel/NVIDIAでdecode→export→外部処理→import→encodeがGPU-resident契約、lease/completion、native/DLPack interop、copy policyを満たす。Linux VA native同期の部分受入れはpending/timeout/terminal failure、非対応時のfail-closed、native/Python実機encode、owner寿命を検証する。これだけでWindows fence、USM/DLPack、外部kernelや独立traceの全体受入れ完了とはしない | EXT-GPU-001..010 |
 | `AC-PROC-001` | CPU owned frame向け5種の便利処理が幾何・色metadata契約どおり動作し、GPU処理はinteropへ案内される | EXT-PROC-001..008 |
+| `AC-PROC-002` | Intel/NVIDIAで同じ`GpuProcessor`/`read_gpu`呼出形、厳密なoutput metadata、DLPack、source lease、fail-closed契約を満たす | EXT-PROC-007..011 |
 | `AC-ABI-001` | C/C#/Pythonから同じCoreのcreate/read-write/destroyが成立する | EXT-ABI-001..005, EXT-CS-001..004 |
 | `AC-ERR-001` | 全失敗でexception leak、double free、resource leakがない | EXT-ERR-001..006 |
 | `AC-PERF-001` | bounded resource、pipeline並行性、GIL解放、baseline回帰gateを満たす | EXT-PERF-001..006 |

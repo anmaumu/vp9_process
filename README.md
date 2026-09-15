@@ -142,12 +142,39 @@ Intel device-USMはv0.1 Previewです。`frame.interop.api_stability == "preview
 機械判定できます。native coreはSYCL context/queueをopaque identityとして扱うため、
 pointerが同じoneAPI context/deviceに属することをcaller側で検証してください。
 
+NVIDIA/Intelで同じ呼出形にするため、Pythonはbackend-neutralな`GpuProcessor`と
+`GpuImage`契約を公開します。vendor kernelはoptional adapterとして注入し、codec Coreへ
+NPP/SYCL/OpenCL等をlinkしません。未登録・未対応時はCPUへ降格せず明示errorになります。
+
+```python
+processor = mkvcodec.GpuProcessor(
+    backend="auto",
+    adapters=(nvidia_adapter, intel_adapter),
+)
+
+with mkvcodec.VideoCapture(
+    "input.webm", backend="auto", require_gpu_resident=True
+) as capture:
+    while (rgb := capture.read_gpu(
+        processor, format="rgb", layout="hwc", dtype="uint8"
+    )) is not None:
+        with rgb:
+            tensor = framework.from_dlpack(rgb)
+            consume(tensor)
+```
+
+`GpuImage.info.copy_path`はNV12からpacked RGB系への書出しを`gpu_copy`と報告します。
+共通契約とadapter選択・lease保持に加え、optional CuPyが利用可能な環境では
+`nvidia-cupy` adapterを自動検出し、NV12からuint8 RGB/BGR/RGBA/BGRA（HWC/CHW）へ
+CUDA stream上で変換します。Intel VPP/SYCL変換adapterは未実装です。
+
 ## 画像処理の責務
 
 本ライブラリはcodec/containerとCPU/GPU resourceの所有権・同期を担当します。
 
 - CPU convenience APIにはcrop、resize、基本色変換、rotate/flip、contain/coverを実装済み
-- GPU kernelは内蔵せず、CuPy、NPP、D3D11、VA-API、OpenCL、SYCL等へ渡す
+- GPU kernelはCoreへ内蔵せず、共通`GpuProcessor`からoptionalなCuPy、NPP、D3D11、
+  VA-API、OpenCL、SYCL adapterへ渡す
 - GPU frameをNumPy/OpenCVへ変換するときはdownload/copyが発生する
 - GPU-resident surface同士はnative handle/DLPackとcompletionを使って受け渡す
 

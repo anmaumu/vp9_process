@@ -20,10 +20,13 @@ def main(path: str) -> None:
     assert native["handles"][0] != 0
     assert surface.interop.backend == "intel"
     assert surface.interop.memory_type in ("va_surface", "d3d11_texture")
+    retained = surface.retain()
+    surface.close()
+    assert retained.descriptor["generation"] == descriptor["generation"]
     capture.close()
     assert capture.metrics.copy_path == "zero_copy"
-    assert surface.descriptor["generation"] == descriptor["generation"]
-    surface.close()
+    assert retained.descriptor["generation"] == descriptor["generation"]
+    retained.close()
 
     with mkvcodec.VideoCapture(
         path, backend="auto", require_gpu_resident=True

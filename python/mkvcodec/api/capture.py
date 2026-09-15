@@ -12,6 +12,7 @@ from .backend import _select_backend
 from ..internal.borrowed_cpu_frame import BorrowedCpuFrame
 from ..internal.frame_outputs import copy_i420, copy_nv12, copy_packed, get_frame_view
 from .frame import GpuFrame
+from .processor import GpuImage, GpuProcessor
 from ..internal.io_common import (
     _read_component_metrics,
     _read_copy_edge_metrics,
@@ -248,6 +249,60 @@ class VideoCapture(Iterator[U8Plane]):
             return None
         native.check(result)
         return GpuFrame(handle)
+
+    def read_gpu(
+        self,
+        processor: GpuProcessor,
+        *,
+        format: str = "rgb",
+        layout: str = "hwc",
+        dtype: str = "uint8",
+        color_space: str = "auto",
+        color_range: str = "auto",
+    ) -> GpuImage | None:
+        """Read and convert one frame through a vendor-neutral GPU adapter.
+
+        Parameters
+        ----------
+        processor : GpuProcessor
+            Processor containing optional Intel/NVIDIA conversion adapters.
+        format : {"rgb", "bgr", "rgba", "bgra"}, default: "rgb"
+            Packed output channel order.
+        layout : {"hwc", "chw"}, default: "hwc"
+            Output tensor dimension order.
+        dtype : {"uint8", "float16", "float32"}, default: "uint8"
+            Output element representation.
+        color_space : {"auto", "bt601", "bt709", "bt2020"}, default: "auto"
+            YUV conversion matrix selection.
+        color_range : {"auto", "limited", "full"}, default: "auto"
+            Source/output range interpretation.
+
+        Returns
+        -------
+        GpuImage or None
+            DLPack-capable processed image, or ``None`` at end of stream.
+
+        Notes
+        -----
+        This convenience method transfers an independent decoded-surface lease
+        into the returned image. It never falls back to CPU processing.
+        """
+        if not isinstance(processor, GpuProcessor):
+            raise TypeError("processor must be a GpuProcessor")
+        source = self.read_surface()
+        if source is None:
+            return None
+        try:
+            return processor.convert(
+                source,
+                format=format,
+                layout=layout,
+                dtype=dtype,
+                color_space=color_space,
+                color_range=color_range,
+            )
+        finally:
+            source.close()
 
     def _read_packed(self, channels: int, pixel_format: int) -> U8Plane | None:
         handle = self._read_handle()

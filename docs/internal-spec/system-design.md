@@ -271,15 +271,18 @@ Status: `PROPOSED`
 ### 9.5 CPU Convenience Processing
 
 - `INT-PROC-001`: CPU owned frameのresize、crop、色変換、rotate/flip、letterbox/pillarboxを`FrameProcessPlan`へ正規化する。
-- `INT-PROC-002`: CPU implementationだけをlibyuv等へmappingし、NVIDIA NPP/CUDAおよびIntel VPP/shader kernelは実装しない。
+- `INT-PROC-002`: CPU implementationだけをlibyuv等へmappingし、NVIDIA NPP/CUDAおよびIntel VPP/shader kernelはcodec Coreへ実装しない。GPU kernelはoptional processor adapterとして分離する。
 - `INT-PROC-003`: 入力frameをin-place変更せず、CPU出力bufferはbounded poolからleaseする。
 - `INT-PROC-004`: pixel format、chroma subsampling、color primaries、transfer、matrix、range、PTSを処理前後で検証・伝播する。
 - `INT-PROC-005`: crop alignment、fit、letterbox/pillarbox配置、background、rotate後寸法を決定論的な共通幾何規則で計算する。
 - `INT-PROC-006`: capability queryでCPU処理、format、補間方式を事前確認し、GPU frame入力はinterop APIを示すunsupported errorとする。
 - `INT-PROC-007`: CPU処理の中間allocationを抑制するが、処理結果をzero-copy/shared-surfaceとは報告しない。
 - `INT-PROC-008`: C ABIはopaque CPU frame/process handleを使用し、Python/C++/C# bindingが同じCPU処理planと実行結果を共有する。
+- `INT-PROC-009`: Python `GpuProcessor`はsourceのnormalized backendとadapterのbackend集合・`supports`結果から決定論的に一つを選び、autoでもdeviceを跨がない。adapter順をtie-breakとし、未選択時はGPU-only unavailable errorを返す。
+- `INT-PROC-010`: `GpuImage`はDLPack provider、immutable output metadata、adapter completion/release、追加ownerを束縛する。processorは変換前に`mkvc_gpu_frame_retain`した独立source leaseを出力へ移し、validation/adapter例外では逆順に一度だけ解放する。
+- `INT-PROC-011`: packed GPU conversion結果のbackend/device/dimensions/format/layout/dtype/shape/adapter名を要求値と照合し、NV12からの色変換に`copy_path=gpu_copy`以外を返すadapterを拒否する。Coreのcopy recorderへ外部kernelの内部時間・copyを推測加算しない。
 
-GPU処理は外部libraryに委ねる。Coreは処理前resourceのexportと処理後resourceのimportだけを担当し、外部kernelの処理時間や内部copyをCore自身のzero-copyとして推測しない。
+GPU処理は外部library/optional adapterに委ねる。Coreは処理前resourceのexportと処理後resourceのimportだけを担当し、外部kernelの処理時間や内部copyをCore自身のzero-copyとして推測しない。
 
 ### 9.6 GPU Frame、Lease、Interop（実装予定）
 
