@@ -7,6 +7,7 @@ import gc
 import json
 import os
 import sys
+import time
 import weakref
 
 import numpy as np
@@ -32,7 +33,15 @@ sys.path[:0] = [package, extension]
 import _dlpack  # noqa: E402
 import mkvcodec  # noqa: E402
 import mkvcodec.interop.dlpack as dlpack_api  # noqa: E402
-from intel_va_opencl_support import P, U, I, bind, check, copy_nv12  # noqa: E402
+from intel_va_opencl_support import (  # noqa: E402
+    I,
+    P,
+    U,
+    OpenClReuseSession,
+    bind,
+    check,
+    copy_nv12,
+)
 from intel_va_prime_support import Attribute, Prime  # noqa: E402
 
 dlpack_api.extension = _dlpack
@@ -295,6 +304,94 @@ try:
             results.append(metrics)
             image.close()
     usm_frame.close()
+    benchmark = None
+    benchmark_frames = int(os.environ.get("MKVC_INTEL_VA_RGB_BENCH_FRAMES", "0"))
+    if benchmark_frames:
+        if benchmark_frames < 1:
+            raise ValueError("MKVC_INTEL_VA_RGB_BENCH_FRAMES must be positive")
+        materialize_seconds = 0.0
+        rgb_seconds = 0.0
+        with OpenClReuseSession() as session:
+            # Build and warm OpenCL/dpnp kernels outside the timed interval.
+            copy_nv12(source, owner, width, height, session=session)
+            warm_frame = mkvcodec.GpuFrame.import_usm_nv12(
+                pointer=pointer,
+                context=queue.sycl_context.addressof_ref(),
+                queue=queue.addressof_ref(),
+                device_id=int(descriptor["device_id"]),
+                frame_size=(width, height),
+                pitch=width,
+                owner=owner,
+                pts_ns=0,
+                producer_synchronized=True,
+            )
+            warm_image = processor.convert(warm_frame)
+            warm_image.wait(5000)
+            warm_image.close()
+            warm_frame.close()
+            for index in range(benchmark_frames):
+                started = time.perf_counter()
+                copy_nv12(
+                    source,
+                    owner,
+                    width,
+                    height,
+                    frame_index=index,
+                    session=session,
+                )
+                materialize_seconds += time.perf_counter() - started
+                started = time.perf_counter()
+                benchmark_frame = mkvcodec.GpuFrame.import_usm_nv12(
+                    pointer=pointer,
+                    context=queue.sycl_context.addressof_ref(),
+                    queue=queue.addressof_ref(),
+                    device_id=int(descriptor["device_id"]),
+                    frame_size=(width, height),
+                    pitch=width,
+                    owner=owner,
+                    pts_ns=index * 33333333,
+                    producer_synchronized=True,
+                )
+                benchmark_image = processor.convert(benchmark_frame)
+                benchmark_image.wait(5000)
+                benchmark_image.close()
+                benchmark_frame.close()
+                rgb_seconds += time.perf_counter() - started
+        decode_frames = 0
+        started = time.perf_counter()
+        with mkvcodec.VideoCapture(
+            fixture,
+            backend="intel",
+            prefetch=0,
+            require_gpu_resident=True,
+        ) as benchmark_capture:
+            while decode_frames < benchmark_frames:
+                decoded = benchmark_capture.read_surface()
+                if decoded is None:
+                    break
+                decoded.wait(5000)
+                decoded.close()
+                decode_frames += 1
+        decode_seconds = time.perf_counter() - started
+        if decode_frames != benchmark_frames:
+            raise AssertionError(
+                f"benchmark source ended after {decode_frames}/{benchmark_frames} frames"
+            )
+        full_serial_seconds = decode_seconds + materialize_seconds + rgb_seconds
+        benchmark = {
+            "frames": benchmark_frames,
+            "decode_frames": decode_frames,
+            "decode_fps": decode_frames / decode_seconds,
+            "materialize_fps": benchmark_frames / materialize_seconds,
+            "rgb_fps": benchmark_frames / rgb_seconds,
+            "serial_pipeline_fps": benchmark_frames
+            / (materialize_seconds + rgb_seconds),
+            "full_serial_fps": benchmark_frames / full_serial_seconds,
+            "decode_seconds": decode_seconds,
+            "materialize_seconds": materialize_seconds,
+            "rgb_seconds": rgb_seconds,
+            "full_serial_seconds": full_serial_seconds,
+        }
     owner.close()
     source.close()
     del usm_frame, source, owner, nv12, view, memory, allocation
@@ -307,6 +404,7 @@ print(
     json.dumps(
         {
             "device": identity,
+            "benchmark": benchmark,
             "nv12_materialization_metrics": nv12_metrics,
             "pixel_metrics": results,
         },

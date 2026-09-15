@@ -130,6 +130,7 @@
 - [x] optional NVIDIA CuPy CUDA-kernel NV12-to-RGB(A) processor adapter、DLPack/event/画素実機認定
 - [x] optional Intel dpnp線形device-USM NV12-to-RGB(A) processor adapter、DLPack/画素/leaseのArc B580認定
 - [x] Intel Linux VA decode→exportable USM NV12のOpenCL GPU copy qualification、CPU oracleに対する6色変換条件の画素差検証
+- [x] Arc B580 1080p VA→USM→RGB stage別qualification計測（100 frame、直列172.85 fps、decode込み145.64 fps）
 - [ ] NVIDIA processor adapterのJIT cache/warm-up packagingとrelease performance baseline gate
 - [ ] qualification用VA/OpenCL/Level Zero bridgeのoptional product adapter化、bounded pool/backpressureとdecode直結performance qualification
 - [ ] optional Intel Windows D3D11 processor adapter and DLPack-capable linear-USM materialization policy

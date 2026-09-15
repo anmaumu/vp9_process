@@ -86,6 +86,8 @@ GPU vendor driver/runtimeはwheel/NuGetへ同梱せず、実行環境側の責�
   device上のuint8 packed変換を実装し、Arc B580で画素・PTS・lease・output
   DLPackを検証済み。Linux VA decode surface→線形USMのOpenCL GPU copyはqualification
   経路で実機成功し、CPU referenceに対するNV12および6色変換条件の差はすべて0であった。
+  Arc B580の1080p/100-frame直列計測はVA→USM→RGB 172.85 fps、decode込み推定
+  145.64 fpsであり、RGB変換の5.270 ms/frameが支配項であった。
   このbridgeのoptional product adapter化、bounded pool、Windows D3D11経路は未実装である。
 - Container policy/finalizationは、bounded EBML header parse・size rewrite・atomic file
   replacementから分離した。

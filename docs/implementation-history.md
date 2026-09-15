@@ -34,6 +34,14 @@ limited/fullの6条件でRGB mean/p99/max/channel maxもすべて0であった�
 現時点のVA/OpenCL/Level Zero bridgeはqualification用であり、optional配布module、
 bounded resource pool、performance gateへの昇格が残る。
 
+同じArc B580でVP9 1920x1080を100 frame測定した。OpenCL/dpnp kernelをwarm-upし、
+各stageをhost同期して直列計測した結果、oneVPL VA decode 925.30 fps、VA→linear USM
+1941.92 fps、USM NV12→RGB 189.74 fps、materialize+RGB 172.85 fpsであった。
+decodeを含む直列合計は0.68661秒、145.64 fpsである。RGB変換の5.270 ms/frameが
+全直列時間の約77%を占め、次の最適化対象は中間NV12 copyとdpnp一時式をまとめる
+fused OpenCL/SYCL kernelである。現値はsingle-machine qualification observationであり、
+overlap、複数run、bounded poolを含むrelease baselineではない。
+
 ## 2026-09-16: Backend-neutral GPU RGB processor contract
 
 Status: `PARTIAL`

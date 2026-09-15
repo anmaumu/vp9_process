@@ -173,3 +173,25 @@ to RGB through `intel-dpnp`; all six cases reported mean, p99, maximum, and
 per-channel maximum absolute difference 0. This run qualifies pixel accuracy
 only. The bridge still requires product packaging, a bounded pool, and a
 throughput baseline.
+
+The same Arc B580 was then measured with a 100-frame VP9 1920x1080 source.
+OpenCL and dpnp kernels were warmed before the processing pass. Each operation
+was synchronized on the host, stages were measured serially without overlap,
+and decode was measured in a separate fresh capture. Consequently these values
+identify stage cost; they do not predict final pipelined throughput.
+
+| Stage | Elapsed for 100 frames | Throughput | Time per frame |
+|---|---:|---:|---:|
+| oneVPL VA decode only | 0.10807 s | 925.30 fps | 1.081 ms |
+| VA surface to linear USM | 0.05150 s | 1,941.92 fps | 0.515 ms |
+| linear USM NV12 to RGB | 0.52704 s | 189.74 fps | 5.270 ms |
+| VA surface to USM to RGB | 0.57854 s | 172.85 fps | 5.785 ms |
+| decode plus materialize plus RGB, serial estimate | 0.68661 s | 145.64 fps | 6.866 ms |
+
+The high-level dpnp RGB conversion accounts for about 77% of the complete
+serial time and is the next optimization target. A fused OpenCL/SYCL
+NV12-to-RGB kernel could remove the intermediate linear-NV12 copy and temporary
+dpnp expressions, but its benefit must be measured before making a performance
+claim. This qualification bridge still requires product packaging, a bounded
+pool/backpressure implementation, overlapped-pipeline measurement, and an
+approved multi-run baseline before it can become a release performance gate.
