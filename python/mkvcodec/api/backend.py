@@ -2,9 +2,28 @@
 from __future__ import annotations
 
 import ctypes as ct
+from dataclasses import dataclass
 
 from ..native import library as native
-from .._types import BackendCapability
+
+
+@dataclass(frozen=True)
+class BackendCapability:
+    """Describe one runtime-supported codec direction.
+
+    Attributes
+    ----------
+    backend, codec : str
+        Backend and codec names.
+    can_decode, can_encode, is_hardware : bool
+        Supported directions and whether frames can remain GPU-resident.
+    """
+
+    backend: str
+    codec: str
+    can_decode: bool
+    can_encode: bool
+    is_hardware: bool
 
 __all__ = ["BackendCapability", "backend_capabilities", "select_backend"]
 

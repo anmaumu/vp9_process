@@ -29,18 +29,19 @@ SOURCES = {
 }
 
 PYTHON_API_MODULES = (
-    ROOT / "python" / "mkvcodec" / "_types.py",
+    ROOT / "python" / "mkvcodec" / "api" / "metrics.py",
+    ROOT / "python" / "mkvcodec" / "api" / "video.py",
     ROOT / "python" / "mkvcodec" / "api" / "backend.py",
-    ROOT / "python" / "mkvcodec" / "_cpu.py",
-    ROOT / "python" / "mkvcodec" / "_borrowed_cpu_frame.py",
-    ROOT / "python" / "mkvcodec" / "_submission.py",
+    ROOT / "python" / "mkvcodec" / "internal" / "cpu_pool.py",
+    ROOT / "python" / "mkvcodec" / "internal" / "borrowed_cpu_frame.py",
+    ROOT / "python" / "mkvcodec" / "internal" / "submission.py",
     ROOT / "python" / "mkvcodec" / "api" / "frame.py",
     ROOT / "python" / "mkvcodec" / "interop" / "dlpack.py",
-    ROOT / "python" / "mkvcodec" / "_intel_usm.py",
-    ROOT / "python" / "mkvcodec" / "_intel_usm_slot.py",
+    ROOT / "python" / "mkvcodec" / "internal" / "intel_usm_pool.py",
+    ROOT / "python" / "mkvcodec" / "internal" / "intel_usm_slot.py",
     ROOT / "python" / "mkvcodec" / "api" / "writer.py",
     ROOT / "python" / "mkvcodec" / "api" / "capture.py",
-    ROOT / "python" / "mkvcodec" / "_video_info.py",
+    ROOT / "python" / "mkvcodec" / "internal" / "video_info.py",
     ROOT / "python" / "mkvcodec" / "_api.py",
 )
 

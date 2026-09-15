@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Callable
+
+import numpy as np
+import numpy.typing as npt
 
 from ..interop import dlpack as dlpack_interop
 from ..interop.cuda import _import_cuda_array as _import_cuda_array_impl
@@ -12,14 +16,34 @@ from ..interop.intel import _import_d3d11_texture as _import_d3d11_texture_impl
 from ..interop.intel import _import_usm_nv12 as _import_usm_nv12_impl
 from ..interop.intel import _import_va_surface as _import_va_surface_impl
 from ..native import library as native
-from .._gpu_frame_native import (
+from ..interop.frame_native import (
     get_gpu_frame_descriptor,
     get_gpu_native_handle,
     wait_gpu_frame,
 )
-from .._gpu_interop import describe_interop
+from ..interop.descriptor import describe_interop
 from ..interop.dlpack import GpuPlane
-from .._types import CpuFrame, GpuInteropInfo
+from .metrics import GpuInteropInfo
+
+U8Plane = npt.NDArray[np.uint8]
+
+
+@dataclass(frozen=True)
+class CpuFrame:
+    """Owned decoded I420 image.
+
+    Attributes
+    ----------
+    y, u, v : numpy.ndarray
+        Owned ``uint8`` planes. Chroma planes have half width and height.
+    pts_ns : int
+        Presentation timestamp in nanoseconds.
+    """
+
+    y: U8Plane
+    u: U8Plane
+    v: U8Plane
+    pts_ns: int
 
 class GpuFrame:
     """Own a lease over a backend-resident GPU video frame.
@@ -271,9 +295,9 @@ class GpuFrame:
 
 
 # Imported after GpuFrame is defined because Intel pool slots refer back to it.
-from .._cpu import BorrowedCpuFrame, CpuBuffer, CpuFramePool  # noqa: E402
-from .._intel_usm import IntelUsmFramePool, IntelUsmPoolSlot  # noqa: E402
-from .._submission import Submission  # noqa: E402
+from ..internal.cpu_pool import BorrowedCpuFrame, CpuBuffer, CpuFramePool  # noqa: E402
+from ..internal.intel_usm_pool import IntelUsmFramePool, IntelUsmPoolSlot  # noqa: E402
+from ..internal.submission import Submission  # noqa: E402
 
 __all__ = [
     "BorrowedCpuFrame",
@@ -285,4 +309,5 @@ __all__ = [
     "IntelUsmFramePool",
     "IntelUsmPoolSlot",
     "Submission",
+    "U8Plane",
 ]

@@ -9,25 +9,24 @@ from typing import Iterator
 
 from ..native import library as native
 from .backend import _select_backend
-from .._cpu import BorrowedCpuFrame
-from .._frame_outputs import copy_i420, copy_nv12, copy_packed, get_frame_view
+from ..internal.borrowed_cpu_frame import BorrowedCpuFrame
+from ..internal.frame_outputs import copy_i420, copy_nv12, copy_packed, get_frame_view
 from .frame import GpuFrame
-from .._io_common import (
+from ..internal.io_common import (
     _read_component_metrics,
     _read_copy_edge_metrics,
     _read_metrics,
     _read_stage_metrics,
 )
-from .._processing_plan import build_process_config
-from .._types import (
+from ..internal.processing import build_process_config
+from .frame import CpuFrame, U8Plane
+from .metrics import (
     CopyEdgeMetrics,
-    CpuFrame,
     PipelineComponentMetrics,
     PipelineMetrics,
     PipelineStageMetrics,
-    U8Plane,
 )
-from .._video_info import probe_video, read_decoder_info
+from ..internal.video_info import probe_video, read_decoder_info
 
 __all__ = ["VideoCapture"]
 

@@ -1,254 +1,28 @@
-"""Public immutable value types shared by the Python API modules."""
+"""Compatibility imports for public value types under :mod:`mkvcodec.api`."""
 
-from __future__ import annotations
+from .api.backend import BackendCapability
+from .api.frame import CpuFrame, U8Plane
+from .api.metrics import (
+    CopyEdgeMetrics,
+    CpuFramePoolStatistics,
+    GpuInteropInfo,
+    GpuResourcePoolStats,
+    PipelineComponentMetrics,
+    PipelineMetrics,
+    PipelineStageMetrics,
+)
+from .api.video import VideoInfo
 
-from dataclasses import dataclass
-
-import numpy as np
-import numpy.typing as npt
-
-U8Plane = npt.NDArray[np.uint8]
-
-
-@dataclass(frozen=True)
-class CpuFrame:
-    """Owned decoded I420 image.
-
-    Attributes
-    ----------
-    y, u, v:
-        Owned ``uint8`` planes. Chroma planes have half width and height.
-    pts_ns:
-        Presentation timestamp in nanoseconds.
-    """
-
-    y: U8Plane
-    u: U8Plane
-    v: U8Plane
-    pts_ns: int
-
-
-@dataclass(frozen=True)
-class VideoInfo:
-    """Immutable metadata for the first supported video track.
-
-    Attributes
-    ----------
-    codec:
-        ``"vp9"`` or ``"av1"``.
-    width, height:
-        Coded dimensions in pixels.
-    fps:
-        Nominal frame rate, or ``None`` when absent from the container.
-    duration_ns:
-        Container duration in nanoseconds, or ``None`` when unknown.
-    frame_count:
-        Number of frames in the selected track, or ``None`` when unknown.
-    """
-
-    codec: str
-    width: int
-    height: int
-    fps: float | None
-    duration_ns: int | None
-    frame_count: int | None
-
-
-@dataclass(frozen=True)
-class BackendCapability:
-    """One runtime-supported codec direction.
-
-    Attributes
-    ----------
-    backend:
-        ``"cpu"``, ``"intel"`` or ``"nvidia"``.
-    codec:
-        ``"vp9"`` or ``"av1"``.
-    can_decode, can_encode:
-        Whether the runtime can execute the corresponding direction.
-    is_hardware:
-        Whether frames can remain on a GPU backend.
-    """
-
-    backend: str
-    codec: str
-    can_decode: bool
-    can_encode: bool
-    is_hardware: bool
-
-
-@dataclass(frozen=True)
-class GpuInteropInfo:
-    """Backend-neutral external processing compatibility.
-
-    Attributes
-    ----------
-    backend:
-        Backend owning the frame.
-    memory_type:
-        Concrete storage representation.
-    native_handle_type:
-        Borrowed native handle representation.
-    processing_interfaces:
-        Adapter families that may consume the representation.
-    dlpack_export:
-        Whether linear planes support the DLPack protocol.
-    completion:
-        Producer-completion mechanism associated with the frame.
-    api_stability:
-        ``"stable"`` or ``"preview"`` for this interop representation.
-    """
-
-    backend: str
-    memory_type: str
-    native_handle_type: str
-    processing_interfaces: tuple[str, ...]
-    dlpack_export: bool
-    completion: str
-    api_stability: str
-
-
-@dataclass(frozen=True)
-class PipelineMetrics:
-    """Observed queue, backend and copy-path metrics.
-
-    Attributes
-    ----------
-    accepted_frames, completed_frames, rejected_frames:
-        Frame counters at the public session boundary.
-    queue_wait_ns, backend_time_ns:
-        Accumulated queue and codec execution time in nanoseconds.
-    queue_capacity, peak_queue_depth:
-        Configured and observed host queue bounds.
-    hardware_pending_peak:
-        Highest backend-owned in-flight frame count.
-    copy_path:
-        ``"unknown"``, ``"cpu"``, ``"zero_copy"`` or ``"mixed"``.
-    """
-
-    accepted_frames: int
-    completed_frames: int
-    rejected_frames: int
-    queue_wait_ns: int
-    backend_time_ns: int
-    queue_capacity: int
-    peak_queue_depth: int
-    hardware_pending_peak: int
-    copy_path: str
-
-
-@dataclass(frozen=True)
-class PipelineStageMetrics:
-    """Exact host timings split by public backend operation and execution path."""
-
-    frame_calls: int
-    frame_time_ns: int
-    flush_calls: int
-    flush_time_ns: int
-    close_calls: int
-    close_time_ns: int
-    sync_frame_calls: int
-    sync_frame_time_ns: int
-    worker_frame_calls: int
-    worker_frame_time_ns: int
-
-
-@dataclass(frozen=True)
-class PipelineComponentMetrics:
-    """Exclusive host time attributed to pipeline components.
-
-    Attributes
-    ----------
-    conversion_calls, conversion_time_ns:
-        Pixel-format conversion invocation count and accumulated host time.
-    codec_calls, codec_time_ns:
-        Codec/backend invocation count and exclusive accumulated host time.
-    container_calls, container_time_ns:
-        Container parsing or muxing invocation count and accumulated host time.
-    gpu_wait_calls, gpu_wait_time_ns:
-        GPU completion waits observed inside the pipeline and their host wait
-        time. This is not GPU kernel execution time.
-    """
-
-    conversion_calls: int
-    conversion_time_ns: int
-    codec_calls: int
-    codec_time_ns: int
-    container_calls: int
-    container_time_ns: int
-    gpu_wait_calls: int
-    gpu_wait_time_ns: int
-
-
-@dataclass(frozen=True)
-class CopyEdgeMetrics:
-    """Counts of copy/share operations observed by mkvcodec.
-
-    A zero count does not prove that a vendor driver performed no internal
-    copy. ``driver_internal_observed`` is currently always false because only
-    library-controlled public boundaries are attributed.
-    """
-
-    shared_surface_frames: int
-    zero_copy_frames: int
-    gpu_copy_frames: int
-    cpu_upload_frames: int
-    cpu_readback_frames: int
-    cpu_normalization_frames: int
-    pixel_conversion_frames: int
-    driver_internal_observed: bool
-
-
-@dataclass(frozen=True)
-class GpuResourcePoolStats:
-    """Snapshot of a fixed-capacity external GPU resource pool.
-
-    Attributes
-    ----------
-    capacity, in_use, peak_in_use:
-        Configured, current and peak slot occupancy.
-    acquisitions, rejected_acquisitions:
-        Successful and backpressured/timed-out acquisition counts.
-    wait_ns:
-        Total time spent waiting for a slot in nanoseconds.
-    """
-
-    capacity: int
-    in_use: int
-    peak_in_use: int
-    acquisitions: int
-    rejected_acquisitions: int
-    wait_ns: int
-
-
-@dataclass(frozen=True)
-class CpuFramePoolStatistics:
-    """Cumulative native CPU pool allocation and lease observations.
-
-    Attributes
-    ----------
-    capacity, in_use, peak_in_use:
-        Configured, current and highest simultaneous lease counts.
-    memory_mode:
-        ``"pageable"`` or ``"page_locked"``.
-    allocation_bytes:
-        Total bytes owned by all fixed pool slots.
-    page_locked_bytes:
-        Page-rounded bytes locked by the OS, or zero for pageable pools.
-    acquisitions, rejected_acquisitions, wait_ns:
-        Successful acquisitions, capacity failures, and accumulated wait time.
-    lease_time_ns, peak_lease_time_ns:
-        Accumulated and longest completed lease durations.
-    """
-
-    capacity: int
-    in_use: int
-    peak_in_use: int
-    memory_mode: str
-    allocation_bytes: int
-    page_locked_bytes: int
-    acquisitions: int
-    rejected_acquisitions: int
-    wait_ns: int
-    lease_time_ns: int
-    peak_lease_time_ns: int
+__all__ = [
+    "BackendCapability",
+    "CopyEdgeMetrics",
+    "CpuFrame",
+    "CpuFramePoolStatistics",
+    "GpuInteropInfo",
+    "GpuResourcePoolStats",
+    "PipelineComponentMetrics",
+    "PipelineMetrics",
+    "PipelineStageMetrics",
+    "U8Plane",
+    "VideoInfo",
+]

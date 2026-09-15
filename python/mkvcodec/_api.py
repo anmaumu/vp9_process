@@ -2,14 +2,15 @@ from __future__ import annotations
 
 from .native import library as native
 from .api.backend import _select_backend, backend_capabilities, select_backend
-from ._cpu import BorrowedCpuFrame, CpuBuffer, CpuFramePool, Submission
+from .internal.cpu_pool import BorrowedCpuFrame, CpuBuffer, CpuFramePool
+from .internal.submission import Submission
 from .api.frame import GpuFrame, GpuPlane
-from ._intel_usm import IntelUsmFramePool, IntelUsmPoolSlot
+from .internal.intel_usm_pool import IntelUsmFramePool, IntelUsmPoolSlot
 from .api.capture import VideoCapture
 from .api.writer import VideoWriter
-from ._types import (
-    BackendCapability,
-    CpuFrame,
+from .api.backend import BackendCapability
+from .api.frame import CpuFrame, U8Plane
+from .api.metrics import (
     CpuFramePoolStatistics,
     GpuInteropInfo,
     GpuResourcePoolStats,
@@ -17,10 +18,8 @@ from ._types import (
     CopyEdgeMetrics,
     PipelineComponentMetrics,
     PipelineStageMetrics,
-    VideoInfo,
-    U8Plane,
 )
-from ._video_info import probe_video
+from .api.video import VideoInfo, probe_video
 
 # Compatibility surface for source-tree GPU qualification scripts. New
 # application code imports the stable names from ``mkvcodec``.

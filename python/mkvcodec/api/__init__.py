@@ -17,7 +17,6 @@ from .frame import (
     IntelUsmPoolSlot,
     Submission,
 )
-from .capture import VideoCapture
 from .metrics import (
     CopyEdgeMetrics,
     CpuFramePoolStatistics,
@@ -28,6 +27,7 @@ from .metrics import (
     PipelineStageMetrics,
 )
 from .video import VideoInfo, probe_video
+from .capture import VideoCapture
 from .writer import VideoWriter
 
 __all__ = [

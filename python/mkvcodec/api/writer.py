@@ -7,9 +7,10 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from ..native import library as native
-from .._cpu import CpuBuffer, Submission
-from .._encoder_config import build_encoder_config
-from .._frame_views import (
+from ..internal.cpu_pool import CpuBuffer
+from ..internal.submission import Submission
+from ..internal.encoder_config import build_encoder_config
+from ..internal.frame_views import (
     FrameInput,
     make_borrowed_view,
     make_i420_view,
@@ -17,18 +18,18 @@ from .._frame_views import (
     make_packed_view,
 )
 from .frame import GpuFrame
-from .._io_common import (
+from ..internal.io_common import (
     _read_component_metrics,
     _read_copy_edge_metrics,
     _read_metrics,
     _read_stage_metrics,
 )
-from .._types import (
+from .frame import U8Plane
+from .metrics import (
     CopyEdgeMetrics,
     PipelineComponentMetrics,
     PipelineMetrics,
     PipelineStageMetrics,
-    U8Plane,
 )
 
 __all__ = ["VideoWriter"]

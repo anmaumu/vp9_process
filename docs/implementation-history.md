@@ -27,6 +27,23 @@ package rootを維持する。
 GPU frameの公開実体も`api/frame.py`へ移し、CUDA/Intel import assemblyを`interop/`経由に
 保った。`GpuPlane`とoptional extension discoveryは`interop/dlpack.py`へ移し、source-tree
 試験のextension注入点も同moduleへ統一した。旧`_gpu`と`_gpu_plane`はthin shimである。
+CPU pool/buffer所有権と非同期submissionの実体は`internal/cpu_pool.py`および
+`internal/submission.py`へ移し、公開`api.frame`から再exportする。旧`_cpu`と
+`_submission`もthin shimへ縮退した。
+CUDA pointer/array/DLPack importとIntel D3D11/VA/USM importの実体をそれぞれ
+`interop/cuda.py`と`interop/intel.py`へ移し、旧backend別moduleをthin shim化した。
+GPU import共通構成、入力validation、native descriptor access、interop metadataも
+`interop/common.py`、`validation.py`、`frame_native.py`、`descriptor.py`へ移し、対応する
+旧flat moduleをthin shimへ縮退した。
+Intel USM frame pool/slotとnative GPU resource reservationは`internal/`へ移し、
+`api.frame`から公開objectだけを再exportする依存方向へ統一した。
+旧`_types.py`の公開value objectは`api/frame.py`、`api/metrics.py`、`api/video.py`、
+`api/backend.py`へ責務別に分割し、内部moduleも各正本を直接参照するよう変更した。
+`_types.py`はimport互換だけを提供する。
+CPU borrowed view/array、encoder config、frame入出力view、metrics読取、処理計画、video情報取得の
+実体も`internal/`へ移し、`api.capture`と`api.writer`は正本を直接参照する。これによりpackage
+rootの全private Python moduleはv0.1互換importだけを担うthin shimとなり、function/class実装を
+持たない。source構造testでこの境界と各正本の存在を固定した。
 
 ## 2026-09-15: CPU VP9 automatic decoder threading and OpenCV comparison correction
 
