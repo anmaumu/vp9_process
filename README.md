@@ -40,6 +40,8 @@ EBML DocType `webm`、`.mkv`は`matroska`です。入力時も拡張子とDocTyp
 C ABI、GPU interop、非公開orchestrationをそれぞれ`api/`、`native/`、`interop/`、
 `internal/`へ分離しており、通常のアプリケーションがprivate `_xxx` moduleを参照する必要は
 ありません。
+旧`mkvcodec._api`、`_capture`、`_writer`等のprivate互換moduleは削除済みです。利用側は
+`import mkvcodec`、または責務別の`mkvcodec.api`公開moduleを使用してください。
 
 初めて使う場合は、実行結果を確認しながら学べる
 [Python入門Notebook](notebooks/python_beginner_tutorial.ipynb)も利用できます。

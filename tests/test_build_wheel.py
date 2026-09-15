@@ -45,6 +45,14 @@ class BuildWheelTests(unittest.TestCase):
                 self.assertIn("mkvcodec/internal/submission.py", names)
                 self.assertIn("mkvcodec/internal/cpu_array.py", names)
                 self.assertIn("mkvcodec/internal/intel_usm_pool.py", names)
+                legacy_python = sorted(
+                    name
+                    for name in names
+                    if name.startswith("mkvcodec/_")
+                    and name.endswith(".py")
+                    and name != "mkvcodec/__init__.py"
+                )
+                self.assertEqual(legacy_python, [])
                 record_name = "mkvcodec-0.1.0.dist-info/RECORD"
                 rows = list(csv.reader(io.StringIO(archive.read(record_name).decode())))
                 self.assertEqual(len(rows), len(names))

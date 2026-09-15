@@ -13,9 +13,9 @@ sys.path.insert(0, extension_dir)
 
 import _dlpack
 import mkvcodec
-import mkvcodec._api as api
 import mkvcodec.api.backend as capability_api
 import mkvcodec.interop.dlpack as dlpack_api
+from mkvcodec.native import library as native_api
 
 # Source-tree tests keep the extension in the build directory. Wheels install
 # it as mkvcodec._dlpack, so connect the equivalent module explicitly here.
@@ -143,7 +143,7 @@ from unittest.mock import patch
 
 owner = Owner()
 failed_va_owner = weakref.ref(owner)
-with patch.object(api.native.lib, "mkvc_gpu_frame_import_va_surface", return_value=3):
+with patch.object(native_api.lib, "mkvc_gpu_frame_import_va_surface", return_value=3):
     try:
         mkvcodec.GpuFrame.import_va_surface(
             display=0x1000, surface_id=0, device_id=0, frame_size=(64, 48), owner=owner
@@ -172,7 +172,7 @@ for invalid_target in (0, -1, 0xFFFFFFFFFFFFFFFF):
         raise AssertionError("invalid D3D11 fence value accepted")
 owner = Owner()
 failed_d3d_owner = weakref.ref(owner)
-with patch.object(api.native.lib, "mkvc_gpu_frame_import_d3d11_fence", return_value=3):
+with patch.object(native_api.lib, "mkvc_gpu_frame_import_d3d11_fence", return_value=3):
     try:
         mkvcodec.GpuFrame.import_d3d11_texture(
             texture=0x1000,
@@ -236,7 +236,7 @@ del registrar
 gc.collect()
 assert usm_owner_ref() is not None
 assert registrar_ref() is not None
-assert usm.descriptor["memory_type"] == api.native.MKVC_GPU_MEMORY_USM
+assert usm.descriptor["memory_type"] == native_api.MKVC_GPU_MEMORY_USM
 assert usm.native_handle["handles"][:3] == (0x3000, 0x4000, 0x5000)
 assert usm.interop.backend == "intel" and usm.interop.dlpack_export
 assert usm.interop.completion == "synchronized"
@@ -252,9 +252,9 @@ assert registrar_ref() is None
 # retires. Capacity one makes nonblocking and timed backpressure deterministic.
 pool_owner = Owner()
 pool_owner_ref = weakref.ref(pool_owner)
-assert ct.sizeof(api.native.GpuResourcePoolConfig) == 16
-assert ct.sizeof(api.native.GpuResourceReservationDesc) == 24
-assert ct.sizeof(api.native.GpuResourcePoolStats) == 48
+assert ct.sizeof(native_api.GpuResourcePoolConfig) == 16
+assert ct.sizeof(native_api.GpuResourceReservationDesc) == 24
+assert ct.sizeof(native_api.GpuResourcePoolStats) == 48
 pool = mkvcodec.IntelUsmFramePool(
     [(0x9000, pool_owner)], context=0xA000, queue=0xB000, device_id=0, frame_size=(64, 48), pitch=64
 )
@@ -482,7 +482,7 @@ assert array_owner_ref() is None
 
 # Backend auto-selection is deterministic and never silently falls back to CPU
 # when the caller requires a GPU-resident path.
-Capability = api.BackendCapability
+Capability = mkvcodec.BackendCapability
 rows = (
     Capability("cpu", "vp9", True, True, False),
     Capability("intel", "vp9", True, True, True),
@@ -491,16 +491,16 @@ rows = (
     Capability("nvidia", "av1", True, True, True),
 )
 with patch.object(capability_api, "backend_capabilities", return_value=rows):
-    assert api._select_backend("vp9", "decode", False) == "nvidia"
-    assert api._select_backend("vp9", "encode", False) == "intel"
-    assert api._select_backend("av1", "encode", True) == "nvidia"
+    assert capability_api._select_backend("vp9", "decode", False) == "nvidia"
+    assert capability_api._select_backend("vp9", "encode", False) == "intel"
+    assert capability_api._select_backend("av1", "encode", True) == "nvidia"
     assert (
         mkvcodec.select_backend("vp9", decode=True, encode=True, require_gpu_resident=True)
         == "intel"
     )
 with patch.object(capability_api, "backend_capabilities", return_value=(rows[0],)):
     try:
-        api._select_backend("vp9", "encode", True)
+        capability_api._select_backend("vp9", "encode", True)
     except RuntimeError as error:
         assert "GPU-resident" in str(error)
     else:

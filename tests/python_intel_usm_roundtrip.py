@@ -27,7 +27,6 @@ import dpnp
 import dpnp.tensor
 sys.path[:0] = [package, extension]
 import mkvcodec
-import mkvcodec._api as api
 import mkvcodec.interop.dlpack as dlpack_api
 import _dlpack
 dlpack_api.extension = _dlpack

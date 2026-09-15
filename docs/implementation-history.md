@@ -45,6 +45,14 @@ CPU borrowed view/array、encoder config、frame入出力view、metrics読取、
 rootの全private Python moduleはv0.1互換importだけを担うthin shimとなり、function/class実装を
 持たない。source構造testでこの境界と各正本の存在を固定した。
 
+## 2026-09-15: Python legacy compatibility module removal
+
+4層packageへの移行完了後に残していたrootのprivate compatibility shimをすべて削除した。
+GPU実機qualification script、docgen、wheel検査も`mkvcodec`公開面と`native/interop`の正規経路へ
+切り替えた。source構造testは旧flat Python moduleが存在しないことと、4層から旧経路へ
+依存しないことをfail-closedで検証する。これはprivate `_api`、`_capture`、`_gpu`、`_native`
+等を直接importしていた利用者に対する意図的な破壊的変更である。
+
 ## 2026-09-15: CPU VP9 automatic decoder threading and OpenCV comparison correction
 
 Status: `IMPLEMENTED`

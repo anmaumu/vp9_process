@@ -17,22 +17,22 @@ sys.path[:0] = [package_dir, extension_dir]
 import numpy as np
 import _dlpack
 import mkvcodec
-import mkvcodec._api as api
 import mkvcodec.interop.dlpack as dlpack_api
+from mkvcodec.native import library as native_api
 from intel_va_opencl_support import Unsupported, VaOwner, invert_luma, OpenClReuseSession, reuse_program_enabled
 from gpu_resource_monitor import ResourceMonitor
 from gpu_trace_journal import journal
 dlpack_api.extension = _dlpack
-original_check = api.native.check
+original_check = native_api.check
 
 
 def checked(result):
     if result == 3:
-        raise Unsupported(api.native.lib.mkvc_get_last_error().decode())
+        raise Unsupported(native_api.lib.mkvc_get_last_error().decode())
     original_check(result)
 
 
-api.native.check = checked
+native_api.check = checked
 
 
 def roundtrip(frames, monitor=None):

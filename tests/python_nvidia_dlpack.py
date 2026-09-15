@@ -21,7 +21,6 @@ sys.path.insert(0, extension_dir)
 
 import _dlpack
 import mkvcodec
-import mkvcodec._api as api
 import mkvcodec.interop.dlpack as dlpack_api
 
 dlpack_api.extension = _dlpack

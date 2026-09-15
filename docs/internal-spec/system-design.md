@@ -399,7 +399,7 @@ Status: `PROPOSED`
 - `INT-ABI-004`: compatible minor versionでは既存struct prefixを保持する。
 - `INT-ABI-005`: 公開C headerをbinding symbol schemaの正本とし、Python ctypesと.NET P/Invokeは全公開functionを宣言する。欠落symbolとheaderにない余分なsymbolはCIで拒否する。型・layout・calling conventionは各bindingのcompile/smokeおよびABI layout testで検証する。
 - `INT-PY-001`: pybind11 wrapperはNumPy dtype/shape/strideを検証し、native errorをPython exceptionへ変換する。
-- `INT-PY-002`: Python packageは`api/`（公開Capture/Writer/frame/backend/metrics）、`native/`（DLL load、生成ctypes signature/type）、`interop/`（CUDA/Intel/DLPack）、`internal/`（pool、submission、処理計画）の4層へ分ける。root `__init__.py`は`api/`の公開名とversionだけを再exportし、ctypesやbackend固有実装を持たない。高水準moduleからC ABIへは`native.library`境界を通す。既存のflat `_api`、`_gpu`等はv0.1中の試験・import互換thin shimとしてのみ保持し、function/class実装を置かず、新規利用者向け公開面には含めない。
+- `INT-PY-002`: Python packageは`api/`（公開Capture/Writer/frame/backend/metrics）、`native/`（DLL load、生成ctypes signature/type）、`interop/`（CUDA/Intel/DLPack）、`internal/`（pool、submission、処理計画）の4層へ分ける。root `__init__.py`は`api/`の公開名とversionだけを再exportし、ctypesやbackend固有実装を持たない。高水準moduleからC ABIへは`native.library`境界を通す。旧flat `_api`、`_gpu`、`_native`等の互換moduleは配布・source treeの双方から削除し、再追加をsource構造testで拒否する。
 - `INT-CS-001`: P/Invoke struct layoutを自動testし、handleをSafeHandleで所有する。非同期completion待機はSafeHandleへ`DangerousAddRef`したraw handleをnonblocking queryし、terminal時だけzero-time waitでnative結果とthread-local detailを回収する。timeout/cancellationを含む全経路で`DangerousRelease`する。
 
 ## 13. Test Requirements
