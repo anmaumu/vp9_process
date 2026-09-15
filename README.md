@@ -162,6 +162,8 @@ C++ ABIは公開せず、すべて`mkvc_` prefixのC ABIを通ります。
 
 .NET 8はP/Invoke、SafeHandle、`IDisposable`、CPU/GPU Capture/Writer、native pool、
 非同期`MkvSubmission.WaitAsync()`を提供します。
+SDK内部は`Api/`、`Native/`、`Interop/`、`Internal/`へ分離されますが、公開namespaceは
+一貫して`MkvCodec`です。
 
 ```csharp
 using var capture = new MkvVideoCapture(

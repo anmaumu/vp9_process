@@ -245,65 +245,27 @@ public sealed class MkvVideoWriter : IDisposable
         MkvCodecInfo.ThrowIfFailed(NativeMethods.mkvc_encoder_cancel(handle!));
     }
 
-    public MkvPipelineMetrics Metrics => finalMetrics ?? ReadMetrics();
+    public MkvPipelineMetrics Metrics => finalMetrics ??
+        PipelineMetricsReader.ReadMetrics(BorrowHandle(), true);
 
     /// <summary>Exact frame, flush and close backend operation timings.</summary>
-    public MkvPipelineStageMetrics StageMetrics => finalStageMetrics ?? ReadStageMetrics();
+    public MkvPipelineStageMetrics StageMetrics => finalStageMetrics ??
+        PipelineMetricsReader.ReadStageMetrics(BorrowHandle(), true);
 
     /// <summary>Exclusive conversion, codec, container and GPU-wait host timings.</summary>
     public MkvPipelineComponentMetrics ComponentMetrics =>
-        finalComponentMetrics ?? ReadComponentMetrics();
+        finalComponentMetrics ?? PipelineMetricsReader.ReadComponentMetrics(
+            BorrowHandle(), true);
 
     /// <summary>Copy/share operations observed at mkvcodec-controlled boundaries.</summary>
     public MkvCopyEdgeMetrics CopyEdgeMetrics =>
-        finalCopyEdgeMetrics ?? ReadCopyEdgeMetrics();
+        finalCopyEdgeMetrics ?? PipelineMetricsReader.ReadCopyEdgeMetrics(
+            BorrowHandle(), true);
 
-    private MkvCopyEdgeMetrics ReadCopyEdgeMetrics()
+    private nint BorrowHandle()
     {
         ObjectDisposedException.ThrowIf(handle is null || handle.IsClosed, this);
-        var metrics = new MkvCopyEdgeMetrics {
-            StructSize = checked((uint)Marshal.SizeOf<MkvCopyEdgeMetrics>()),
-            StructVersion = 1
-        };
-        MkvCodecInfo.ThrowIfFailed(NativeMethods.mkvc_encoder_get_copy_edge_metrics(
-            handle!.DangerousGetHandle(), ref metrics));
-        return metrics;
-    }
-
-    private MkvPipelineComponentMetrics ReadComponentMetrics()
-    {
-        ObjectDisposedException.ThrowIf(handle is null || handle.IsClosed, this);
-        var metrics = new MkvPipelineComponentMetrics {
-            StructSize = checked((uint)Marshal.SizeOf<MkvPipelineComponentMetrics>()),
-            StructVersion = 1
-        };
-        MkvCodecInfo.ThrowIfFailed(NativeMethods.mkvc_encoder_get_component_metrics(
-            handle!.DangerousGetHandle(), ref metrics));
-        return metrics;
-    }
-
-    private MkvPipelineStageMetrics ReadStageMetrics()
-    {
-        ObjectDisposedException.ThrowIf(handle is null || handle.IsClosed, this);
-        var metrics = new MkvPipelineStageMetrics {
-            StructSize = checked((uint)Marshal.SizeOf<MkvPipelineStageMetrics>()),
-            StructVersion = 1
-        };
-        MkvCodecInfo.ThrowIfFailed(NativeMethods.mkvc_encoder_get_stage_metrics(
-            handle!.DangerousGetHandle(), ref metrics));
-        return metrics;
-    }
-
-    private MkvPipelineMetrics ReadMetrics()
-    {
-        ObjectDisposedException.ThrowIf(handle is null || handle.IsClosed, this);
-        var metrics = new MkvPipelineMetrics {
-            StructSize = checked((uint)Marshal.SizeOf<MkvPipelineMetrics>()),
-            StructVersion = 1
-        };
-        MkvCodecInfo.ThrowIfFailed(
-            NativeMethods.mkvc_encoder_get_metrics(handle!.DangerousGetHandle(), ref metrics));
-        return metrics;
+        return handle!.DangerousGetHandle();
     }
 
     public void Dispose()
@@ -313,10 +275,13 @@ public sealed class MkvVideoWriter : IDisposable
         {
             MkvResult result = NativeMethods.mkvc_encoder_close(handle.DangerousGetHandle());
             try {
-                finalMetrics = ReadMetrics();
-                finalStageMetrics = ReadStageMetrics();
-                finalComponentMetrics = ReadComponentMetrics();
-                finalCopyEdgeMetrics = ReadCopyEdgeMetrics();
+                nint nativeHandle = handle.DangerousGetHandle();
+                finalMetrics = PipelineMetricsReader.ReadMetrics(nativeHandle, true);
+                finalStageMetrics = PipelineMetricsReader.ReadStageMetrics(nativeHandle, true);
+                finalComponentMetrics = PipelineMetricsReader.ReadComponentMetrics(
+                    nativeHandle, true);
+                finalCopyEdgeMetrics = PipelineMetricsReader.ReadCopyEdgeMetrics(
+                    nativeHandle, true);
             }
             finally
             {

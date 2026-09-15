@@ -2,17 +2,6 @@ using System.Runtime.InteropServices;
 
 namespace MkvCodec;
 
-public sealed record MkvI420Frame(uint Width, uint Height, long PtsNanoseconds,
-    byte[] Y, byte[] U, byte[] V);
-public sealed record MkvBgrFrame(uint Width, uint Height, long PtsNanoseconds,
-    byte[] Pixels, int Stride);
-public sealed record MkvRgbFrame(uint Width, uint Height, long PtsNanoseconds,
-    byte[] Pixels, int Stride);
-public sealed record MkvBgraFrame(uint Width, uint Height, long PtsNanoseconds,
-    byte[] Pixels, int Stride);
-public sealed record MkvNv12Frame(uint Width, uint Height, long PtsNanoseconds,
-    byte[] Y, byte[] UV);
-
 /// <summary>Managed IDisposable capture returning owned I420 or packed BGR arrays.</summary>
 public sealed class MkvVideoCapture : IDisposable
 {
@@ -253,65 +242,27 @@ public sealed class MkvVideoCapture : IDisposable
         return new MkvGpuFrame(frame);
     }
 
-    public MkvPipelineMetrics Metrics => finalMetrics ?? ReadMetrics();
+    public MkvPipelineMetrics Metrics => finalMetrics ??
+        PipelineMetricsReader.ReadMetrics(BorrowHandle(), false);
 
     /// <summary>Exact backend operation timings split by caller and worker execution.</summary>
-    public MkvPipelineStageMetrics StageMetrics => finalStageMetrics ?? ReadStageMetrics();
+    public MkvPipelineStageMetrics StageMetrics => finalStageMetrics ??
+        PipelineMetricsReader.ReadStageMetrics(BorrowHandle(), false);
 
     /// <summary>Exclusive conversion, codec, container and GPU-wait host timings.</summary>
     public MkvPipelineComponentMetrics ComponentMetrics =>
-        finalComponentMetrics ?? ReadComponentMetrics();
+        finalComponentMetrics ?? PipelineMetricsReader.ReadComponentMetrics(
+            BorrowHandle(), false);
 
     /// <summary>Copy/share operations observed at mkvcodec-controlled boundaries.</summary>
     public MkvCopyEdgeMetrics CopyEdgeMetrics =>
-        finalCopyEdgeMetrics ?? ReadCopyEdgeMetrics();
+        finalCopyEdgeMetrics ?? PipelineMetricsReader.ReadCopyEdgeMetrics(
+            BorrowHandle(), false);
 
-    private MkvCopyEdgeMetrics ReadCopyEdgeMetrics()
+    private nint BorrowHandle()
     {
         ObjectDisposedException.ThrowIf(handle is null || handle.IsClosed, this);
-        var metrics = new MkvCopyEdgeMetrics {
-            StructSize = checked((uint)Marshal.SizeOf<MkvCopyEdgeMetrics>()),
-            StructVersion = 1
-        };
-        MkvCodecInfo.ThrowIfFailed(NativeMethods.mkvc_decoder_get_copy_edge_metrics(
-            handle!.DangerousGetHandle(), ref metrics));
-        return metrics;
-    }
-
-    private MkvPipelineComponentMetrics ReadComponentMetrics()
-    {
-        ObjectDisposedException.ThrowIf(handle is null || handle.IsClosed, this);
-        var metrics = new MkvPipelineComponentMetrics {
-            StructSize = checked((uint)Marshal.SizeOf<MkvPipelineComponentMetrics>()),
-            StructVersion = 1
-        };
-        MkvCodecInfo.ThrowIfFailed(NativeMethods.mkvc_decoder_get_component_metrics(
-            handle!.DangerousGetHandle(), ref metrics));
-        return metrics;
-    }
-
-    private MkvPipelineStageMetrics ReadStageMetrics()
-    {
-        ObjectDisposedException.ThrowIf(handle is null || handle.IsClosed, this);
-        var metrics = new MkvPipelineStageMetrics {
-            StructSize = checked((uint)Marshal.SizeOf<MkvPipelineStageMetrics>()),
-            StructVersion = 1
-        };
-        MkvCodecInfo.ThrowIfFailed(NativeMethods.mkvc_decoder_get_stage_metrics(
-            handle!.DangerousGetHandle(), ref metrics));
-        return metrics;
-    }
-
-    private MkvPipelineMetrics ReadMetrics()
-    {
-        ObjectDisposedException.ThrowIf(handle is null || handle.IsClosed, this);
-        var metrics = new MkvPipelineMetrics {
-            StructSize = checked((uint)Marshal.SizeOf<MkvPipelineMetrics>()),
-            StructVersion = 1
-        };
-        MkvCodecInfo.ThrowIfFailed(
-            NativeMethods.mkvc_decoder_get_metrics(handle!.DangerousGetHandle(), ref metrics));
-        return metrics;
+        return handle!.DangerousGetHandle();
     }
 
     public void Dispose()
@@ -321,10 +272,13 @@ public sealed class MkvVideoCapture : IDisposable
         {
             MkvResult result = NativeMethods.mkvc_decoder_close(handle.DangerousGetHandle());
             try {
-                finalMetrics = ReadMetrics();
-                finalStageMetrics = ReadStageMetrics();
-                finalComponentMetrics = ReadComponentMetrics();
-                finalCopyEdgeMetrics = ReadCopyEdgeMetrics();
+                nint nativeHandle = handle.DangerousGetHandle();
+                finalMetrics = PipelineMetricsReader.ReadMetrics(nativeHandle, false);
+                finalStageMetrics = PipelineMetricsReader.ReadStageMetrics(nativeHandle, false);
+                finalComponentMetrics = PipelineMetricsReader.ReadComponentMetrics(
+                    nativeHandle, false);
+                finalCopyEdgeMetrics = PipelineMetricsReader.ReadCopyEdgeMetrics(
+                    nativeHandle, false);
             }
             finally
             {

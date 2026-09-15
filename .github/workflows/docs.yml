@@ -28,7 +28,7 @@ jobs:
       - name: Validate stable C ABI
         run: python -m unittest tests/test_abi_guard.py
       - name: Validate language bindings
-        run: python -m unittest tests/test_binding_guard.py tests/test_generate_bindings.py tests/test_python_package_layout.py
+        run: python -m unittest tests/test_binding_guard.py tests/test_generate_bindings.py tests/test_python_package_layout.py tests/test_dotnet_package_layout.py
       - name: Test docgen
         run: python -m unittest tests/test_docgen.py
       - name: Test .NET pool soak report gate

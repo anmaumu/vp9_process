@@ -45,6 +45,15 @@ CPU borrowed view/array、encoder config、frame入出力view、metrics読取、
 rootの全private Python moduleはv0.1互換importだけを担うthin shimとなり、function/class実装を
 持たない。source構造testでこの境界と各正本の存在を固定した。
 
+## 2026-09-15: Layered .NET SDK source layout
+
+.NET SDKを`Api/`、`Native/`、`Interop/`、`Internal/`へ責務分割し、公開namespace
+`MkvCodec`と利用側source compatibilityを維持した。P/Invoke methods/typesの生成先とbinding
+guardを`Native/`へ移し、SafeHandle実装型をpublic APIからinternalへ縮小した。CPU frame value
+typesをCapture実装から分離し、Capture/Writerで重複していた4種類のpipeline metrics
+marshallingを`Internal/PipelineMetricsReader`へ統合した。source layout test、warning-free
+Release build、CPU/pool/async managed smokeで固定する。
+
 ## 2026-09-15: Python legacy compatibility module removal
 
 4層packageへの移行完了後に残していたrootのprivate compatibility shimをすべて削除した。
