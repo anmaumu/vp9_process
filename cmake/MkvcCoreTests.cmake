@@ -261,7 +261,7 @@ function(mkvc_add_dotnet_tests vp9_fixture)
         HINTS "${CMAKE_CURRENT_SOURCE_DIR}/build/dotnet-sdk" REQUIRED)
     add_test(NAME mkvc_dotnet_build
         COMMAND "${MKVC_DOTNET_EXECUTABLE}" build
-            "${CMAKE_CURRENT_SOURCE_DIR}/dotnet/MkvCodec.Smoke/MkvCodec.Smoke.csproj"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/dotnet/Smoke/MkvCodec.Smoke.csproj"
             --configuration Release)
     set_tests_properties(mkvc_dotnet_build PROPERTIES RESOURCE_LOCK dotnet_build)
     add_test(NAME mkvc_dotnet_smoke
@@ -269,13 +269,13 @@ function(mkvc_add_dotnet_tests vp9_fixture)
             "MKVC_LIBRARY_PATH=$<TARGET_FILE:mkvcodec>"
             "MKVC_TEST_ENCODER_DELAY_MS=100"
             "${MKVC_DOTNET_EXECUTABLE}" run
-            --project "${CMAKE_CURRENT_SOURCE_DIR}/dotnet/MkvCodec.Smoke/MkvCodec.Smoke.csproj"
+            --project "${CMAKE_CURRENT_SOURCE_DIR}/tests/dotnet/Smoke/MkvCodec.Smoke.csproj"
             --configuration Release --no-build)
     set_tests_properties(mkvc_dotnet_smoke PROPERTIES DEPENDS mkvc_dotnet_build)
 
     add_test(NAME mkvc_dotnet_pool_soak_build
         COMMAND "${MKVC_DOTNET_EXECUTABLE}" build
-            "${CMAKE_CURRENT_SOURCE_DIR}/dotnet/MkvCodec.PoolSoak/MkvCodec.PoolSoak.csproj"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tests/dotnet/PoolSoak/MkvCodec.PoolSoak.csproj"
             --configuration Release)
     set_tests_properties(mkvc_dotnet_pool_soak_build PROPERTIES
         RESOURCE_LOCK dotnet_build)
@@ -284,7 +284,7 @@ function(mkvc_add_dotnet_tests vp9_fixture)
             "MKVC_LIBRARY_PATH=$<TARGET_FILE:mkvcodec>"
             "MKVC_TEST_ENCODER_DELAY_MS=10"
             "${MKVC_DOTNET_EXECUTABLE}" run
-            --project "${CMAKE_CURRENT_SOURCE_DIR}/dotnet/MkvCodec.PoolSoak/MkvCodec.PoolSoak.csproj"
+            --project "${CMAKE_CURRENT_SOURCE_DIR}/tests/dotnet/PoolSoak/MkvCodec.PoolSoak.csproj"
             --configuration Release --no-build --
             --duration-seconds 1 --minimum-frames 8 --minimum-peak-in-use 2
             --report "${CMAKE_CURRENT_BINARY_DIR}/dotnet_pool_soak_smoke.json")
@@ -303,7 +303,7 @@ function(mkvc_add_dotnet_tests vp9_fixture)
     if(vp9_fixture AND (MKVC_ENABLE_INTEL_ONEVPL OR MKVC_ENABLE_NVIDIA))
         add_test(NAME mkvc_dotnet_gpu_build
             COMMAND "${MKVC_DOTNET_EXECUTABLE}" build
-                "${CMAKE_CURRENT_SOURCE_DIR}/dotnet/MkvCodec.GpuSmoke/MkvCodec.GpuSmoke.csproj"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/dotnet/GpuSmoke/MkvCodec.GpuSmoke.csproj"
                 --configuration Release)
         set_tests_properties(mkvc_dotnet_gpu_build PROPERTIES
             RESOURCE_LOCK dotnet_build)
@@ -312,7 +312,7 @@ function(mkvc_add_dotnet_tests vp9_fixture)
                 COMMAND ${CMAKE_COMMAND} -E env
                     "MKVC_LIBRARY_PATH=$<TARGET_FILE:mkvcodec>"
                     "${MKVC_DOTNET_EXECUTABLE}" run
-                    --project "${CMAKE_CURRENT_SOURCE_DIR}/dotnet/MkvCodec.GpuSmoke/MkvCodec.GpuSmoke.csproj"
+                    --project "${CMAKE_CURRENT_SOURCE_DIR}/tests/dotnet/GpuSmoke/MkvCodec.GpuSmoke.csproj"
                     --configuration Release --no-build --
                     "${vp9_fixture}" "${CMAKE_CURRENT_BINARY_DIR}/dotnet_intel_gpu.webm"
                     Intel Vp9)
@@ -325,7 +325,7 @@ function(mkvc_add_dotnet_tests vp9_fixture)
                 COMMAND ${CMAKE_COMMAND} -E env
                     "MKVC_LIBRARY_PATH=$<TARGET_FILE:mkvcodec>"
                     "${MKVC_DOTNET_EXECUTABLE}" run
-                    --project "${CMAKE_CURRENT_SOURCE_DIR}/dotnet/MkvCodec.GpuSmoke/MkvCodec.GpuSmoke.csproj"
+                    --project "${CMAKE_CURRENT_SOURCE_DIR}/tests/dotnet/GpuSmoke/MkvCodec.GpuSmoke.csproj"
                     --configuration Release --no-build --
                     "${vp9_fixture}" "${CMAKE_CURRENT_BINARY_DIR}/dotnet_nvidia_gpu.webm"
                     Nvidia Av1)

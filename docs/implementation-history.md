@@ -53,6 +53,9 @@ guardを`Native/`へ移し、SafeHandle実装型をpublic APIからinternalへ�
 typesをCapture実装から分離し、Capture/Writerで重複していた4種類のpipeline metrics
 marshallingを`Internal/PipelineMetricsReader`へ統合した。source layout test、warning-free
 Release build、CPU/pool/async managed smokeで固定する。
+製品SDKと実行testの境界も明確化し、`MkvCodec.Smoke`、`MkvCodec.GpuSmoke`、
+`MkvCodec.PoolSoak`は`tests/dotnet/{Smoke,GpuSmoke,PoolSoak}`へ移した。CMakeのbuild/run
+登録とProjectReferenceは新配置を正本とする。
 
 ## 2026-09-15: Python legacy compatibility module removal
 

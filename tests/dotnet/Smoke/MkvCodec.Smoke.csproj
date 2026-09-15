@@ -6,7 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
   <ItemGroup Condition="'$(MkvCodecUsePackage)' != 'true'">
-    <ProjectReference Include="..\MkvCodec\MkvCodec.csproj" />
+    <ProjectReference Include="..\..\..\dotnet\MkvCodec\MkvCodec.csproj" />
   </ItemGroup>
   <ItemGroup Condition="'$(MkvCodecUsePackage)' == 'true'">
     <PackageReference Include="MkvCodec" Version="0.1.0" />

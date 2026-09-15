@@ -7,6 +7,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SDK = ROOT / "dotnet" / "MkvCodec"
+DOTNET_TESTS = ROOT / "tests" / "dotnet"
 
 
 class DotnetPackageLayoutTests(unittest.TestCase):
@@ -38,6 +39,17 @@ class DotnetPackageLayoutTests(unittest.TestCase):
     def test_project_root_contains_no_implementation_classes(self) -> None:
         sources = sorted(path.name for path in SDK.glob("*.cs"))
         self.assertEqual(sources, ["GlobalUsings.cs"])
+
+    def test_executable_harnesses_live_under_tests(self) -> None:
+        expected = {
+            "Smoke/MkvCodec.Smoke.csproj",
+            "GpuSmoke/MkvCodec.GpuSmoke.csproj",
+            "PoolSoak/MkvCodec.PoolSoak.csproj",
+        }
+        missing = sorted(path for path in expected if not (DOTNET_TESTS / path).is_file())
+        self.assertEqual(missing, [])
+        product_projects = sorted(path.name for path in (ROOT / "dotnet").glob("*.csproj"))
+        self.assertEqual(product_projects, [])
 
     def test_native_handles_are_not_public_api(self) -> None:
         source = (SDK / "Native" / "SafeHandles.cs").read_text(encoding="utf-8")
