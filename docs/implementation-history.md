@@ -48,7 +48,7 @@ rootの全private Python moduleはv0.1互換importだけを担うthin shimとな
 ## 2026-09-15: Layered .NET SDK source layout
 
 .NET SDKを`Api/`、`Native/`、`Interop/`、`Internal/`へ責務分割し、公開namespace
-`MkvCodec`と利用側source compatibilityを維持した。P/Invoke methods/typesの生成先とbinding
+`MkvCodec`と高水準facadeのsource compatibilityを維持した。P/Invoke methods/typesの生成先とbinding
 guardを`Native/`へ移し、SafeHandle実装型をpublic APIからinternalへ縮小した。CPU frame value
 typesをCapture実装から分離し、Capture/Writerで重複していた4種類のpipeline metrics
 marshallingを`Internal/PipelineMetricsReader`へ統合した。source layout test、warning-free
