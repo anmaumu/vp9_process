@@ -42,6 +42,16 @@ decodeを含む直列合計は0.68661秒、145.64 fpsである。RGB変換の5.2
 fused OpenCL/SYCL kernelである。現値はsingle-machine qualification observationであり、
 overlap、複数run、bounded poolを含むrelease baselineではない。
 
+VA NV12のY/UV planeを直接読み、線形USMのpacked RGBAへ書く融合OpenCL kernelも
+qualification実装した。Arc OpenCL VA sharingが外部RGBA surfaceを拒否したため、
+width×4 NV12 surfaceのluma planeをRGBA carrierとして利用し、chroma planeは未使用とした。
+1080p/100 frame、warm-up後5 run中央値は融合処理1313.14 fps（0.762 ms/frame）、
+decode込み直列543.35 fps（1.840 ms/frame）であり、従来の171.00/142.67 fpsから
+それぞれ7.68倍/3.81倍となった。BT.601/709/2020×limited/fullのCPU oracle差は
+128x128と1080pの全条件でp99=0、max/channel max=1である。このcarrier方式、
+per-frame clFinish、単一output再利用はqualification限定で、public adapter化には
+標準output共有、event completion、bounded pool、異なるdecode frameの連続試験が必要である。
+
 ## 2026-09-16: Backend-neutral GPU RGB processor contract
 
 Status: `PARTIAL`

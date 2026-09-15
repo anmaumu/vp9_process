@@ -159,8 +159,51 @@ def copy_nv12(source, output, width, height, *, frame_index=None, session=None):
         )
 
 
+def convert_nv12_rgba(
+    source,
+    output,
+    width,
+    height,
+    coefficients,
+    *,
+    frame_index=None,
+    session=None,
+):
+    """Convert shared VA NV12 directly into a packed RGBA carrier plane."""
+    arguments = {"coefficients": tuple(float(value) for value in coefficients)}
+    if session is None:
+        return _invert_luma(
+            source,
+            output,
+            width,
+            height,
+            frame_index=frame_index,
+            mode="rgba",
+            **arguments,
+        )
+    with session.use():
+        return _invert_luma(
+            source,
+            output,
+            width,
+            height,
+            frame_index=frame_index,
+            session=session,
+            mode="rgba",
+            **arguments,
+        )
+
+
 def _invert_luma(
-    source, output, width, height, *, frame_index=None, session=None, mode="invert"
+    source,
+    output,
+    width,
+    height,
+    *,
+    frame_index=None,
+    session=None,
+    mode="invert",
+    coefficients=None,
 ):
     """Write an inverted Y plane and neutral UV into another shared VA surface.
 
@@ -250,6 +293,30 @@ def _invert_luma(
         int2 p = (int2)(get_global_id(0), get_global_id(1));
         write_imagef(dst, p, read_imagef(src, smp, p));
     }
+    __kernel void nv12_rgba(
+        read_only image2d_t y_plane,
+        read_only image2d_t uv_plane,
+        write_only image2d_t dst,
+        float y_offset,
+        float y_multiplier,
+        float red_v,
+        float green_u,
+        float green_v,
+        float blue_u
+    ) {
+        int2 p = (int2)(get_global_id(0), get_global_id(1));
+        float y = (read_imagef(y_plane, smp, p).x * 255.0f - y_offset)
+            * y_multiplier;
+        float2 uv = read_imagef(uv_plane, smp, p / 2).xy * 255.0f - 128.0f;
+        float r = clamp(y + red_v * uv.y, 0.0f, 255.0f);
+        float g = clamp(y + green_u * uv.x + green_v * uv.y, 0.0f, 255.0f);
+        float b = clamp(y + blue_u * uv.x, 0.0f, 255.0f);
+        int x = p.x * 4;
+        write_imagef(dst, (int2)(x, p.y), r / 255.0f);
+        write_imagef(dst, (int2)(x + 1, p.y), g / 255.0f);
+        write_imagef(dst, (int2)(x + 2, p.y), b / 255.0f);
+        write_imagef(dst, (int2)(x + 3, p.y), 1.0f);
+    }
     """
     with ExitStack() as stack:
         error = I()
@@ -266,7 +333,7 @@ def _invert_luma(
         stage("context_queue")
         cached = session.resources if session is not None else None
         if cached:
-            context, queue, invert, neutral, copy_y, copy_uv = cached
+            context, queue, invert, neutral, copy_y, copy_uv, nv12_rgba = cached
         else:
             context = own(context_fn(props, 1, ct.byref(device), None, None, ct.byref(error)),
                           "clReleaseContext", True)
@@ -275,13 +342,15 @@ def _invert_luma(
         stage("image_share")
         src = own(create_image(context, 4, ct.byref(source_id), 0, ct.byref(error)), "clReleaseMemObject")
         src_uv = None
-        if mode == "copy":
+        if mode in ("copy", "rgba"):
             src_uv = own(
                 create_image(context, 4, ct.byref(source_id), 1, ct.byref(error)),
                 "clReleaseMemObject",
             )
         dst = own(create_image(context, 2, ct.byref(output.surface), 0, ct.byref(error)), "clReleaseMemObject")
-        uv = own(create_image(context, 2, ct.byref(output.surface), 1, ct.byref(error)), "clReleaseMemObject")
+        uv = None
+        if mode != "rgba":
+            uv = own(create_image(context, 2, ct.byref(output.surface), 1, ct.byref(error)), "clReleaseMemObject")
         if not cached:
             stage("program_create")
             program = own(program_fn(context, 1, (ct.c_char_p * 1)(code), None, ct.byref(error)),
@@ -296,35 +365,63 @@ def _invert_luma(
             neutral = own(kernel_fn(program, b"neutral", ct.byref(error)), "clReleaseKernel", True)
             copy_y = own(kernel_fn(program, b"copy_y", ct.byref(error)), "clReleaseKernel", True)
             copy_uv = own(kernel_fn(program, b"copy_uv", ct.byref(error)), "clReleaseKernel", True)
+            nv12_rgba = own(
+                kernel_fn(program, b"nv12_rgba", ct.byref(error)),
+                "clReleaseKernel",
+                True,
+            )
             if session is not None:
-                session.resources = context, queue, invert, neutral, copy_y, copy_uv
+                session.resources = (
+                    context,
+                    queue,
+                    invert,
+                    neutral,
+                    copy_y,
+                    copy_uv,
+                    nv12_rgba,
+                )
                 session.builds += 1
-        kernels = (
-            ((copy_y, (src, dst)), (copy_uv, (src_uv, uv)))
-            if mode == "copy"
-            else ((invert, (src, dst)), (neutral, (uv,)))
-        )
+        if mode == "copy":
+            kernels = ((copy_y, (src, dst)), (copy_uv, (src_uv, uv)))
+        elif mode == "rgba":
+            kernels = ((nv12_rgba, (src, src_uv, dst)),)
+        else:
+            kernels = ((invert, (src, dst)), (neutral, (uv,)))
         for kernel, values in kernels:
             for index, value in enumerate(values):
                 argument = P(value)
                 check(set_arg(kernel, index, ct.sizeof(argument), ct.byref(argument)))
-        object_values = (src, src_uv, dst, uv) if mode == "copy" else (src, dst, uv)
+        if mode == "rgba":
+            if coefficients is None or len(coefficients) != 6:
+                raise ValueError("RGBA conversion requires six coefficients")
+            for index, value in enumerate(coefficients, start=3):
+                argument = ct.c_float(value)
+                check(set_arg(nv12_rgba, index, ct.sizeof(argument), ct.byref(argument)))
+        object_values = (
+            (src, src_uv, dst)
+            if mode == "rgba"
+            else ((src, src_uv, dst, uv) if mode == "copy" else (src, dst, uv))
+        )
         objects = (P * len(object_values))(*object_values)
         stage("image_acquire")
         check(acquire(queue, len(object_values), objects, 0, None, None))
         try:
-            for kernel, size, name in (
-                (
-                    copy_y if mode == "copy" else invert,
-                    (width, height),
-                    "copy_y" if mode == "copy" else "invert",
-                ),
-                (
-                    copy_uv if mode == "copy" else neutral,
-                    (width // 2, height // 2),
-                    "copy_uv" if mode == "copy" else "neutral",
-                ),
-            ):
+            if mode == "rgba":
+                operations = ((nv12_rgba, (width, height), "nv12_rgba"),)
+            else:
+                operations = (
+                    (
+                        copy_y if mode == "copy" else invert,
+                        (width, height),
+                        "copy_y" if mode == "copy" else "invert",
+                    ),
+                    (
+                        copy_uv if mode == "copy" else neutral,
+                        (width // 2, height // 2),
+                        "copy_uv" if mode == "copy" else "neutral",
+                    ),
+                )
+            for kernel, size, name in operations:
                 stage("enqueue_" + name)
                 check(
                     enqueue(

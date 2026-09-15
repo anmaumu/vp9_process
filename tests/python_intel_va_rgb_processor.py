@@ -40,9 +40,11 @@ from intel_va_opencl_support import (  # noqa: E402
     OpenClReuseSession,
     bind,
     check,
+    convert_nv12_rgba,
     copy_nv12,
 )
 from intel_va_prime_support import Attribute, Prime  # noqa: E402
+from mkvcodec.interop._color import resolve_yuv_conversion  # noqa: E402
 
 dlpack_api.extension = _dlpack
 
@@ -259,6 +261,56 @@ try:
         "max_abs": int(nv12_difference.max()),
     }
     assert nv12_metrics["max_abs"] <= 1, nv12_metrics
+    # The Intel OpenCL VA-sharing implementation rejects external RGBA VA
+    # surfaces. Use the luma plane of a width*4 NV12 carrier as packed RGBA;
+    # its unused chroma plane makes the required backing size 6 bytes/pixel.
+    rgba_required_bytes = width * height * 6
+    rgba_allocation_bytes = (
+        (rgba_required_bytes + 2 * 1024**2 - 1) // (2 * 1024**2)
+    ) * (2 * 1024**2)
+    rgba_allocation = ExportableAllocation(queue, library, rgba_allocation_bytes)
+    rgba_memory = dpctl.memory.as_usm_memory(rgba_allocation)
+    rgba_view = dpnp.tensor.usm_ndarray(
+        (height, width, 4), dtype="u1", buffer=rgba_memory
+    )
+    rgba = dpnp.asarray(rgba_view, copy=False)
+    rgba_owner = UsmVaOwner(source, rgba, library, width * 4, height)
+    fused_results = []
+    fused_identity = None
+    for fused_space in ("bt601", "bt709", "bt2020"):
+        for fused_range in ("limited", "full"):
+            _, _, coefficients = resolve_yuv_conversion(
+                fused_space, fused_range, height
+            )
+            fused_identity = convert_nv12_rgba(
+                source,
+                rgba_owner,
+                width,
+                height,
+                coefficients,
+            )
+            fused_actual = dpnp.asnumpy(rgba)[..., :3]
+            fused_expected = reference_rgb(
+                cpu_nv12, width, height, fused_space, fused_range
+            )
+            fused_difference = np.abs(
+                fused_actual.astype(np.int16) - fused_expected.astype(np.int16)
+            )
+            fused_metrics = {
+                "color_space": fused_space,
+                "color_range": fused_range,
+                "mean_abs": float(fused_difference.mean()),
+                "p99_abs": float(np.percentile(fused_difference, 99)),
+                "max_abs": int(fused_difference.max()),
+                "channel_max_abs": [
+                    int(fused_difference[..., channel].max())
+                    for channel in range(3)
+                ],
+            }
+            assert fused_metrics["max_abs"] <= 1, fused_metrics
+            assert fused_metrics["p99_abs"] <= 1, fused_metrics
+            fused_results.append(fused_metrics)
+    _, _, fused_coefficients = resolve_yuv_conversion("bt709", "limited", height)
     pointer = int(nv12.__sycl_usm_array_interface__["data"][0])
     usm_frame = mkvcodec.GpuFrame.import_usm_nv12(
         pointer=pointer,
@@ -311,6 +363,7 @@ try:
             raise ValueError("MKVC_INTEL_VA_RGB_BENCH_FRAMES must be positive")
         materialize_seconds = 0.0
         rgb_seconds = 0.0
+        fused_seconds = 0.0
         with OpenClReuseSession() as session:
             # Build and warm OpenCL/dpnp kernels outside the timed interval.
             copy_nv12(source, owner, width, height, session=session)
@@ -357,6 +410,27 @@ try:
                 benchmark_image.close()
                 benchmark_frame.close()
                 rgb_seconds += time.perf_counter() - started
+        with OpenClReuseSession() as fused_session:
+            convert_nv12_rgba(
+                source,
+                rgba_owner,
+                width,
+                height,
+                fused_coefficients,
+                session=fused_session,
+            )
+            for index in range(benchmark_frames):
+                started = time.perf_counter()
+                convert_nv12_rgba(
+                    source,
+                    rgba_owner,
+                    width,
+                    height,
+                    fused_coefficients,
+                    frame_index=index,
+                    session=fused_session,
+                )
+                fused_seconds += time.perf_counter() - started
         decode_frames = 0
         started = time.perf_counter()
         with mkvcodec.VideoCapture(
@@ -378,6 +452,7 @@ try:
                 f"benchmark source ended after {decode_frames}/{benchmark_frames} frames"
             )
         full_serial_seconds = decode_seconds + materialize_seconds + rgb_seconds
+        fused_full_serial_seconds = decode_seconds + fused_seconds
         benchmark = {
             "frames": benchmark_frames,
             "decode_frames": decode_frames,
@@ -387,23 +462,32 @@ try:
             "serial_pipeline_fps": benchmark_frames
             / (materialize_seconds + rgb_seconds),
             "full_serial_fps": benchmark_frames / full_serial_seconds,
+            "fused_va_rgb_fps": benchmark_frames / fused_seconds,
+            "fused_full_serial_fps": benchmark_frames / fused_full_serial_seconds,
             "decode_seconds": decode_seconds,
             "materialize_seconds": materialize_seconds,
             "rgb_seconds": rgb_seconds,
             "full_serial_seconds": full_serial_seconds,
+            "fused_va_rgb_seconds": fused_seconds,
+            "fused_full_serial_seconds": fused_full_serial_seconds,
         }
+    rgba_owner.close()
     owner.close()
     source.close()
     del usm_frame, source, owner, nv12, view, memory, allocation
     gc.collect()
     assert owner_ref() is None
 except (OSError, RuntimeError, ValueError) as exception:
+    if os.environ.get("MKVC_INTEL_VA_RGB_DEBUG") == "1":
+        raise
     skip(str(exception))
 
 print(
     json.dumps(
         {
             "device": identity,
+            "fused_device": fused_identity,
+            "fused_pixel_metrics": fused_results,
             "benchmark": benchmark,
             "nv12_materialization_metrics": nv12_metrics,
             "pixel_metrics": results,

@@ -195,3 +195,32 @@ dpnp expressions, but its benefit must be measured before making a performance
 claim. This qualification bridge still requires product packaging, a bounded
 pool/backpressure implementation, overlapped-pipeline measurement, and an
 approved multi-run baseline before it can become a release performance gate.
+
+### Fused Intel VA-to-RGB experiment
+
+A qualification-only OpenCL kernel now reads both planes of the decoded VA
+NV12 surface and writes packed RGBA directly into exportable linear Level Zero
+USM. It removes the intermediate linear-NV12 copy and all high-level dpnp color
+expressions. The Arc OpenCL VA-sharing implementation rejected an externally
+imported RGBA VA surface, so the experiment exposes the output allocation as
+the luma plane of a width-times-four NV12 carrier. The chroma plane is unused;
+this is an implementation workaround to measure the fused path, not the final
+public representation.
+
+The following values are medians of five warmed, host-synchronized 100-frame
+runs on the same Arc B580 and VP9 1920x1080 fixture:
+
+| Path | Throughput | Time per frame | Relative to previous path |
+|---|---:|---:|---:|
+| Previous VA-to-USM-to-dpnp-RGB processing | 171.00 fps | 5.848 ms | 1.00x |
+| Fused VA-NV12-to-USM-RGBA kernel | 1,313.14 fps | 0.762 ms | 7.68x |
+| Previous decode plus RGB, serial | 142.67 fps | 7.009 ms | 1.00x |
+| Decode plus fused RGB, serial | 543.35 fps | 1.840 ms | 3.81x |
+
+The independent CPU oracle was checked at 128x128 and 1920x1080 for BT.601,
+BT.709, and BT.2020 in limited and full range. Every case had p99 absolute byte
+difference 0 and maximum/channel-maximum difference 1. The small maximum comes
+from OpenCL floating-point/UNORM rounding and satisfies the existing one-byte
+acceptance limit. Product integration still requires a bounded output pool,
+event-based completion instead of per-frame `clFinish`, a standard output
+sharing representation, and end-to-end processing of distinct decoded frames.
