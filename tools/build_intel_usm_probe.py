@@ -1,4 +1,5 @@
-"""Build the Linux host-only SYCL qualification helper, never a shipped library."""
+"""Build the optional Linux SYCL/Level Zero runtime bridge."""
+
 import argparse
 from pathlib import Path
 import subprocess
@@ -18,13 +19,34 @@ def main():
     for path in (root / "include/sycl/sycl.hpp", root / "lib/libsycl.so", headers / "CL/cl.h"):
         if not path.is_file():
             parser.error(f"Missing prerequisite: {path}")
-    source = Path(__file__).resolve().parents[1] / "tests/probe_sycl_native.cpp"
+    source = Path(__file__).resolve().parents[1] / "src/gpu/intel/sycl_runtime_bridge.cpp"
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    subprocess.run(["g++", "-std=c++17", "-DSYCL_DISABLE_FSYCL_SYCLHPP_WARNING",
-                    "-Wno-deprecated-declarations", "-fPIC", "-shared", "-Wall", "-Wextra", "-Werror",
-                    "-isystem", str(headers), "-isystem", str(root / "include"),
-                    "-isystem", str(root / "include/sycl"), str(source),
-                    "-L" + str(root / "lib"), "-lsycl", "-lze_loader", "-o", str(args.output)], check=True)
+    subprocess.run(
+        [
+            "g++",
+            "-std=c++17",
+            "-DSYCL_DISABLE_FSYCL_SYCLHPP_WARNING",
+            "-Wno-deprecated-declarations",
+            "-fPIC",
+            "-shared",
+            "-Wall",
+            "-Wextra",
+            "-Werror",
+            "-isystem",
+            str(headers),
+            "-isystem",
+            str(root / "include"),
+            "-isystem",
+            str(root / "include/sycl"),
+            str(source),
+            "-L" + str(root / "lib"),
+            "-lsycl",
+            "-lze_loader",
+            "-o",
+            str(args.output),
+        ],
+        check=True,
+    )
 
 
 if __name__ == "__main__":

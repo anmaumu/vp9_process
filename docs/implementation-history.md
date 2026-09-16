@@ -52,6 +52,24 @@ decode込み直列543.35 fps（1.840 ms/frame）であり、従来の171.00/142.
 per-frame clFinish、単一output再利用はqualification限定で、public adapter化には
 標準output共有、event completion、bounded pool、異なるdecode frameの連続試験が必要である。
 
+その後、融合経路をoptional `intel-opencl` product adapterへ移した。SYCL/Level Zero
+companionはCoreから分離し、RGB/RGBAのchannel数別に連続device-USMと内部VA carrierを
+capacity固定poolへ事前確保する。submitはshared image acquire→fused kernel→release event→
+`clFlush`で返り、per-frame `clFinish`を廃止した。Python imageとUSM memory ownerのtokenで
+slotを参照計数し、image close後もdpnp DLPack consumerが生存中ならcapacity-one poolが
+exhaustedを返し、consumer解放後だけslotを再利用する実機試験に合格した。
+Arc B580で異なるVP9 1080p decode frameを3-slotで100枚処理した5 run中央値は
+1049.69 fps（0.953 ms/frame）、BT.709 limited CPU oracle差はp99=0、max=1である。
+DLPack exportはv0.1ではOpenCL eventをhost waitする。packed rowが64-byte境界でない
+幅160ではcarrier pitchと論理tensor row strideを分離し、4 channel形式すべてmax=1、
+p99=0を実機確認した。native core、DLPack extension、SYCL companion、legal payload、
+SPDX SBOMを含むqualification wheelを生成・検査し、展開wheelだけから同じ実機変換に
+成功した。same-process soak harnessの2秒smokeは20 batch/40 frame、RSS約619 MiB、
+FD 8、thread 6で安定し、Arc VRAM観測にも合格した。続く30分認定は
+1800.002秒、17,577 batch、35,154 frameを完走した。post-close RSS high-water増分は
+1,941,504 bytes、FD/thread増分は0、Arc active/post-close VRAM high-water増分は
+4,259,840 bytesで、いずれもbudget内であった。残件はcross-API device-event dependencyである。
+
 ## 2026-09-16: Backend-neutral GPU RGB processor contract
 
 Status: `PARTIAL`

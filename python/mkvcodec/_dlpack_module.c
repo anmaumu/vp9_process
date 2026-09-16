@@ -49,6 +49,64 @@ static PyObject* capsule_from_address(PyObject* self, PyObject* argument) {
     return PyCapsule_New(address, "dltensor", capsule_destructor);
 }
 
+typedef struct RetainedOwnerRecord {
+    DLManagedTensor* tensor;
+    void (*source_deleter)(DLManagedTensor* self);
+    PyObject* owner;
+    struct RetainedOwnerRecord* next;
+} RetainedOwnerRecord;
+
+static RetainedOwnerRecord* retained_owners = NULL;
+
+static void retained_owner_delete(DLManagedTensor* tensor) {
+    RetainedOwnerRecord* retained = NULL;
+    if (Py_IsInitialized()) {
+        PyGILState_STATE state = PyGILState_Ensure();
+        RetainedOwnerRecord** link = &retained_owners;
+        while (*link != NULL) {
+            if ((*link)->tensor == tensor) {
+                retained = *link;
+                *link = retained->next;
+                break;
+            }
+            link = &(*link)->next;
+        }
+        if (retained != NULL) Py_DECREF(retained->owner);
+        if (retained != NULL && retained->source_deleter != NULL)
+            retained->source_deleter(tensor);
+        PyGILState_Release(state);
+    }
+    if (retained == NULL) return;
+    free(retained);
+}
+
+static PyObject* retain_owner(PyObject* self, PyObject* arguments) {
+    (void)self;
+    PyObject* capsule = NULL;
+    PyObject* owner = NULL;
+    if (!PyArg_ParseTuple(arguments, "OO:retain_owner", &capsule, &owner))
+        return NULL;
+    if (!PyCapsule_IsValid(capsule, "dltensor")) {
+        PyErr_SetString(PyExc_ValueError, "retain_owner requires an unused dltensor capsule");
+        return NULL;
+    }
+    DLManagedTensor* source =
+        (DLManagedTensor*)PyCapsule_GetPointer(capsule, "dltensor");
+    if (source == NULL) return NULL;
+    RetainedOwnerRecord* retained =
+        (RetainedOwnerRecord*)calloc(1, sizeof(*retained));
+    if (retained == NULL) return PyErr_NoMemory();
+    retained->tensor = source;
+    retained->source_deleter = source->deleter;
+    Py_INCREF(owner);
+    retained->owner = owner;
+    retained->next = retained_owners;
+    retained_owners = retained;
+    source->deleter = retained_owner_delete;
+    Py_INCREF(capsule);
+    return capsule;
+}
+
 typedef struct DLPackOwner {
     DLManagedTensor* tensor;
 } DLPackOwner;
@@ -191,6 +249,8 @@ static PyObject* external_owner_cancel(PyObject* self, PyObject* argument) {
 static PyMethodDef methods[] = {
     {"capsule_from_address", capsule_from_address, METH_O,
      "Wrap a native DLManagedTensor pointer in an owned DLPack capsule."},
+    {"retain_owner", retain_owner, METH_VARARGS,
+     "Retain a Python owner until an unused DLPack capsule's deleter runs."},
     {"external_owner_create", external_owner_create, METH_O,
      "Retain a Python owner and return native user-data/release addresses."},
     {"external_owner_cancel", external_owner_cancel, METH_O,

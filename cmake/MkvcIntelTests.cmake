@@ -135,6 +135,23 @@ function(mkvc_add_intel_vp9_fixture_tests vp9_sample)
                 "${MKVC_INTEL_SYCL_HELPER}")
         set_tests_properties(mkvc_python_intel_va_rgb_processor PROPERTIES
             FIXTURES_REQUIRED cpu_vp9_sample SKIP_RETURN_CODE 77 TIMEOUT 120)
+        add_test(NAME mkvc_python_intel_opencl_processor
+            COMMAND "${Python3_EXECUTABLE}"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/python_intel_opencl_processor.py"
+                "$<TARGET_FILE:mkvcodec>" "$<TARGET_FILE_DIR:mkvc_python_dlpack>"
+                "${CMAKE_CURRENT_SOURCE_DIR}/python" "${vp9_sample}"
+                "${MKVC_INTEL_SYCL_HELPER}")
+        set_tests_properties(mkvc_python_intel_opencl_processor PROPERTIES
+            FIXTURES_REQUIRED cpu_vp9_sample SKIP_RETURN_CODE 77 TIMEOUT 120)
+        add_test(NAME mkvc_python_intel_opencl_processor_soak_smoke
+            COMMAND "${Python3_EXECUTABLE}"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tests/python_intel_opencl_processor.py"
+                "$<TARGET_FILE:mkvcodec>" "$<TARGET_FILE_DIR:mkvc_python_dlpack>"
+                "${CMAKE_CURRENT_SOURCE_DIR}/python" "${vp9_sample}"
+                "${MKVC_INTEL_SYCL_HELPER}")
+        set_tests_properties(mkvc_python_intel_opencl_processor_soak_smoke PROPERTIES
+            FIXTURES_REQUIRED cpu_vp9_sample SKIP_RETURN_CODE 77 TIMEOUT 60
+            ENVIRONMENT "MKVC_INTEL_OPENCL_SOAK_SECONDS=2;MKVC_INTEL_OPENCL_SOAK_FRAMES=8;MKVC_INTEL_OPENCL_SOAK_REPORT=${CMAKE_CURRENT_BINARY_DIR}/intel_opencl_processor_soak_smoke.json")
     endif()
 
     if(FFMPEG_EXECUTABLE AND FFPROBE_EXECUTABLE)

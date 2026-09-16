@@ -205,14 +205,14 @@ def reference_rgb(
     v = np.repeat(np.repeat(uv[:, 1::2], 2, axis=0), 2, axis=1).astype(np.float32) - 128.0
     values = (
         y + scale * 2.0 * (1.0 - kr) * v,
-        y
-        - scale * 2.0 * kb * (1.0 - kb) / kg * u
-        - scale * 2.0 * kr * (1.0 - kr) / kg * v,
+        y - scale * 2.0 * kb * (1.0 - kb) / kg * u - scale * 2.0 * kr * (1.0 - kr) / kg * v,
         y + scale * 2.0 * (1.0 - kb) * u,
     )
-    return np.stack(
-        [np.clip(value, 0.0, 255.0) + 0.5 for value in values], axis=-1
-    ).astype(np.int32).astype(np.uint8)
+    return (
+        np.stack([np.clip(value, 0.0, 255.0) + 0.5 for value in values], axis=-1)
+        .astype(np.int32)
+        .astype(np.uint8)
+    )
 
 
 try:
@@ -234,17 +234,19 @@ try:
     source.wait(5000)
     descriptor = source.descriptor
     width, height = int(descriptor["width"]), int(descriptor["height"])
-    required_bytes = width * height * 3 // 2
-    allocation_bytes = ((required_bytes + 2 * 1024**2 - 1) // (2 * 1024**2)) * (
-        2 * 1024**2
-    )
+    nv12_pitch = ((width + 63) // 64) * 64
+    required_bytes = nv12_pitch * height * 3 // 2
+    allocation_bytes = ((required_bytes + 2 * 1024**2 - 1) // (2 * 1024**2)) * (2 * 1024**2)
     allocation = ExportableAllocation(queue, library, allocation_bytes)
     memory = dpctl.memory.as_usm_memory(allocation)
     view = dpnp.tensor.usm_ndarray(
-        (height * 3 // 2, width), dtype="u1", buffer=memory
+        (height * 3 // 2, width),
+        dtype="u1",
+        buffer=memory,
+        strides=(nv12_pitch, 1),
     )
     nv12 = dpnp.asarray(view, copy=False)
-    owner = UsmVaOwner(source, nv12, library, width, height)
+    owner = UsmVaOwner(source, nv12, library, nv12_pitch, height)
     owner_ref = weakref.ref(owner)
     identity = copy_nv12(source, owner, width, height)
     materialized = dpnp.asnumpy(nv12)
@@ -252,9 +254,7 @@ try:
     cpu_nv12[:height, :width] = cpu_frame.y
     cpu_nv12[height:, 0::2] = cpu_frame.u
     cpu_nv12[height:, 1::2] = cpu_frame.v
-    nv12_difference = np.abs(
-        materialized.astype(np.int16) - cpu_nv12.astype(np.int16)
-    )
+    nv12_difference = np.abs(materialized.astype(np.int16) - cpu_nv12.astype(np.int16))
     nv12_metrics = {
         "mean_abs": float(nv12_difference.mean()),
         "p99_abs": float(np.percentile(nv12_difference, 99)),
@@ -265,23 +265,19 @@ try:
     # surfaces. Use the luma plane of a width*4 NV12 carrier as packed RGBA;
     # its unused chroma plane makes the required backing size 6 bytes/pixel.
     rgba_required_bytes = width * height * 6
-    rgba_allocation_bytes = (
-        (rgba_required_bytes + 2 * 1024**2 - 1) // (2 * 1024**2)
-    ) * (2 * 1024**2)
+    rgba_allocation_bytes = ((rgba_required_bytes + 2 * 1024**2 - 1) // (2 * 1024**2)) * (
+        2 * 1024**2
+    )
     rgba_allocation = ExportableAllocation(queue, library, rgba_allocation_bytes)
     rgba_memory = dpctl.memory.as_usm_memory(rgba_allocation)
-    rgba_view = dpnp.tensor.usm_ndarray(
-        (height, width, 4), dtype="u1", buffer=rgba_memory
-    )
+    rgba_view = dpnp.tensor.usm_ndarray((height, width, 4), dtype="u1", buffer=rgba_memory)
     rgba = dpnp.asarray(rgba_view, copy=False)
     rgba_owner = UsmVaOwner(source, rgba, library, width * 4, height)
     fused_results = []
     fused_identity = None
     for fused_space in ("bt601", "bt709", "bt2020"):
         for fused_range in ("limited", "full"):
-            _, _, coefficients = resolve_yuv_conversion(
-                fused_space, fused_range, height
-            )
+            _, _, coefficients = resolve_yuv_conversion(fused_space, fused_range, height)
             fused_identity = convert_nv12_rgba(
                 source,
                 rgba_owner,
@@ -290,9 +286,7 @@ try:
                 coefficients,
             )
             fused_actual = dpnp.asnumpy(rgba)[..., :3]
-            fused_expected = reference_rgb(
-                cpu_nv12, width, height, fused_space, fused_range
-            )
+            fused_expected = reference_rgb(cpu_nv12, width, height, fused_space, fused_range)
             fused_difference = np.abs(
                 fused_actual.astype(np.int16) - fused_expected.astype(np.int16)
             )
@@ -303,8 +297,7 @@ try:
                 "p99_abs": float(np.percentile(fused_difference, 99)),
                 "max_abs": int(fused_difference.max()),
                 "channel_max_abs": [
-                    int(fused_difference[..., channel].max())
-                    for channel in range(3)
+                    int(fused_difference[..., channel].max()) for channel in range(3)
                 ],
             }
             assert fused_metrics["max_abs"] <= 1, fused_metrics
@@ -318,7 +311,7 @@ try:
         queue=queue.addressof_ref(),
         device_id=int(descriptor["device_id"]),
         frame_size=(width, height),
-        pitch=width,
+        pitch=nv12_pitch,
         owner=owner,
         pts_ns=int(descriptor["pts_ns"]),
         producer_synchronized=True,
@@ -337,9 +330,7 @@ try:
             )
             image.wait(5000)
             actual = dpnp.asnumpy(dpnp.from_dlpack(image, copy=False))
-            expected = reference_rgb(
-                cpu_nv12, width, height, color_space, color_range
-            )
+            expected = reference_rgb(cpu_nv12, width, height, color_space, color_range)
             difference = np.abs(actual.astype(np.int16) - expected.astype(np.int16))
             metrics = {
                 "color_space": color_space,
@@ -347,9 +338,7 @@ try:
                 "mean_abs": float(difference.mean()),
                 "p99_abs": float(np.percentile(difference, 99)),
                 "max_abs": int(difference.max()),
-                "channel_max_abs": [
-                    int(difference[..., channel].max()) for channel in range(3)
-                ],
+                "channel_max_abs": [int(difference[..., channel].max()) for channel in range(3)],
             }
             assert metrics["max_abs"] <= 1, metrics
             assert metrics["p99_abs"] <= 1, metrics
@@ -459,8 +448,7 @@ try:
             "decode_fps": decode_frames / decode_seconds,
             "materialize_fps": benchmark_frames / materialize_seconds,
             "rgb_fps": benchmark_frames / rgb_seconds,
-            "serial_pipeline_fps": benchmark_frames
-            / (materialize_seconds + rgb_seconds),
+            "serial_pipeline_fps": benchmark_frames / (materialize_seconds + rgb_seconds),
             "full_serial_fps": benchmark_frames / full_serial_seconds,
             "fused_va_rgb_fps": benchmark_frames / fused_seconds,
             "fused_full_serial_fps": benchmark_frames / fused_full_serial_seconds,

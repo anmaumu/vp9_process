@@ -82,15 +82,41 @@ class FakeAdapter:
             completion="stream_event",
             copy_path="gpu_copy",
         )
-        return processor_api.GpuImage(
-            FakeProvider(), info, release=self._release
-        )
+        return processor_api.GpuImage(FakeProvider(), info, release=self._release)
 
     def _release(self) -> None:
         self.release_count += 1
 
 
 class GpuProcessorContractTests(unittest.TestCase):
+    def test_selected_image_can_wait_only_before_dlpack_export(self) -> None:
+        waits = []
+        info = processor_api.GpuImageInfo(
+            backend="intel",
+            device_id=3,
+            width=64,
+            height=48,
+            format="rgb",
+            layout="hwc",
+            dtype="uint8",
+            shape=(48, 64, 3),
+            color_space="bt709",
+            color_range="limited",
+            pts_ns=1234,
+            adapter="intel-opencl",
+            completion="opencl_event",
+            copy_path="gpu_copy",
+        )
+        image = processor_api.GpuImage(
+            FakeProvider(),
+            info,
+            wait=waits.append,
+            wait_before_dlpack=True,
+        )
+        self.assertEqual(image.__dlpack__(stream=9), ("capsule", {"stream": 9}))
+        self.assertEqual(waits, [0xFFFFFFFF])
+        image.close()
+
     def test_auto_selection_has_identical_intel_and_nvidia_call_shape(self) -> None:
         adapters = (FakeAdapter("nvidia"), FakeAdapter("intel"))
         processor = processor_api.GpuProcessor(adapters=adapters)

@@ -132,9 +132,11 @@
 - [x] Intel Linux VA decode→exportable USM NV12のOpenCL GPU copy qualification、CPU oracleに対する6色変換条件の画素差検証
 - [x] Arc B580 1080p VA→USM→RGB stage別qualification計測（100 frame、直列172.85 fps、decode込み145.64 fps）
 - [x] Arc B580 fused VA-NV12→USM-RGBA OpenCL qualification（5 run中央値1313.14 fps、decode込み543.35 fps、6色条件max差1）
-- [ ] fused Intel processorの標準output共有、event completion、bounded pool、連続decode frame製品統合
+- [x] fused Intel processorの標準output共有、event completion、bounded pool、連続decode frame製品統合
 - [ ] NVIDIA processor adapterのJIT cache/warm-up packagingとrelease performance baseline gate
-- [ ] qualification用VA/OpenCL/Level Zero bridgeのoptional product adapter化、bounded pool/backpressureとdecode直結performance qualification
+- [x] VA/OpenCL/Level Zero融合経路のoptional `intel-opencl` product adapter化、bounded pool/backpressure、event completion、DLPack consumer lease、decode直結performance qualification
+- [x] `intel-opencl` wheel companion/legal/SBOM収録と展開wheelからの実機変換、same-process pool/VRAM soak harness、2秒smoke、30分認定
+- [ ] `intel-opencl` cross-API device-event dependency（v0.1はDLPack export時host wait）
 - [ ] optional Intel Windows D3D11 processor adapter and DLPack-capable linear-USM materialization policy
 - [ ] Python CuPy/CUarray processed-resource→NVENC positive encode qualification on an AV1-capable GPU
 - [x] .NET GPU Frame SafeHandle, descriptor/native handle/wait and Capture.ReadSurface source API

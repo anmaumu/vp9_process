@@ -106,6 +106,7 @@ class GpuImage:
         wait: Callable[[int], None] | None = None,
         release: Callable[[], None] | None = None,
         owners: Iterable[object] = (),
+        wait_before_dlpack: bool = False,
     ) -> None:
         if not callable(getattr(provider, "__dlpack__", None)):
             raise TypeError("GPU image provider must implement __dlpack__")
@@ -115,6 +116,7 @@ class GpuImage:
         self._wait = wait
         self._release = release
         self._owners = list(owners)
+        self._wait_before_dlpack = wait_before_dlpack
         self._closed = False
         self.info = info
 
@@ -178,6 +180,8 @@ class GpuImage:
             raise RuntimeError("GPU image is released")
         if copy:
             raise BufferError("GpuImage DLPack export does not permit implicit copies")
+        if self._wait_before_dlpack and self._wait is not None:
+            self._wait(0xFFFFFFFF)
         arguments: dict[str, object] = {}
         if stream is not None:
             arguments["stream"] = stream
@@ -222,6 +226,7 @@ class GpuImage:
             self._release = None
             self._wait = None
             self._provider = None
+            self._wait_before_dlpack = False
             for owner in reversed(self._owners):
                 close = getattr(owner, "close", None)
                 if callable(close):
@@ -307,12 +312,39 @@ class GpuProcessor:
         except (ImportError, OSError):
             pass
         try:
+            from ..interop.intel_opencl_processor import IntelOpenClProcessorAdapter
+
+            discovered.append(IntelOpenClProcessorAdapter())
+        except (ImportError, OSError, RuntimeError):
+            pass
+        try:
             from ..interop.dpnp_processor import IntelDpnpProcessorAdapter
 
             discovered.append(IntelDpnpProcessorAdapter())
         except (ImportError, OSError):
             pass
         return tuple(discovered)
+
+    def close(self) -> None:
+        """Close adapters that own persistent GPU contexts or output pools."""
+        failure: BaseException | None = None
+        for adapter in reversed(self._adapters):
+            close = getattr(adapter, "close", None)
+            if callable(close):
+                try:
+                    close()
+                except BaseException as exception:
+                    if failure is None:
+                        failure = exception
+        self._adapters = ()
+        if failure is not None:
+            raise failure
+
+    def __enter__(self) -> "GpuProcessor":
+        return self
+
+    def __exit__(self, *args: object) -> None:
+        self.close()
 
     def convert(
         self,
@@ -346,9 +378,7 @@ class GpuProcessor:
         interop = source.interop
         source_backend = str(interop.backend)
         if source_backend not in ("intel", "nvidia"):
-            raise GpuProcessingUnavailableError(
-                f"unsupported GPU source backend: {source_backend}"
-            )
+            raise GpuProcessingUnavailableError(f"unsupported GPU source backend: {source_backend}")
         if self.backend != "auto" and self.backend != source_backend:
             raise GpuProcessingUnavailableError(
                 f"{self.backend} processor cannot consume a {source_backend} frame"

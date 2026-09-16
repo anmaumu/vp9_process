@@ -223,6 +223,8 @@ consumer側deleterのどちらか一方だけがこのleaseを解放する。
 - `EXT-PROC-010`: processor adapter未登録、backend不一致、format/layout/dtype非対応時は明示errorとし、CPU fallbackやGPU→CPU readbackを行わない。
 - `EXT-PROC-011`: NV12からpacked RGB系へのGPU書出しは`gpu_copy`と報告する。変換中は独立retainしたdecode surfaceを`GpuImage`が保持し、close、例外、DLPack所有権移譲の各経路でreleaseを高々一度にする。
 - `EXT-PROC-012`: optional `intel-dpnp` adapterは線形Intel device-USM NV12を`copy=False`のDLPackで受け、同一SYCL device上のuint8 RGB/BGR/RGBA/BGRA HWC/CHWへ変換する。不透明なVA-API/D3D11 surfaceはDLPack pointerとして偽装せず、別のGPU materialization adapterがなければ明示的に拒否する。materializationと色変換はCPU readbackを禁止し、CPU参照変換との8-bit画素差を最大1以下とする。
+- `EXT-PROC-013`: Linux optional `intel-opencl` adapterはoneVPL decode由来のVA NV12 surfaceを直接読み、中間linear NV12を作らず、exportable device-USMのstrided uint8 RGB/BGR/RGBA/BGRA HWCへ融合変換する。外部RGBA VA surfaceをdriverが共有できない場合、packed rowを64-byte境界へ切り上げたNV12 luma carrierを内部実装として使用できるが、carrier/chroma paddingを論理shapeへ露出しない。公開DLPack tensorは論理shapeと実row strideを正しく通知する。CPU fallback/readbackは禁止し、CPU oracleとの差は最大1以下とする。
+- `EXT-PROC-014`: Intel packed outputは既定容量3のbounded poolからleaseし、容量枯渇時は設定timeoutに従ってbackpressureを返す。変換submitはper-frame `clFinish`を行わずOpenCL release eventをcompletionとし、明示waitまたはDLPack export時に完了を保証する。`GpuImage.close()`後もDLPack consumerが生存する間はslotを再利用せず、processor closeはactive leaseがあれば失敗する。v0.1ではOpenCL→oneAPI consumerのportable cross-API event注入がないためDLPack export時のhost event waitを許容する。
 
 CPU convenience API:
 
@@ -450,7 +452,7 @@ Status: `PROPOSED`
 | `AC-ZC-001` | zero-copy対応経路をtraceで証明し、require時に降格しない | EXT-FRAME-003..004 |
 | `AC-GPU-001` | Intel/NVIDIAでdecode→export→外部処理→import→encodeがGPU-resident契約、lease/completion、native/DLPack interop、copy policyを満たす。Linux VA native同期の部分受入れはpending/timeout/terminal failure、非対応時のfail-closed、native/Python実機encode、owner寿命を検証する。これだけでWindows fence、USM/DLPack、外部kernelや独立traceの全体受入れ完了とはしない | EXT-GPU-001..010 |
 | `AC-PROC-001` | CPU owned frame向け5種の便利処理が幾何・色metadata契約どおり動作し、GPU処理はinteropへ案内される | EXT-PROC-001..008 |
-| `AC-PROC-002` | Intel/NVIDIAで同じ`GpuProcessor`/`read_gpu`呼出形、厳密なoutput metadata、DLPack、source lease、fail-closed契約を満たす | EXT-PROC-007..012 |
+| `AC-PROC-002` | Intel/NVIDIAで同じ`GpuProcessor`/`read_gpu`呼出形、厳密なoutput metadata、DLPack、source lease、fail-closed契約を満たす | EXT-PROC-007..014 |
 | `AC-ABI-001` | C/C#/Pythonから同じCoreのcreate/read-write/destroyが成立する | EXT-ABI-001..005, EXT-CS-001..004 |
 | `AC-ERR-001` | 全失敗でexception leak、double free、resource leakがない | EXT-ERR-001..006 |
 | `AC-PERF-001` | bounded resource、pipeline並行性、GIL解放、baseline回帰gateを満たす | EXT-PERF-001..006 |

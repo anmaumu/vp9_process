@@ -176,15 +176,16 @@ python3 -m venv build/usm-env
 build/usm-env/bin/pip install dpctl==0.22.1 dpnp==0.20.0
 git clone --depth 1 https://github.com/KhronosGroup/OpenCL-Headers.git build/opencl-headers
 python3 tools/build_intel_usm_probe.py --runtime-root build/usm-env \
-  --opencl-headers build/opencl-headers --output build/intel/libmkvc_sycl_probe.so
+  --opencl-headers build/opencl-headers --output build/intel/libmkvc_sycl_bridge.so
 MKVC_TEST_INTEL_DRM_RENDER_NODE=129 LD_LIBRARY_PATH="$PWD/build/usm-env/lib" \
 build/usm-env/bin/python tests/python_intel_usm_roundtrip.py \
   build/intel/libmkvcodec.so build/intel python build/intel/intel_av1_source.webm \
-  build/intel/libmkvc_sycl_probe.so build/intel/arc_usm_roundtrip.json
+  build/intel/libmkvc_sycl_bridge.so build/intel/arc_usm_roundtrip.json
 ```
 
-`intel_av1_source.webm`はCTestの`mkvc_intel_av1_source`で生成する。試験環境の依存物を
-wheel/NuGetへ同梱せず、実行時version/source revisionを成果とともに記録する。
+`intel_av1_source.webm`はCTestの`mkvc_intel_av1_source`で生成する。SYCL bridgeは
+Intel processorを含むLinux wheelのnative dependencyとして収録し、GPU driver、
+Level Zero loader、SYCL runtime本体は同梱せず実行環境version/sourceを記録する。
 30分Arc試験は上の一般soak例にrender-node/PCI/VRAM必須指定と
 `MKVC_OPENCL_OUTPUT_CODEC=av1`を加え、128x128 fixtureを使う。
 
@@ -220,8 +221,14 @@ process private-memory増分1,884,160 bytesで、独立gateを通過している
 | `TEST-PROC-006` | NVIDIA/Intel疑似adapterを同じ`GpuProcessor.convert`で選択し、RGB HWC output metadataとDLPack device/stream転送を照合 | unit/API | Python CI |
 | `TEST-PROC-007` | adapter未登録、backend固定不一致、request不正をsource retain前に拒否し、CPU fallbackしない | unit/API | Python CI |
 | `TEST-PROC-008` | adapter output metadata/copy path不一致とadapter例外でoutput、source retain、release callbackを高々一度で解放 | unit/fault | Python CI |
-| `TEST-PROC-009` | 実Intel/NVIDIA adapterでNV12 decode→RGB/RGBA GPU image→DLPack consumerを実行し、pixel oracle、event dependency、GPU-only copy audit、長時間lease boundを検証。NVIDIA CuPyのpixel/DLPack/eventはRTX 2060で合格、Intel VA/D3D11 materializationと長時間試験は継続 | hardware/integration/soak | Intel/NVIDIA |
+| `TEST-PROC-009` | 実Intel/NVIDIA adapterでNV12 decode→RGB/RGBA GPU image→DLPack consumerを実行し、pixel oracle、event dependency、GPU-only copy audit、長時間lease boundを検証。NVIDIA CuPyのpixel/DLPack/eventはRTX 2060で合格。Intel Linux VA materialization、画素、lease、30分試験はArc B580で合格し、Windows D3D11 materializationは継続 | hardware/integration/soak | Intel/NVIDIA |
 | `TEST-PROC-010` | Intel device-USM NV12をpublic importし、`intel-dpnp`の`copy=False` input、実効色metadata、uint8 RGB画素、PTS、DLPack output、source/output owner寿命をArc実機で検証する。VA decode→USM materializationはCPU decodeのNV12とmean/p99/maxを比較し、BT.601/709/2020×limited/fullのRGBはmean/p99/max/channel maxを比較して最大1以下とする | Python/hardware | Intel Linux |
+| `TEST-PROC-011` | product `intel-opencl` adapterでVA decode→fused packed-USM→dpnp `copy=False`を実行し、event completion、最大画素差1、capacity-one backpressure、image close後のconsumer lease保持、consumer解放後のslot再利用を検証する。packed rowが64-byte境界でない幅160も、aligned carrier pitchと公開tensor strideを使ってRGB/BGR/RGBA/BGRAを検証する。1080pは異なるdecode frameをcapacity-threeで流し5-run中央値を記録する。`MKVC_INTEL_OPENCL_SOAK_SECONDS`では同一processでadapter/capture/poolを反復生成・破棄し、post-close RSS/FD/threadを+256 MiB/+2/+4以内、active/post-close DRM memory fieldを+256 MiB以内に制限する。`MKVC_REQUIRE_VRAM_OBSERVATION=1`では対象PCIのactive VRAM観測を必須とし、2秒CTest smokeと30分release認定を分離する | Python/hardware/performance/soak | Intel Linux |
+
+Arc B580での`TEST-PROC-011` 30分認定は1800.002秒、17,577 batch、35,154 frame、
+35,154 DRM samplesで合格した。post-close RSS baseline/high-waterは
+618,270,720/620,212,224 bytes、FDは8/8、threadは6/6である。対象Arcのactiveおよび
+post-close `drm-resident-vram0` high-water増分は4,259,840 bytesであった。
 
 ### 1.6 ABI / Language / Error
 

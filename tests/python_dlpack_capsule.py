@@ -52,6 +52,29 @@ assert deleted == 1
 delete_tensor(ct.pointer(consumed))
 assert deleted == 2
 
+retained_source = Managed(deleter=delete_tensor)
+source_capsule = _dlpack.capsule_from_address(ct.addressof(retained_source))
+
+
+class RetainedOwner:
+    pass
+
+
+retained_owner = RetainedOwner()
+retained_owner_ref = weakref.ref(retained_owner)
+retained_capsule = _dlpack.retain_owner(source_capsule, retained_owner)
+assert retained_capsule is source_capsule
+assert capsule_name(source_capsule) == b"dltensor"
+assert capsule_name(retained_capsule) == b"dltensor"
+del source_capsule, retained_owner
+gc.collect()
+assert retained_owner_ref() is not None
+assert deleted == 2
+del retained_capsule
+gc.collect()
+assert retained_owner_ref() is None
+assert deleted == 3
+
 
 class Owner:
     pass

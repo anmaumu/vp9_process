@@ -88,10 +88,11 @@ GPU vendor driver/runtimeはwheel/NuGetへ同梱せず、実行環境側の責�
   経路で実機成功し、CPU referenceに対するNV12および6色変換条件の差はすべて0であった。
   Arc B580の1080p/100-frame直列計測はVA→USM→RGB 172.85 fps、decode込み推定
   145.64 fpsであり、RGB変換の5.270 ms/frameが支配項であった。
-  qualification用の直接VA-NV12→USM-RGBA融合OpenCL kernelは5 run中央値で
-  1313.14 fps、decode込み直列543.35 fpsまで改善し、全6色条件のCPU oracle差は
-  p99=0、max=1であった。出力carrierとper-frame同期はまだ製品APIではない。
-  このbridgeのoptional product adapter化、bounded pool、Windows D3D11経路は未実装である。
+  直接VA-NV12→packed-USM融合kernelをoptional `intel-opencl` product adapterへ昇格し、
+  fixed-capacity pool/backpressure、OpenCL event completion、DLPack consumer leaseを実装した。
+  Arc B580の異なる1080p decode frame 100枚×5 run中央値は1049.69 fps、画素差max=1である。
+  same-process pool/VRAM soak harness、30分認定、wheel companion/legal/SBOM実artifact検査まで実装済みである。
+  host waitを置き換えるcross-API event dependencyとWindows D3D11経路は残る。
 - Container policy/finalizationは、bounded EBML header parse・size rewrite・atomic file
   replacementから分離した。
 - CPU AV1 encoderはpublic lifecycle、mutable state、SVT-AV1 runtime処理を分離し、

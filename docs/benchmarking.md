@@ -221,6 +221,23 @@ The independent CPU oracle was checked at 128x128 and 1920x1080 for BT.601,
 BT.709, and BT.2020 in limited and full range. Every case had p99 absolute byte
 difference 0 and maximum/channel-maximum difference 1. The small maximum comes
 from OpenCL floating-point/UNORM rounding and satisfies the existing one-byte
-acceptance limit. Product integration still requires a bounded output pool,
-event-based completion instead of per-frame `clFinish`, a standard output
-sharing representation, and end-to-end processing of distinct decoded frames.
+acceptance limit.
+
+The product `intel-opencl` adapter subsequently added a three-slot bounded
+pool, OpenCL release-event completion, correctly strided RGB/RGBA USM views, and
+DLPack-consumer-aware slot ownership. On the same Arc B580, five warmed runs
+each processed 100 distinct VP9 1920x1080 decoded frames. Decode, fused convert,
+event completion, and lease return achieved a median **1,049.69 fps**
+(0.953 ms/frame). Conversion submission uses `clFlush`, not per-frame
+`clFinish`; a DLPack export performs a host event wait because portable
+OpenCL-to-oneAPI consumer-event injection is not available in this v0.1 slice.
+The optional companion was then included in a qualification wheel with the
+native core, DLPack extension, legal payload, and SPDX SBOM; a clean extraction
+successfully performed the width-160 Intel conversion. A two-second
+same-process smoke completed 20 pool/context create-destroy batches with bounded
+RSS/FD/thread and observed Arc VRAM. The release-duration run then completed
+**1,800.002 seconds, 17,577 batches, and 35,154 frames**. Post-close RSS grew
+from 618,270,720 to a 620,212,224-byte high-water mark (+1,941,504 bytes), while
+FDs remained 8 and threads remained 6. Arc active and post-close VRAM high-water
+growth was 4,259,840 bytes, below the 256 MiB gate. The remaining v0.1 limitation
+is the DLPack-export host wait rather than a cross-API device-event dependency.

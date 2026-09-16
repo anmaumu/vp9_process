@@ -147,12 +147,7 @@ NVIDIA/Intelで同じ呼出形にするため、Pythonはbackend-neutralな`GpuP
 NPP/SYCL/OpenCL等をlinkしません。未登録・未対応時はCPUへ降格せず明示errorになります。
 
 ```python
-processor = mkvcodec.GpuProcessor(
-    backend="auto",
-    adapters=(nvidia_adapter, intel_adapter),
-)
-
-with mkvcodec.VideoCapture(
+with mkvcodec.GpuProcessor(backend="auto") as processor, mkvcodec.VideoCapture(
     "input.webm", backend="auto", require_gpu_resident=True
 ) as capture:
     while (rgb := capture.read_gpu(
@@ -168,8 +163,14 @@ with mkvcodec.VideoCapture(
 `nvidia-cupy` adapterを自動検出し、NV12からuint8 RGB/BGR/RGBA/BGRA（HWC/CHW）へ
 CUDA stream上で変換します。optional dpnpが利用可能な環境では
 `intel-dpnp` adapterを自動検出し、線形device-USM NV12を同じpacked形式へ
-SYCL device上で変換します。oneVPL decodeが返すVA/D3D11 surfaceは不透明なため、
-直接USMとして扱わず、別のGPU materialization層を必要とします。
+SYCL device上で変換します。Linuxではoptional `libmkvc_sycl_bridge.so`、dpctl、dpnp、
+OpenCL VA sharingが揃うと`intel-opencl` adapterを優先し、oneVPL decodeのVA surfaceを
+中間NV12 copyなしでuint8 RGB/BGR/RGBA/BGRA HWCへ変換します。既定3-slot poolは
+`MKVC_INTEL_RGB_POOL_SIZE`、取得timeoutは`MKVC_INTEL_RGB_POOL_TIMEOUT_MS`で変更できます。
+DLPack consumerが解放するまでslotは再利用されず、`GpuProcessor.close()`はactive imageが
+残る場合に失敗します。bridgeはdpctl/dpnpが使用するSYCL runtimeと同じABI/sourceで
+build・同梱し、Intel driver、Level Zero loader、SYCL runtime本体はsystem dependencyとします。
+Windows D3D11とCHW/float出力はこのadapterの対象外です。
 
 ## 画像処理の責務
 
