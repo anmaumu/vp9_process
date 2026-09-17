@@ -34,7 +34,7 @@ Xeon CPUとLinux Arc B580だけを機種・driver・入力hash固定の承認済
 | C++ | move-only RAII facade、CPU/GPU frame、pool、submission、strict GPU transcode harness | Linux Intel round-trip認定済み。AV1対応NVIDIAでのpositive encode認定が残件 |
 | .NET | .NET 8 P/Invoke、SafeHandle、codec自動判別・動画情報probe、全8-bit CPU形式、pageable/page-locked native pool、Submit＋cancellable `WaitAsync`、GPU surface API、strict GPU transcode harness、GC/memory soak harness、30分CPU pool認定 | Windows Intel round-tripが残件。AV1対応NVIDIA実機認定は対応hardware待ち |
 | Observability | aggregate queue/backend/copy-path metrics、shared/zero-copy/GPU-copy/upload/readback/normalization/pixel-conversion別count、driver内部未観測表示、versioned frame/flush/close host timing、同期/worker内訳、conversion/codec/container/GPU-waitの排他的host timing、JSON benchmark、相対baseline gate | device kernel/event timingとdriver内部copy attributionはlibrary外の認定作業 |
-| Packaging | dependency manifest、legal payload collector、SPDX SBOM、wheel/NuGet builderとinspector、通常/delay-load PE importの再帰閉包検査、qualification/release分離、Windows全backend実artifact load・CPU実行認定 | project LICENSE決定、実Intel/NVIDIA AV1 hardware認定、公開前legal reviewとrelease artifactが残件 |
+| Packaging | dependency manifest、artifact固有legal payload/SPDX SBOM、wheel/NuGet builderとinspector、通常/delay-load PE importの再帰閉包検査、qualification/release分離、Windows全backend実artifact load・CPU実行認定、公式manylinux_2_28 source build＋auditwheel修復前後検査＋Python 3.9隔離import（生成wheelはmanylinux_2_27にも適合） | project LICENSE決定、実Intel/NVIDIA AV1 hardware認定、公開前legal reviewとrelease artifactが残件。SYCL bridgeは汎用Core wheel外のruntime別companion |
 
 H.264/HEVCは公開codec、暗黙fallback、配布対象のいずれにも含めない。
 GPU vendor driver/runtimeはwheel/NuGetへ同梱せず、実行環境側の責任とする。

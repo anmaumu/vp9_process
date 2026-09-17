@@ -256,6 +256,22 @@ NVIDIA/Intel driver runtimeはpackageへ同梱しません。
 
 現在はproject LICENSEが未決定のため正式artifactを公開できません。
 `--qualification-only`で作るartifactは検査専用で、通常release gateを意図的に通りません。
+Linux x86-64 wheelはdigest固定した公式PyPA `manylinux_2_28` image内で、Coreと
+CPython limited-API extensionをsourceからbuildし、`auditwheel show`、`repair`、
+再度`show`、Python 3.9隔離install/importまで一括検査できます。
+
+```shell
+# LICENSE決定前の検査用artifact
+python tools/build_manylinux_wheel.py --qualification-only
+
+# LICENSE決定後のrelease候補（repository rootのLICENSEが必須）
+python tools/build_manylinux_wheel.py
+```
+
+成果物と前後の検査記録は`build/manylinux-wheel/`へ出力されます。Core wheelは
+CPU VP9/AV1、動的に選択されるIntel oneVPL/NVIDIA backendを含みます。Intel SYCL
+bridgeは`libsycl`/Level Zeroのruntime ABIに依存するため、この汎用manylinux wheelへは
+収録せず、GPU runtimeに対応したcompanion artifactとして扱います。
 LICENSE決定後の作成・検査契約は
 [外部仕様](docs/external-spec/system-spec.md)と
 [受け入れ・テスト仕様](docs/test-spec/test-requirements.md)を参照してください。

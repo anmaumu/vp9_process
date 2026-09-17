@@ -17,22 +17,24 @@ class CollectLicensesTests(unittest.TestCase):
             source.write_text("permission text\n", encoding="utf-8")
             lock = root / "lock.json"
             lock.write_text(
-                json.dumps({
-                    "schema_version": 1,
-                    "files": [{
-                        "output": "example-LICENSE.txt",
-                        "glob": "buildtrees/example/src/*clean/LICENSE",
-                        "sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
-                    }],
-                }),
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "files": [
+                            {
+                                "output": "example-LICENSE.txt",
+                                "glob": "buildtrees/example/src/*clean/LICENSE",
+                                "sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
+                            }
+                        ],
+                    }
+                ),
                 encoding="utf-8",
             )
             output = root / "output"
             with mock.patch.object(collect_licenses, "LOCK", lock):
                 collect_licenses.collect_locked(root, output)
-                self.assertEqual(
-                    (output / "example-LICENSE.txt").read_bytes(), source.read_bytes()
-                )
+                self.assertEqual((output / "example-LICENSE.txt").read_bytes(), source.read_bytes())
                 source.write_text("changed\n", encoding="utf-8")
                 with self.assertRaises(collect_licenses.CollectionError):
                     collect_licenses.collect_locked(root, output)
@@ -48,10 +50,32 @@ class CollectLicensesTests(unittest.TestCase):
             output = root / "output"
             output.mkdir()
             collect_licenses.collect_nvcodec(include, output)
-            notices = (output / "nv-codec-headers-LICENSES.txt").read_text(
-                encoding="utf-8"
-            )
+            notices = (output / "nv-codec-headers-LICENSES.txt").read_text(encoding="utf-8")
             self.assertEqual(notices.count("Permission is hereby granted"), 1)
+
+    def test_excluded_locked_output_may_be_absent(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = pathlib.Path(temporary)
+            output = root / "output"
+            lock = root / "lock.json"
+            lock.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "files": [
+                            {
+                                "output": "optional-LICENSE.txt",
+                                "glob": "missing/*/LICENSE",
+                                "sha256": "unused",
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            with mock.patch.object(collect_licenses, "LOCK", lock):
+                collect_licenses.collect_locked(root, output, frozenset({"optional-LICENSE.txt"}))
+            self.assertTrue(output.is_dir())
 
 
 if __name__ == "__main__":

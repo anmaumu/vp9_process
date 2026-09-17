@@ -21,7 +21,7 @@ sanitizer/fuzz、対象platform testが成功すればv0.1を完成とする。�
 | `RC-04` | `WAIVED_PREVIEW` | Intel Windows D3D11認定 | Intel Windows実機がないためv0.1の認定対象外とし、D3D11契約・実装はpreview/unqualifiedとして保持する。stable対応表への追加にはdecode→external processing→encodeのC++/Python/.NET実機試験が必要 |
 | `RC-05` | `WAIVED_PREVIEW` | NVIDIA AV1認定 | 現RTX 2060はAV1 encode非対応のためv0.1の認定対象外とし、NVENC AV1実装はpreview/unqualifiedとして保持する。stable対応表への追加にはAV1対応NVIDIA実機でのNVDEC→外部CUDA処理→NVENC試験が必要 |
 | `RC-06` | `DONE` | 性能基準の固定 | Windows CPU VP9とLinux Arc B580 Intel VP9 decode→AV1 encodeについて、3回中央値の1080p throughput/latency/peak RSS baseline、入力hash、環境、15%の既定回帰率と個別閾値を保存し、fail-closed gateを実測候補へ適用した |
-| `RC-07` | `WAITING_DECISION` | release governance | project LICENSEを決定し、legal review後にwheel/NuGetのnative/legal/SBOM実artifact gateを通して公開する。vendor driver/runtimeは同梱しない |
+| `RC-07` | `WAITING_DECISION` | release governance | 公式manylinux_2_28でqualification wheelのsource build、auditwheel修復前後検査、Python 3.9隔離importは完了。project LICENSEを決定し、legal review後に同じpipelineのrelease modeとNuGet実artifact gateを通して公開する。vendor driver/runtimeは同梱しない |
 
 ## v0.1完成条件から外す項目
 

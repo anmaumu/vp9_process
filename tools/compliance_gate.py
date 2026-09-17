@@ -43,16 +43,12 @@ class GateError(RuntimeError):
     """Compliance validation failure."""
 
 
-def validate_project_license(
-    path: pathlib.Path, *, qualification_only: bool = False
-) -> None:
+def validate_project_license(path: pathlib.Path, *, qualification_only: bool = False) -> None:
     """Reject missing licenses and prevent the test fixture entering a release."""
     if not path.is_file() or path.stat().st_size == 0:
         raise ValueError(f"project license is missing or empty: {path}")
     if QUALIFICATION_LICENSE_SENTINEL in path.read_bytes() and not qualification_only:
-        raise GateError(
-            "qualification project-license fixture requires qualification-only mode"
-        )
+        raise GateError("qualification project-license fixture requires qualification-only mode")
 
 
 def load_manifest(path: pathlib.Path = MANIFEST) -> dict:
@@ -76,6 +72,21 @@ def load_manifest(path: pathlib.Path = MANIFEST) -> dict:
         if not isinstance(component["required_notices"], list):
             raise GateError(f"{name}: required_notices must be a list")
     return data
+
+
+def filter_manifest(manifest: dict, excluded_components: Iterable[str]) -> dict:
+    """Return an artifact-specific manifest after validating all exclusions."""
+    excluded = frozenset(excluded_components)
+    known = {component["name"] for component in manifest["components"]}
+    unknown = excluded - known
+    if unknown:
+        raise GateError("unknown excluded component(s): " + ", ".join(sorted(unknown)))
+    return {
+        **manifest,
+        "components": [
+            component for component in manifest["components"] if component["name"] not in excluded
+        ],
+    }
 
 
 def validate_source_tree(manifest: dict) -> None:
@@ -149,17 +160,15 @@ def inspect_artifact(
     names = list(entries)
     qualification_marker = "QUALIFICATION_ONLY.txt"
     if ends_with_any(names, qualification_marker) and not allow_qualification:
-        raise GateError(
-            "qualification-only artifact cannot pass the release compliance gate"
-        )
+        raise GateError("qualification-only artifact cannot pass the release compliance gate")
     missing_native = sorted(
         name for name in required_native_names if not ends_with_any(names, name)
     )
     if missing_native:
-        raise GateError(
-            f"artifact is missing required native libraries: {missing_native}"
-        )
-    forbidden = [name for name in names if any(pattern.search(name) for pattern in FORBIDDEN_PACKAGE_NAMES)]
+        raise GateError(f"artifact is missing required native libraries: {missing_native}")
+    forbidden = [
+        name for name in names if any(pattern.search(name) for pattern in FORBIDDEN_PACKAGE_NAMES)
+    ]
     if forbidden:
         raise GateError(f"vendor GPU runtime/driver must not be bundled: {forbidden}")
 
@@ -169,7 +178,9 @@ def inspect_artifact(
     for component in manifest["components"]:
         if component["distribution"] in {"bundled", "build-only"}:
             required.update(component["required_notices"])
-    missing = sorted(item for item in required if item.startswith("project ") or not ends_with_any(names, item))
+    missing = sorted(
+        item for item in required if item.startswith("project ") or not ends_with_any(names, item)
+    )
     if missing:
         raise GateError(f"artifact is missing required legal/SBOM files: {missing}")
     sbom_name = next(name for name in names if name.lower().endswith("sbom.spdx.json"))
@@ -179,6 +190,10 @@ def inspect_artifact(
         raise GateError("artifact SBOM is not valid UTF-8 SPDX JSON") from error
     if sbom.get("spdxVersion") != "SPDX-2.3" or not isinstance(sbom.get("packages"), list):
         raise GateError("artifact SBOM must be an SPDX 2.3 document with packages")
+    expected_packages = [component["name"] for component in manifest["components"]]
+    actual_packages = [package.get("name") for package in sbom["packages"]]
+    if actual_packages != expected_packages:
+        raise GateError("artifact SBOM package set does not match its component manifest")
     suffix = path.suffix.lower()
     if suffix == ".whl":
         has_native = any(
@@ -204,23 +219,28 @@ def inspect_artifact(
 def write_sbom(output: pathlib.Path, manifest: dict) -> None:
     packages = []
     for index, component in enumerate(manifest["components"], start=1):
-        packages.append({
-            "SPDXID": f"SPDXRef-Package-{index}",
-            "name": component["name"],
-            "versionInfo": component["version"],
-            "downloadLocation": component["source"],
-            "licenseConcluded": component["license"],
-            "licenseDeclared": component["license"],
-            "filesAnalyzed": False,
-            "comment": f"Distribution classification: {component['distribution']}",
-        })
+        packages.append(
+            {
+                "SPDXID": f"SPDXRef-Package-{index}",
+                "name": component["name"],
+                "versionInfo": component["version"],
+                "downloadLocation": component["source"],
+                "licenseConcluded": component["license"],
+                "licenseDeclared": component["license"],
+                "filesAnalyzed": False,
+                "comment": f"Distribution classification: {component['distribution']}",
+            }
+        )
     document = {
         "spdxVersion": "SPDX-2.3",
         "dataLicense": "CC0-1.0",
         "SPDXID": "SPDXRef-DOCUMENT",
         "name": "mkvcodec-dependency-sbom",
         "documentNamespace": "https://github.com/anmaumu/vp9_process/sbom/0.1.0",
-        "creationInfo": {"creators": ["Tool: mkvcodec-compliance-gate"], "created": "2026-08-29T00:00:00Z"},
+        "creationInfo": {
+            "creators": ["Tool: mkvcodec-compliance-gate"],
+            "created": "2026-08-29T00:00:00Z",
+        },
         "packages": packages,
     }
     output.parent.mkdir(parents=True, exist_ok=True)

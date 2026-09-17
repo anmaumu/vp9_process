@@ -20,23 +20,25 @@ class CollectionError(RuntimeError):
     """License source is missing, ambiguous, or does not match its lock."""
 
 
-def collect_locked(vcpkg_root: pathlib.Path, output: pathlib.Path) -> None:
+def collect_locked(
+    vcpkg_root: pathlib.Path,
+    output: pathlib.Path,
+    excluded_outputs: frozenset[str] = frozenset(),
+) -> None:
     lock = json.loads(LOCK.read_text(encoding="utf-8"))
     if lock.get("schema_version") != 1:
         raise CollectionError("unsupported license lock schema")
     output.mkdir(parents=True, exist_ok=True)
     for record in lock["files"]:
+        if record["output"] in excluded_outputs:
+            continue
         matches = list(vcpkg_root.glob(record["glob"]))
         if len(matches) != 1:
-            raise CollectionError(
-                f"{record['output']}: expected one source, found {len(matches)}"
-            )
+            raise CollectionError(f"{record['output']}: expected one source, found {len(matches)}")
         content = matches[0].read_bytes()
         actual = hashlib.sha256(content).hexdigest()
         if actual != record["sha256"]:
-            raise CollectionError(
-                f"{record['output']}: SHA-256 {actual} does not match lock"
-            )
+            raise CollectionError(f"{record['output']}: SHA-256 {actual} does not match lock")
         shutil.copyfile(matches[0], output / record["output"])
 
 
@@ -58,7 +60,7 @@ def collect_nvcodec(include: pathlib.Path, output: pathlib.Path) -> None:
     destination.write_text(heading + "\n\n---\n\n".join(blocks) + "\n", encoding="utf-8")
 
 
-def write_notices(output: pathlib.Path) -> None:
+def write_notices(output: pathlib.Path, excluded_components: frozenset[str] = frozenset()) -> None:
     manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
     lines = [
         "# Third-Party Notices",
@@ -70,18 +72,22 @@ def write_notices(output: pathlib.Path) -> None:
         "|---|---|---|---|---|",
     ]
     for component in manifest["components"]:
+        if component["name"] in excluded_components:
+            continue
         notices = ", ".join(f"[{name}]({name})" for name in component["required_notices"])
         lines.append(
             f"| {component['name']} | {component['version']} | "
             f"{component['distribution']} | {component['license']} | {notices or 'external dependency'} |"
         )
-    lines.extend([
-        "",
-        "Vendor GPU drivers and runtimes are system dependencies and are not redistributed.",
-        "Third-party names and marks are the property of their respective owners.",
-        "This project is not endorsed by the listed projects or vendors.",
-        "",
-    ])
+    lines.extend(
+        [
+            "",
+            "Vendor GPU drivers and runtimes are system dependencies and are not redistributed.",
+            "Third-party names and marks are the property of their respective owners.",
+            "This project is not endorsed by the listed projects or vendors.",
+            "",
+        ]
+    )
     (output / "THIRD_PARTY_NOTICES.md").write_text("\n".join(lines), encoding="utf-8")
 
 
@@ -90,11 +96,36 @@ def main() -> int:
     parser.add_argument("--vcpkg-root", required=True, type=pathlib.Path)
     parser.add_argument("--nvcodec-include", required=True, type=pathlib.Path)
     parser.add_argument("--output", required=True, type=pathlib.Path)
+    parser.add_argument(
+        "--exclude-component",
+        action="append",
+        default=[],
+        help="omit a component that is not linked into this platform artifact",
+    )
     args = parser.parse_args()
     try:
-        collect_locked(args.vcpkg_root, args.output)
+        excluded_components = frozenset(args.exclude_component)
+        manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+        known_components = {item["name"] for item in manifest["components"]}
+        unknown = excluded_components - known_components
+        if unknown:
+            raise CollectionError("unknown excluded component(s): " + ", ".join(sorted(unknown)))
+        excluded_candidates = frozenset(
+            notice
+            for item in manifest["components"]
+            if item["name"] in excluded_components
+            for notice in item["required_notices"]
+        )
+        retained_outputs = frozenset(
+            notice
+            for item in manifest["components"]
+            if item["name"] not in excluded_components
+            for notice in item["required_notices"]
+        )
+        excluded_outputs = excluded_candidates - retained_outputs
+        collect_locked(args.vcpkg_root, args.output, excluded_outputs)
         collect_nvcodec(args.nvcodec_include, args.output)
-        write_notices(args.output)
+        write_notices(args.output, excluded_components)
     except (CollectionError, OSError, json.JSONDecodeError) as error:
         print(f"license collection failed: {error}", file=sys.stderr)
         return 1

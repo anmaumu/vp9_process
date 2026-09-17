@@ -173,5 +173,6 @@
 - [x] dependency manifest、SPDX SBOM generator、source/artifact compliance gate foundation
 - [x] hash-locked LICENSE/PATENTS collectorとTHIRD_PARTY_NOTICES生成
 - [x] wheel/NuGetへのnative/legal/SBOM収録と実artifact gate
+- [x] 公式manylinux_2_28でのsource build、auditwheel show/repair/再検査、Python 3.9隔離import、CI artifact化
 - [x] Linux ASan/UBSan native test CI and bounded libFuzzer container campaign
 - [ ] project LICENSE確定、Windows artifact実build、release publication

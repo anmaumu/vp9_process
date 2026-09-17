@@ -1,0 +1,39 @@
+name: manylinux wheel
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "CMakeLists.txt"
+      - "cmake/**"
+      - "include/**"
+      - "src/**"
+      - "python/**"
+      - "tools/**"
+      - "packaging/manylinux/**"
+      - "third_party/**"
+      - "vcpkg.json"
+      - ".github/workflows/manylinux.yml"
+
+jobs:
+  build-audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: build/manylinux-cache
+          key: manylinux-2-28-${{ hashFiles('vcpkg.json', 'packaging/manylinux/**') }}
+      - name: Build and audit qualification wheel
+        run: >-
+          python3 tools/build_manylinux_wheel.py
+          --output build/manylinux-wheel
+          --cache build/manylinux-cache
+          --qualification-only
+      - uses: actions/upload-artifact@v4
+        with:
+          name: manylinux-wheel-qualification
+          path: build/manylinux-wheel
+          if-no-files-found: error
+

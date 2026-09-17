@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ctypes as ct
+from typing import Union
 
 import numpy as np
 
@@ -11,7 +12,11 @@ from .io_common import _plane_pointer
 from ..api.frame import U8Plane
 
 
-FrameInput = U8Plane | tuple[U8Plane, U8Plane] | tuple[U8Plane, U8Plane, U8Plane]
+FrameInput = Union[
+    U8Plane,
+    tuple[U8Plane, U8Plane],
+    tuple[U8Plane, U8Plane, U8Plane],
+]
 
 
 def _build_view(

@@ -395,6 +395,14 @@ delay-import directoryをboundedに解析する。basenameをcase-insensitiveに
 set/Python runtime以外の未解決import、重複basename、rootから到達不能な指定依存、malformed PEを
 pack前に拒否する。driverを明示loadするbackend設計はPE import閉包とは別にartifact禁止名で検査する。
 
+Linux x86-64 builderは公式PyPA `manylinux_2_28` imageをdigestで固定し、repositoryを
+read-only、outputとvcpkg cacheを別volumeとしてmountする。release-only static vcpkg
+tripletでOSS codec依存をCoreへlinkし、platform条件で実際に含まれないcomponentは
+legal noticeとSPDX SBOMの双方から同じartifact manifestを使って除外する。raw wheelを
+`auditwheel show`、`repair --plat manylinux_2_28_x86_64`、再`show`し、CPython 3.9と
+固定NumPyを用いた隔離importを最終gateとする。repository `LICENSE`がない通常buildは
+fail closedとし、明示したqualification buildだけsentinel licenseを許可する。
+
 ## 12. C ABI / Binding Rules
 
 Status: `PROPOSED`
@@ -437,7 +445,7 @@ Status: `CONFIRMED`
 - 外部GPU library内部のcopy/processingは本libraryの観測・保証範囲外である。
 - process強制終了時のcontainer finalizeを保証しない。
 - backend間の同一quality値は同一画質を保証しない。
-- MVPは映像1track、固定FPS中心、Python 3.12、x64のみ。
+- MVPは映像1track、固定FPS中心、Python 3.9以上、x64のみ。
 
 ## 16. Open Questions
 

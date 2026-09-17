@@ -15,12 +15,20 @@ from collections.abc import Sequence
 
 try:
     from .compliance_gate import (
-        inspect_artifact, load_manifest, validate_project_license, write_sbom,
+        filter_manifest,
+        inspect_artifact,
+        load_manifest,
+        validate_project_license,
+        write_sbom,
     )
     from .pe_dependencies import verify_pe_dependency_closure
 except ImportError:  # Direct script execution places tools/ on sys.path.
     from compliance_gate import (
-        inspect_artifact, load_manifest, validate_project_license, write_sbom,
+        filter_manifest,
+        inspect_artifact,
+        load_manifest,
+        validate_project_license,
+        write_sbom,
     )
     from pe_dependencies import verify_pe_dependency_closure
 
@@ -43,6 +51,7 @@ def build_wheel(
     dlpack_extension: pathlib.Path | None = None,
     native_dependencies: Sequence[pathlib.Path] = (),
     qualification_only: bool = False,
+    excluded_components: Sequence[str] = (),
 ) -> pathlib.Path:
     if not re.fullmatch(r"[A-Za-z0-9_.]+", platform_tag):
         raise ValueError("platform tag contains unsupported characters")
@@ -69,6 +78,7 @@ def build_wheel(
         roots = (native,) if dlpack_extension is None else (native, dlpack_extension)
         verify_pe_dependency_closure(roots, native_dependencies)
 
+    artifact_manifest = filter_manifest(load_manifest(), excluded_components)
     output_dir.mkdir(parents=True, exist_ok=True)
     python_tag, abi_tag = ("cp39", "abi3") if dlpack_extension else ("py3", "none")
     wheel = output_dir / f"{NAME}-{VERSION}-{python_tag}-{abi_tag}-{platform_tag}.whl"
@@ -106,7 +116,7 @@ def build_wheel(
             entries[f"{license_prefix}/{source.name}"] = source.read_bytes()
     sbom_path = legal_dir / "sbom.spdx.json"
     if not sbom_path.is_file():
-        write_sbom(sbom_path, load_manifest())
+        write_sbom(sbom_path, artifact_manifest)
         entries[f"{license_prefix}/{sbom_path.name}"] = sbom_path.read_bytes()
 
     record_name = f"{dist_info}/RECORD"
@@ -121,7 +131,7 @@ def build_wheel(
             archive.writestr(name, content)
     inspect_artifact(
         wheel,
-        load_manifest(),
+        artifact_manifest,
         allow_qualification=qualification_only,
         required_native_names=(item.name for item in native_files),
     )
@@ -136,17 +146,20 @@ def main() -> int:
     parser.add_argument("--output-dir", required=True, type=pathlib.Path)
     parser.add_argument("--platform-tag", required=True)
     parser.add_argument("--dlpack-extension", type=pathlib.Path)
-    parser.add_argument(
-        "--native-dependency", action="append", default=[], type=pathlib.Path
-    )
+    parser.add_argument("--native-dependency", action="append", default=[], type=pathlib.Path)
     parser.add_argument("--qualification-only", action="store_true")
+    parser.add_argument("--exclude-component", action="append", default=[])
     args = parser.parse_args()
     wheel = build_wheel(
-        args.native, args.legal_dir, args.project_license, args.output_dir,
+        args.native,
+        args.legal_dir,
+        args.project_license,
+        args.output_dir,
         args.platform_tag,
         args.dlpack_extension,
         args.native_dependency,
         args.qualification_only,
+        args.exclude_component,
     )
     print(wheel)
     return 0

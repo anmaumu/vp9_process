@@ -23,6 +23,12 @@ class ComplianceGateTests(unittest.TestCase):
             self.assertEqual(data["spdxVersion"], "SPDX-2.3")
             self.assertEqual(len(data["packages"]), len(self.manifest["components"]))
 
+    def test_artifact_manifest_exclusion_is_validated(self):
+        filtered = compliance_gate.filter_manifest(self.manifest, ("Highway",))
+        self.assertNotIn("Highway", {component["name"] for component in filtered["components"]})
+        with self.assertRaisesRegex(compliance_gate.GateError, "unknown excluded"):
+            compliance_gate.filter_manifest(self.manifest, ("not-a-component",))
+
     def test_artifact_rejects_vendor_driver(self):
         with tempfile.TemporaryDirectory() as temporary:
             artifact = pathlib.Path(temporary) / "bad.whl"
@@ -56,7 +62,15 @@ class ComplianceGateTests(unittest.TestCase):
                 archive.writestr(prefix + "THIRD_PARTY_NOTICES.md", "notices")
                 archive.writestr(
                     prefix + "sbom.spdx.json",
-                    json.dumps({"spdxVersion": "SPDX-2.3", "packages": []}),
+                    json.dumps(
+                        {
+                            "spdxVersion": "SPDX-2.3",
+                            "packages": [
+                                {"name": component["name"]}
+                                for component in self.manifest["components"]
+                            ],
+                        }
+                    ),
                 )
                 for notice in notices:
                     archive.writestr(prefix + notice, "text")
@@ -75,9 +89,7 @@ class ComplianceGateTests(unittest.TestCase):
             (artifact / "QUALIFICATION_ONLY.txt").write_text(
                 "not for publication\n", encoding="utf-8"
             )
-            with self.assertRaisesRegex(
-                compliance_gate.GateError, "qualification-only"
-            ):
+            with self.assertRaisesRegex(compliance_gate.GateError, "qualification-only"):
                 compliance_gate.inspect_artifact(artifact, self.manifest)
 
     def test_qualification_license_cannot_be_used_for_release(self):
@@ -86,13 +98,9 @@ class ComplianceGateTests(unittest.TestCase):
             license_path.write_bytes(
                 compliance_gate.QUALIFICATION_LICENSE_SENTINEL + b"\nfixture\n"
             )
-            with self.assertRaisesRegex(
-                compliance_gate.GateError, "qualification-only"
-            ):
+            with self.assertRaisesRegex(compliance_gate.GateError, "qualification-only"):
                 compliance_gate.validate_project_license(license_path)
-            compliance_gate.validate_project_license(
-                license_path, qualification_only=True
-            )
+            compliance_gate.validate_project_license(license_path, qualification_only=True)
 
 
 if __name__ == "__main__":

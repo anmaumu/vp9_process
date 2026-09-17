@@ -23,7 +23,7 @@
     {"domain": "PY", "ids": ["EXT-PY-001"], "acceptance": ["AC-ABI-001"], "internal": ["INT-PY-001", "INT-PY-002"], "tests": ["TEST-PY-001", "TEST-PY-002"]},
     {"domain": "CS", "ids": ["EXT-CS-001", "EXT-CS-002", "EXT-CS-003", "EXT-CS-004"], "acceptance": ["AC-ABI-001"], "internal": ["INT-CS-001"], "tests": ["TEST-CS-001"]},
     {"domain": "ERR", "ids": ["EXT-ERR-001", "EXT-ERR-002", "EXT-ERR-003", "EXT-ERR-004", "EXT-ERR-005", "EXT-ERR-006"], "acceptance": ["AC-ERR-001"], "internal": ["INT-ERR-001", "INT-ERR-002", "INT-ERR-003", "INT-ERR-004", "INT-ERR-005", "INT-ERR-006", "INT-ERR-007", "INT-ERR-008"], "tests": ["TEST-ERR-001", "TEST-ERR-002", "TEST-ABI-002", "TEST-ABI-003"]},
-    {"domain": "PKG", "ids": ["EXT-PKG-001", "EXT-PKG-002", "EXT-PKG-003", "EXT-PKG-004", "EXT-PKG-005", "EXT-PKG-006"], "acceptance": ["AC-PKG-001"], "internal": ["INT-SEC-006", "INT-NV-001"], "tests": ["TEST-PKG-001", "TEST-PKG-002", "TEST-PKG-003", "TEST-PKG-004", "TEST-PKG-005"]}
+    {"domain": "PKG", "ids": ["EXT-PKG-001", "EXT-PKG-002", "EXT-PKG-003", "EXT-PKG-004", "EXT-PKG-005", "EXT-PKG-006", "EXT-PKG-007"], "acceptance": ["AC-PKG-001"], "internal": ["INT-SEC-006", "INT-NV-001"], "tests": ["TEST-PKG-001", "TEST-PKG-002", "TEST-PKG-003", "TEST-PKG-004", "TEST-PKG-005", "TEST-PKG-006"]}
   ],
   "acceptance_criteria": [
     "AC-SYS-001", "AC-CONT-001", "AC-CODEC-001", "AC-CODEC-002", "AC-CODEC-003",

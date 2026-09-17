@@ -1,5 +1,18 @@
 # Implementation history
 
+## 2026-09-18: Official manylinux build and auditwheel qualification
+
+The Linux x86-64 Core wheel is now rebuilt from source in a digest-pinned official
+PyPA `manylinux_2_28` image. The pipeline uses a release-only static vcpkg triplet,
+creates an artifact-specific legal/SBOM payload, runs `auditwheel show`, repairs the
+wheel, audits it again, then installs it with NumPy into an isolated CPython 3.9
+target and imports the public package. The measured wheel satisfies
+`manylinux_2_27_x86_64` as well as the requested `manylinux_2_28_x86_64` tag.
+The qualification also found and fixed one runtime-evaluated Python 3.9 type alias.
+Intel's SYCL bridge remains outside the generic Core wheel because its `libsycl` and
+Level Zero ABI must match the target GPU runtime; it continues as a companion
+artifact rather than being falsely certified through an auditwheel exclusion.
+
 この文書は仕様の正本を変更せず、実装・検証の時系列記録を保持する。
 同じ機能について複数の記録がある場合は、上にある新しい日付の記録を
 現行状態として扱う。`PARTIAL`、`pending`、`unimplemented`などの表現は、

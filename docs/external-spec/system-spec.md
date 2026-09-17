@@ -31,7 +31,7 @@ Status: `CONFIRMED`
 - `EXT-CONT-001`: `.mkv`と`.webm`の映像1trackをread/writeできる。入力時は最初の対応映像trackからVP9/AV1を自動判別し、decoder生成を伴わないprobe APIでcodec、coded width/height、nominal fps、duration、frame countを取得できる。不明な値は既定値で偽装せず、known flagまたは`None`で表す。正確なframe count取得はpixel decodeを行わないが、対象trackのBlock metadataを末尾まで走査する。
 - `EXT-CODEC-001`: VP9をdecode/encodeできる。
 - `EXT-CODEC-002`: AV1をdecode/encodeできる。
-- `EXT-PY-001`: Python 3.12向けAPIを提供する。
+- `EXT-PY-001`: Python 3.9以上向けAPIを提供し、native extensionはCPython limited APIの`cp39-abi3`を使用する。
 - `EXT-ABI-001`: Python/C#から共有可能なC ABIを提供する。
 - `EXT-CS-001`: C# P/Invokeを初期からsmoke testし、後続phaseで高水準APIを提供する。
 - `EXT-BACK-001`: CPU、Intel GPU、NVIDIA GPUを実行時に列挙・選択できる。
@@ -425,6 +425,7 @@ Status: `CONFIRMED`
 - `EXT-PKG-004`: artifactにLICENSE、PATENTS、THIRD_PARTY_NOTICES、SBOMを収録する。
 - `EXT-PKG-005`: `MKVCodec`は作業名とし、商用公開前にMatroska名称利用確認またはneutral brandへの変更を行う。
 - `EXT-PKG-006`: 詳細なGo/No-Goは`LICENSE_POLICY.md`に従う。
+- `EXT-PKG-007`: Linux x86-64 Core wheelはdigest固定した公式PyPA `manylinux_2_28` image内でsource buildし、`auditwheel show`/`repair`/再検査とPython 3.9隔離importを通す。より互換性の高いtagが算出された場合は併記を許可する。
 
 wheel/NuGetはCoreだけでなく、Coreまたはbinding extensionが動的linkする非system
 native libraryも同一packageのruntime検索位置へ収録する。project license決定前に
@@ -432,6 +433,8 @@ native libraryも同一packageのruntime検索位置へ収録する。project li
 release gateでは受理しない。Windows artifact生成時はCoreとnative bindingをrootに
 PE32/PE32+の通常importおよびdelay-load importを再帰走査し、全非system DLLがpackage内で
 解決すること、指定した依存DLLがいずれかのrootから到達可能であることを必須とする。
+Linux Core wheelにはGPU vendor driver/runtimeおよびIntel SYCL bridgeを含めない。後者は
+`libsycl`/Level Zero runtime ABIに対応する別companion artifactとして検査する。
 
 ## 10. Acceptance Criteria
 

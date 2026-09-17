@@ -266,6 +266,7 @@ post-close `drm-resident-vram0` high-water増分は4,259,840 bytesであった�
 | `TEST-PKG-003` | dependency version/source/license hashをallowlist照合 | release | packaging CI |
 | `TEST-PKG-004` | H.264/HEVC symbol/GUID/config混入scan | release | packaging CI |
 | `TEST-PKG-005` | endorsementを示唆するlogo/文言がない | review/scan | release CI |
+| `TEST-PKG-006` | digest固定した公式manylinux_2_28 x86-64 imageでCore/abi3 extensionをsource buildし、raw wheelのshow、repair、repaired wheelのshowを通す。vendor runtime/SYCL bridgeが混入せず、artifact固有notice/SBOMが一致し、Python 3.9＋NumPyの隔離環境でimportとcapability列挙が成功する | build/integration/release | manylinux CI |
 
 project license未決定時の実artifact試験はqualification-only marker付きでのみ許可する。
 同じartifactを通常のrelease inspectionへ渡した場合に拒否されることも検証する。
